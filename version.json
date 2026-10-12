@@ -1,6 +1,6 @@
 {
-  "version": "1.0.15",
-  "versionCode": 15,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.15/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.15\n• E-Katalog Stok Giriş - Çıkış Analizi entegre edildi.\n• Şube bazlı canlı stoklar, dönem devir ve net fark hesabı, son 60 hareket dökümü eklendi.\n• Kategori & Grup ve Sorumluluk Merkezi (Temsilci/Plasiyer) satış analizi eklendi.\n• Mal kabul geliş tarihine göre günlük ürün erime hızı ve tahmini tükenme süresi eklendi.\n• Excel ve PDF dışa aktarma motoru geliştirildi."
+  "version": "1.0.16",
+  "versionCode": 16,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.16/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.16\n• Sayım ve Sevk modülünde 'Açıklama / Not' alanı eklendi (Örn: 20 adet sayıldı, 3 adeti arızalı).\n• Hızlı durum etiketleri (⚠️ Arızalı, 📦 Kutu Hasarlı, 🔍 Eksik Parça, 🏷️ Etiketsiz, ✨ Teşhir) eklendi.\n• Sepet ekranında her kalem için not düzenleme ve silme desteği getirildi.\n• Excel dışa aktarımına 'Açıklama / Not' sütunu eklendi.\n• Mikro ERP aktarımında sayım ve sevk açıklamaları entegre edildi."
 }

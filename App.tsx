@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.15';
-const CURRENT_VERSION_CODE = 15;
+const CURRENT_VERSION = '1.0.16';
+const CURRENT_VERSION_CODE = 16;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -209,6 +209,10 @@ export default function App() {
   const [activeCart, setActiveCart] = useState<any[]>([]);
   const [isShowingCart, setIsShowingCart] = useState(false);
   const [countInput, setCountInput] = useState('1');
+  const [countDescription, setCountDescription] = useState('');
+  const [showDescModal, setShowDescModal] = useState(false);
+  const [editingItemForDesc, setEditingItemForDesc] = useState<any>(null);
+  const [editDescInput, setEditDescInput] = useState('');
   const [cartSearchQuery, setCartSearchQuery] = useState('');
   const [autoSync, setAutoSync] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -737,7 +741,7 @@ export default function App() {
         setSearchResults([]);
         if (result.stock_code && result.stock_code !== '---') fetchDepoStok(result.stock_code);
         setCountInput('1');
-        setCountInput('1');
+        setCountDescription('');
       } else {
         playSound('error');
         setProduct({ barcode: data, name: 'Ürün Bulunamadı', stock_code: '---', price: 0, currency: '', unit: '---' });
@@ -779,6 +783,7 @@ export default function App() {
     setDepoStoklar([]);
     setShowDepoStok(false);
     setCountInput('1');
+    setCountDescription('');
     if (item.stock_code && item.stock_code !== '---') fetchDepoStok(item.stock_code);
   };
 
@@ -970,8 +975,36 @@ export default function App() {
     if (existingIndex >= 0) {
       Alert.alert("Ürün Mevcut", `Bu üründen ${newCart[existingIndex].quantity} adet eklendi. Üzerine ekleyelim mi?`, [
         { text: "İptal", style: "cancel" },
-        { text: "Üzerine Ekle", onPress: () => { newCart[existingIndex].quantity += quantity; saveCartToStorage(newCart); ToastAndroid.show("Eklendi!", ToastAndroid.SHORT); setCountInput('1'); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } } },
-        { text: "Yeniden Yaz (Ez)", onPress: () => { newCart[existingIndex].quantity = quantity; saveCartToStorage(newCart); ToastAndroid.show("Güncellendi!", ToastAndroid.SHORT); setCountInput('1'); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } } }
+        { text: "Üzerine Ekle", onPress: () => { 
+            newCart[existingIndex].quantity += quantity; 
+            if (countDescription.trim()) {
+              newCart[existingIndex].description = newCart[existingIndex].description 
+                ? `${newCart[existingIndex].description}; ${countDescription.trim()}`
+                : countDescription.trim();
+            }
+            saveCartToStorage(newCart); 
+            ToastAndroid.show("Eklendi!", ToastAndroid.SHORT); 
+            setCountInput('1'); 
+            setCountDescription('');
+            setProduct(null); 
+            setScanned(false); 
+            if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } 
+          } 
+        },
+        { text: "Yeniden Yaz (Ez)", onPress: () => { 
+            newCart[existingIndex].quantity = quantity; 
+            if (countDescription.trim()) {
+              newCart[existingIndex].description = countDescription.trim();
+            }
+            saveCartToStorage(newCart); 
+            ToastAndroid.show("Güncellendi!", ToastAndroid.SHORT); 
+            setCountInput('1'); 
+            setCountDescription('');
+            setProduct(null); 
+            setScanned(false); 
+            if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } 
+          } 
+        }
       ]);
     } else {
       const isSevk = appMode === 'sevk';
@@ -985,11 +1018,13 @@ export default function App() {
         target_depo_adi: isSevk ? sevkTargetDepo.depo_adi : null,
         is_sevk: isSevk,
         quantity: quantity, 
+        description: countDescription.trim(),
         added_at: new Date().toISOString() 
       });
       saveCartToStorage(newCart);
       ToastAndroid.show("Sepete eklendi!", ToastAndroid.SHORT);
       setCountInput('1');
+      setCountDescription('');
       setProduct(null);
       setScanned(false);
       if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); }
@@ -1029,7 +1064,18 @@ export default function App() {
 
       if (!isSevk) {
         const wb = XLSX.utils.book_new();
-        const excelData = activeCart.map((item, index) => ({ 'Sıra': index + 1, 'Barkod': item.barcode, 'Stok Kodu': item.stock_code, 'Ürün Adı': item.name, 'Depo No': item.depo_no, 'Depo Adı': item.depo_adi, 'Sayım Adedi': item.quantity, 'Sayan Kişi': userName, 'Tarih': new Date(item.added_at).toLocaleString('tr-TR') }));
+        const excelData = activeCart.map((item, index) => ({ 
+          'Sıra': index + 1, 
+          'Barkod': item.barcode, 
+          'Stok Kodu': item.stock_code, 
+          'Ürün Adı': item.name, 
+          'Depo No': item.depo_no, 
+          'Depo Adı': item.depo_adi, 
+          'Sayım Adedi': item.quantity, 
+          'Açıklama / Not': item.description || '',
+          'Sayan Kişi': userName, 
+          'Tarih': new Date(item.added_at).toLocaleString('tr-TR') 
+        }));
         const ws = XLSX.utils.json_to_sheet(excelData);
         XLSX.utils.book_append_sheet(wb, ws, "Sayım");
         const wbout = XLSX.write(wb, { type: 'base64', bookType: "xlsx" });
@@ -1129,7 +1175,7 @@ export default function App() {
           ) VALUES (
               NEWID(), 0, 0, 0, 28, 0, 0, 0, 0,
               ${parseInt(mikroUserNo) || 7}, ${sqlDateTime}, ${parseInt(mikroUserNo) || 7}, ${sqlDateTime},
-              'MOBIL', '', '',
+              'MOBIL', '${(item.description || '').replace(/'/g, "''").substring(0, 50)}', '',
               ${sqlDateTarihYaliniz}, ${item.depo_no}, ${targetEvrakNo}, ${index + 1},
               '${item.stock_code}', '0', '0', '0',
               ${item.quantity.toString().replace(',', '.')}, 0, 0, 0, 0,
@@ -1965,25 +2011,63 @@ export default function App() {
               autoCapitalize="characters"
             />
             <FlatList data={activeCart.filter(item => item.name.toLowerCase().includes(cartSearchQuery.toLowerCase()) || item.stock_code.toLowerCase().includes(cartSearchQuery.toLowerCase()) || (item.barcode && item.barcode.includes(cartSearchQuery)))} keyExtractor={item => item.stock_code} renderItem={({ item }) => (
-              <View style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: isDark ? '#333' : '#ccc', flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: 'bold' }}>{item.name}</Text>
-                  <Text style={{ color: '#888', fontSize: 12 }}>{appMode === 'sevk' ? `Çıkış: ${item.depo_adi} -> Giriş: ${item.target_depo_adi}` : `Depo: ${item.depo_adi}`}</Text>
+              <View style={{ paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: isDark ? '#333' : '#E2E8F0' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: 'bold', fontSize: 14 }}>{item.name}</Text>
+                    <Text style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{appMode === 'sevk' ? `Çıkış: ${item.depo_adi} -> Giriş: ${item.target_depo_adi}` : `Depo: ${item.depo_adi}`}</Text>
+                  </View>
+                  <TextInput
+                    style={{ color: appMode === 'sevk' ? '#FF6B00' : '#10B981', fontSize: 17, fontWeight: 'bold', marginRight: 10, minWidth: 50, textAlign: 'center', backgroundColor: isDark ? '#333' : '#eee', borderRadius: 8, padding: 6 }}
+                    keyboardType="numeric"
+                    value={String(item.quantity)}
+                    onChangeText={(val) => {
+                      const num = parseFloat(val);
+                      setActiveCart(prev => {
+                        const updated = prev.map(c => c.stock_code === item.stock_code ? { ...c, quantity: isNaN(num) ? '' : num } : c);
+                        AsyncStorage.setItem('sayim_cart', JSON.stringify(updated));
+                        return updated as any[];
+                      });
+                    }}
+                  />
+                  <TouchableOpacity onPress={() => saveCartToStorage(activeCart.filter(c => c.stock_code !== item.stock_code))} style={{ padding: 4 }}>
+                    <Ionicons name='trash' size={22} color='#EF4444' />
+                  </TouchableOpacity>
                 </View>
-                <TextInput
-                  style={{ color: appMode === 'sevk' ? '#FF6B00' : '#10B981', fontSize: 18, fontWeight: 'bold', marginRight: 15, minWidth: 50, textAlign: 'center', backgroundColor: isDark ? '#333' : '#eee', borderRadius: 8, padding: 5 }}
-                  keyboardType="numeric"
-                  value={String(item.quantity)}
-                  onChangeText={(val) => {
-                    const num = parseFloat(val);
-                    setActiveCart(prev => {
-                      const updated = prev.map(c => c.stock_code === item.stock_code ? { ...c, quantity: isNaN(num) ? '' : num } : c);
-                      AsyncStorage.setItem('sayim_cart', JSON.stringify(updated));
-                      return updated as any[];
-                    });
-                  }}
-                />
-                <TouchableOpacity onPress={() => saveCartToStorage(activeCart.filter(c => c.stock_code !== item.stock_code))}><Ionicons name='trash' size={24} color='#EF4444' /></TouchableOpacity>
+
+                {/* AÇIKLAMA / NOT ROZETİ VE DÜZENLEME BUTONU */}
+                <View style={{ marginTop: 6, paddingTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {item.description ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingItemForDesc(item);
+                        setEditDescInput(item.description || '');
+                        setShowDescModal(true);
+                      }}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255, 107, 0, 0.15)' : 'rgba(255, 107, 0, 0.10)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#FF6B00' }}
+                    >
+                      <Ionicons name="chatbubble-ellipses" size={13} color="#FF6B00" style={{ marginRight: 5 }} />
+                      <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={2}>
+                        {item.description}
+                      </Text>
+                      <Ionicons name="create-outline" size={13} color="#FF6B00" style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingItemForDesc(item);
+                        setEditDescInput('');
+                        setShowDescModal(true);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2 }}
+                    >
+                      <Ionicons name="add-circle-outline" size={14} color="#3B82F6" />
+                      <Text style={{ fontSize: 11, color: '#3B82F6', fontWeight: '700' }}>
+                        + Not / Açıklama Ekle (Örn: 3 adeti arızalı)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )} />
             <TouchableOpacity style={{ backgroundColor: appMode === 'sevk' ? '#FF6B00' : '#10B981', padding: 20, borderRadius: 20, alignItems: 'center' }} onPress={generateAndSendExcel}>
@@ -2304,6 +2388,54 @@ export default function App() {
                           >
                             <Text style={[styles.quickPillText, { color: styles.colors.secondary }]}>x24</Text>
                           </TouchableOpacity>
+                        </View>
+
+                        {/* SAYIM NOTU / AÇIKLAMA GİRİŞİ */}
+                        <View style={styles.descInputContainer}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Ionicons name="chatbubble-ellipses-outline" size={15} color="#FF6B00" />
+                              <Text style={{ fontSize: 12, fontWeight: '800', color: styles.colors.text }}>
+                                Sayım Notu / Açıklama (Opsiyonel)
+                              </Text>
+                            </View>
+                            {countDescription.length > 0 && (
+                              <TouchableOpacity onPress={() => setCountDescription('')}>
+                                <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: 'bold' }}>Temizle</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          <TextInput
+                            style={[styles.descInputField, { backgroundColor: styles.colors.cardLow, borderColor: styles.colors.border, color: styles.colors.text }]}
+                            placeholder="Örn: 20 adet sayıldı, 3 adeti arızalı / kutu hasarlı..."
+                            placeholderTextColor={styles.colors.textMuted}
+                            value={countDescription}
+                            onChangeText={setCountDescription}
+                          />
+
+                          {/* Hızlı Açıklama Etiketleri */}
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
+                            {[
+                              '⚠️ 1 Adet Arızalı',
+                              '⚠️ 2 Adet Arızalı',
+                              '⚠️ 3 Adet Arızalı',
+                              '📦 Kutu Hasarlı',
+                              '🔍 Eksik Parça',
+                              '🏷️ Etiketsiz',
+                              '✨ Teşhir Ürünü'
+                            ].map((tag, tIdx) => (
+                              <TouchableOpacity
+                                key={tIdx}
+                                style={[styles.quickTagBtn, { backgroundColor: styles.colors.cardLow, borderColor: styles.colors.border }]}
+                                onPress={() => {
+                                  setCountDescription(prev => prev ? `${prev}, ${tag}` : tag);
+                                }}
+                              >
+                                <Text style={[styles.quickTagText, { color: styles.colors.text }]}>{tag}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
                         </View>
 
                         {/* Giant Emerald Commit Button */}
@@ -2879,6 +3011,109 @@ export default function App() {
                 ) : (
                   <Text style={[styles.buttonText, { color: '#fff' }]}>MİKRO'YA KAYDET</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* SEPET ÜRÜN AÇIKLAMA / NOT DÜZENLEME MODAL */}
+      <Modal
+        isVisible={showDescModal}
+        onBackdropPress={() => { setShowDescModal(false); setEditingItemForDesc(null); }}
+        backdropOpacity={0.7}
+        avoidKeyboard={true}
+        style={styles.modal}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="chatbubble-ellipses" size={22} color="#FF6B00" />
+                <Text style={styles.modalTitle}>Sayım Notu / Açıklama</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setShowDescModal(false); setEditingItemForDesc(null); }}>
+                <Ionicons name="close-circle" size={28} color="#8a9ab5" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginBottom: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', padding: 12, borderRadius: 14 }}>
+              <Text style={{ color: '#8a9ab5', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                ÜRÜN: <Text style={{ color: isDark ? '#fff' : '#000' }}>{editingItemForDesc?.name}</Text>
+              </Text>
+              <Text style={{ color: '#8a9ab5', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                STOK KODU: <Text style={{ color: isDark ? '#fff' : '#000' }}>{editingItemForDesc?.stock_code}</Text>
+              </Text>
+            </View>
+
+            <TextInput
+              style={[styles.modalInput, { height: 90, marginBottom: 8, fontSize: 14 }]}
+              placeholder="Örn: 20 adet sayıldı, 3 adeti arızalı / ambalaj yırtık..."
+              placeholderTextColor="#8a9ab5"
+              multiline
+              maxLength={100}
+              value={editDescInput}
+              onChangeText={setEditDescInput}
+              autoFocus={true}
+            />
+
+            {/* Hızlı Açıklama Etiketleri */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 16 }}>
+              {[
+                '⚠️ 1 Adet Arızalı',
+                '⚠️ 2 Adet Arızalı',
+                '⚠️ 3 Adet Arızalı',
+                '📦 Kutu Hasarlı',
+                '🔍 Eksik Parça',
+                '🏷️ Etiketsiz',
+                '✨ Teşhir Ürünü'
+              ].map((tag, tIdx) => (
+                <TouchableOpacity
+                  key={tIdx}
+                  style={[styles.quickTagBtn, { backgroundColor: isDark ? '#333' : '#f1f5f9', borderColor: isDark ? '#444' : '#cbd5e1' }]}
+                  onPress={() => {
+                    setEditDescInput(prev => prev ? `${prev}, ${tag}` : tag);
+                  }}
+                >
+                  <Text style={[styles.quickTagText, { color: isDark ? '#fff' : '#1e293b' }]}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {editDescInput.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.modalBtn, { flex: 1, backgroundColor: '#EF4444' }]}
+                  onPress={() => {
+                    if (editingItemForDesc) {
+                      const updated = activeCart.map(c => c.stock_code === editingItemForDesc.stock_code ? { ...c, description: '' } : c);
+                      saveCartToStorage(updated);
+                    }
+                    setShowDescModal(false);
+                    setEditingItemForDesc(null);
+                  }}
+                >
+                  <Text style={styles.buttonText}>NOTU SİL</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.modalBtn, { flex: 1, backgroundColor: '#64748B' }]}
+                onPress={() => { setShowDescModal(false); setEditingItemForDesc(null); }}
+              >
+                <Text style={styles.buttonText}>VAZGEÇ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { flex: 1.5, backgroundColor: '#10B981' }]}
+                onPress={() => {
+                  if (editingItemForDesc) {
+                    const updated = activeCart.map(c => c.stock_code === editingItemForDesc.stock_code ? { ...c, description: editDescInput.trim() } : c);
+                    saveCartToStorage(updated);
+                  }
+                  setShowDescModal(false);
+                  setEditingItemForDesc(null);
+                }}
+              >
+                <Text style={[styles.buttonText, { color: '#fff' }]}>KAYDET</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3965,7 +4200,11 @@ const getStyles = (isDark: boolean) => {
     depoStokToplamLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
     depoStokToplamValue: { color: colors.success, fontSize: 16, fontWeight: '900' },
     noInternetWarning: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warningSoft, borderRadius: 14, padding: 14, marginBottom: 16 },
-    noInternetText: { color: colors.warning, fontSize: 13, fontWeight: '700', marginLeft: 8 }
+    noInternetText: { color: colors.warning, fontSize: 13, fontWeight: '700', marginLeft: 8 },
+    descInputContainer: { marginTop: 12, marginBottom: 8 },
+    descInputField: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, borderWidth: 1 },
+    quickTagBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+    quickTagText: { fontSize: 11, fontWeight: '700' }
   });
 
   return { ...sheet, colors };
