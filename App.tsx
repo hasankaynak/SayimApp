@@ -323,6 +323,11 @@ export default function App() {
 
       setProduct((prev: any) => prev ? { ...prev, name: trimmed, name_normalized: normalizeText(trimmed) } : null);
       setSearchResults((prev: any[]) => prev.map(p => p.stock_code === product.stock_code ? { ...p, name: trimmed, name_normalized: normalizeText(trimmed) } : p));
+      setActiveCart((prev: any[]) => {
+        const updated = prev.map(item => item.stock_code === product.stock_code ? { ...item, name: trimmed } : item);
+        saveCartToStorage(updated);
+        return updated;
+      });
 
       setEditNameModalVisible(false);
       Alert.alert('Başarılı', 'Ürün ismi Mikro ve telefonda güncellendi.');
