@@ -39,8 +39,49 @@ export default function ReportsView({
   onBackToMenu,
   formatPrice
 }: ReportsViewProps) {
-  const [activeTab, setActiveTab] = useState<'gelis' | 'fatura' | 'satis'>('gelis');
+  const [activeTab, setActiveTab] = useState<'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som'>('stok_analiz');
   const [isExporting, setIsExporting] = useState(false);
+
+  // ----------------------------------------------------
+  // TAB: STOK GİRİŞ - ÇIKIŞ ANALİZİ (E-KATALOG ENTEGRASYONU)
+  // ----------------------------------------------------
+  const [stokStartDate, setStokStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
+  const [stokEndDate, setStokEndDate] = useState<Date>(() => new Date());
+  const [showStokStartPicker, setShowStokStartPicker] = useState(false);
+  const [showStokEndPicker, setShowStokEndPicker] = useState(false);
+  const [stokSelectedDepo, setStokSelectedDepo] = useState<number>(0);
+  const [stokFilterQuery, setStokFilterQuery] = useState('');
+  const [stokChipFilter, setStokChipFilter] = useState<'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'HAS_IN' | 'HAS_OUT'>('ALL');
+  const [stokData, setStokData] = useState<any[]>([]);
+  const [isLoadingStok, setIsLoadingStok] = useState(false);
+
+  // Accordion & Detaylı Hareketler
+  const [expandedSku, setExpandedSku] = useState<string | null>(null);
+  const [depotStocksMap, setDepotStocksMap] = useState<Record<string, any[]>>({});
+  const [isLoadingDepotStocks, setIsLoadingDepotStocks] = useState(false);
+  const [movementsMap, setMovementsMap] = useState<Record<string, any[]>>({});
+  const [isLoadingMovements, setIsLoadingMovements] = useState(false);
+
+  // ----------------------------------------------------
+  // TAB: KATEGORİ & SORUMLULUK MERKEZİ ANALİZİ
+  // ----------------------------------------------------
+  const [grupSomSubTab, setGrupSomSubTab] = useState<'grup' | 'som'>('grup');
+  const [grupStartDate, setGrupStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
+  const [grupEndDate, setGrupEndDate] = useState<Date>(() => new Date());
+  const [showGrupStartPicker, setShowGrupStartPicker] = useState(false);
+  const [showGrupEndPicker, setShowGrupEndPicker] = useState(false);
+  const [grupData, setGrupData] = useState<any[]>([]);
+  const [isLoadingGrup, setIsLoadingGrup] = useState(false);
+  const [somData, setSomData] = useState<any[]>([]);
+  const [isLoadingSom, setIsLoadingSom] = useState(false);
 
   // ----------------------------------------------------
   // TAB 1: GELİŞ TARİHİNE GÖRE RAPOR STATE
@@ -180,6 +221,226 @@ export default function ReportsView({
     };
     fetchDepolar();
   }, [API_URL]);
+
+  // ----------------------------------------------------
+  // TAB STOK ANALİZ ACTIONS: Stok Giriş / Çıkış Özeti & Detayı
+  // ----------------------------------------------------
+  const fetchStokHareketOzeti = async (overrideChip?: 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'HAS_IN' | 'HAS_OUT') => {
+    if (!isConnected) {
+      ToastAndroid.show('İnternet bağlantısı yok!', ToastAndroid.SHORT);
+      return;
+    }
+    setIsLoadingStok(true);
+    setStokData([]);
+    try {
+      const dStart = toYMD(stokStartDate);
+      const dEnd = toYMD(stokEndDate);
+      const depoCondition = stokSelectedDepo > 0 ? `AND (h.sth_cikis_depo_no = ${stokSelectedDepo} OR h.sth_giris_depo_no = ${stokSelectedDepo})` : '';
+
+      let searchCondition = '';
+      if (stokFilterQuery && stokFilterQuery.trim().length > 0) {
+        const clean = stokFilterQuery.trim().replace(/'/g, "''");
+        searchCondition = `AND (h.sth_stok_kod LIKE '%${clean}%' OR s.sto_isim LIKE '%${clean}%')`;
+      }
+
+      const activeChip = overrideChip || stokChipFilter;
+      let havingClause = '';
+      if (activeChip === 'IN_STOCK') {
+        havingClause = 'HAVING ISNULL(dbo.fn_EldekiMiktar(h.sth_stok_kod), 0) > 0';
+      } else if (activeChip === 'OUT_OF_STOCK') {
+        havingClause = 'HAVING ISNULL(dbo.fn_EldekiMiktar(h.sth_stok_kod), 0) <= 0';
+      } else if (activeChip === 'HAS_IN') {
+        havingClause = 'HAVING SUM(CASE WHEN h.sth_tip = 0 THEN h.sth_miktar ELSE 0 END) > 0';
+      } else if (activeChip === 'HAS_OUT') {
+        havingClause = 'HAVING SUM(CASE WHEN h.sth_tip = 1 THEN h.sth_miktar ELSE 0 END) > 0';
+      }
+
+      const q = `
+        SELECT TOP 150
+          h.sth_stok_kod as StokKodu,
+          ISNULL(s.sto_isim, h.sth_stok_kod) as UrunAdi,
+          ISNULL(sf.sfiyat_fiyati, 0) as Fiyat,
+          CONVERT(varchar, MIN(h.sth_tarih), 23) as GirisTarihi,
+          CONVERT(varchar, MAX(h.sth_tarih), 23) as SonHareketTarihi,
+          SUM(CASE WHEN h.sth_tip = 0 THEN h.sth_miktar ELSE 0 END) as GirisAdedi,
+          SUM(CASE WHEN h.sth_tip = 1 THEN h.sth_miktar ELSE 0 END) as CikisAdedi,
+          ISNULL(dbo.fn_EldekiMiktar(h.sth_stok_kod), 0) as KalanAdet
+        FROM STOK_HAREKETLERI h WITH (NOLOCK)
+        INNER JOIN STOKLAR s WITH (NOLOCK) ON s.sto_kod = h.sth_stok_kod
+        LEFT OUTER JOIN STOK_SATIS_FIYAT_LISTELERI sf WITH (NOLOCK) ON sf.sfiyat_stokkod = h.sth_stok_kod AND sf.sfiyat_listesirano = 1
+        WHERE h.sth_tarih >= '${dStart}' AND h.sth_tarih <= '${dEnd}'
+          ${depoCondition}
+          ${searchCondition}
+        GROUP BY h.sth_stok_kod, s.sto_isim, sf.sfiyat_fiyati
+        ${havingClause}
+        ORDER BY KalanAdet DESC
+      `;
+      const res = await axios.post(API_URL, { query: q }, { timeout: 18000 });
+      if (res.data && res.data.success && Array.isArray(res.data.data)) {
+        setStokData(res.data.data);
+        if (res.data.data.length === 0) {
+          ToastAndroid.show('Kriterlere uygun stok hareketi bulunamadı.', ToastAndroid.SHORT);
+        }
+      }
+    } catch (e: any) {
+      ToastAndroid.show('Stok hareket analizi çekilemedi.', ToastAndroid.SHORT);
+    } finally {
+      setIsLoadingStok(false);
+    }
+  };
+
+  const toggleStokAccordion = async (sku: string) => {
+    if (expandedSku === sku) {
+      setExpandedSku(null);
+      return;
+    }
+    setExpandedSku(sku);
+
+    // Depoları çek
+    if (!depotStocksMap[sku]) {
+      setIsLoadingDepotStocks(true);
+      try {
+        const qDepo = `SELECT d.dep_no, d.dep_adi, ISNULL(dbo.fn_DepodakiMiktarSonDurum('${sku}', d.dep_no), 0) as miktar FROM DEPOLAR d WITH (NOLOCK) ORDER BY d.dep_no ASC`;
+        const resD = await axios.post(API_URL, { query: qDepo }, { timeout: 8000 });
+        if (resD.data?.success && Array.isArray(resD.data.data)) {
+          setDepotStocksMap(prev => ({ ...prev, [sku]: resD.data.data.filter((d: any) => d.miktar !== 0) }));
+        }
+      } catch (err) {}
+      setIsLoadingDepotStocks(false);
+    }
+
+    // Hareketleri çek
+    if (!movementsMap[sku]) {
+      setIsLoadingMovements(true);
+      try {
+        const dStart = toYMD(stokStartDate);
+        const dEnd = toYMD(stokEndDate);
+        const qMov = `
+          SELECT TOP 60
+            CONVERT(varchar, h.sth_tarih, 23) as Tarih,
+            h.sth_tip as Tip,
+            CASE WHEN h.sth_tip = 0 THEN 'Giriş' ELSE 'Çıkış' END as HareketYonu,
+            h.sth_evrakno_seri as Seri,
+            h.sth_evrakno_sira as Sira,
+            h.sth_miktar as Miktar,
+            CASE WHEN h.sth_miktar > 0 THEN (h.sth_tutar / h.sth_miktar) ELSE 0 END as BirimFiyat,
+            ISNULL((SELECT dep_adi FROM DEPOLAR WITH (NOLOCK) WHERE dep_no = CASE WHEN h.sth_tip = 0 THEN h.sth_giris_depo_no ELSE h.sth_cikis_depo_no END), '') as DepoAdi,
+            ISNULL((SELECT cari_unvan1 FROM CARI_HESAPLAR WITH (NOLOCK) WHERE cari_kod = h.sth_cari_kodu), h.sth_cari_kodu) as CariUnvan
+          FROM STOK_HAREKETLERI h WITH (NOLOCK)
+          WHERE h.sth_stok_kod = '${sku}'
+            AND h.sth_tarih >= '${dStart}'
+            AND h.sth_tarih <= '${dEnd}'
+            AND h.sth_cins = 0
+          ORDER BY h.sth_tarih DESC, h.sth_create_date DESC
+        `;
+        const resM = await axios.post(API_URL, { query: qMov }, { timeout: 10000 });
+        if (resM.data?.success && Array.isArray(resM.data.data)) {
+          setMovementsMap(prev => ({ ...prev, [sku]: resM.data.data }));
+        }
+      } catch (err) {}
+      setIsLoadingMovements(false);
+    }
+  };
+
+  // ----------------------------------------------------
+  // TAB GRUP & SOM ACTIONS: Kategori & Temsilci Raporu
+  // ----------------------------------------------------
+  const fetchGrupReport = async () => {
+    if (!isConnected) return;
+    setIsLoadingGrup(true);
+    setGrupData([]);
+    try {
+      const dStart = toYMD(grupStartDate);
+      const dEnd = toYMD(grupEndDate);
+      const q = `
+        SELECT TOP 30
+          ISNULL(s.sto_anagrup_kod, 'DİĞER') as AnaGrup,
+          ISNULL((SELECT san_isim FROM STOK_ANA_GRUPLARI WITH (NOLOCK) WHERE san_kod = s.sto_anagrup_kod), 'TANIMSIZ') as AnaGrupAdi,
+          COUNT(DISTINCT h.sth_stok_kod) as UrunCesidi,
+          SUM(h.sth_miktar) as ToplamMiktar,
+          SUM(h.sth_tutar) as ToplamTutar,
+          COUNT(*) as IslemSayisi
+        FROM STOK_HAREKETLERI h WITH (NOLOCK)
+        INNER JOIN STOKLAR s WITH (NOLOCK) ON s.sto_kod = h.sth_stok_kod
+        WHERE h.sth_tarih >= '${dStart}' 
+          AND h.sth_tarih <= '${dEnd}'
+          AND h.sth_tip = 1 
+          AND h.sth_cins = 0
+        GROUP BY s.sto_anagrup_kod
+        ORDER BY ToplamTutar DESC
+      `;
+      const res = await axios.post(API_URL, { query: q }, { timeout: 14000 });
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setGrupData(res.data.data);
+      }
+    } catch (e) {
+      ToastAndroid.show('Kategori raporu çekilemedi.', ToastAndroid.SHORT);
+    } finally {
+      setIsLoadingGrup(false);
+    }
+  };
+
+  const fetchSomReport = async () => {
+    if (!isConnected) return;
+    setIsLoadingSom(true);
+    setSomData([]);
+    try {
+      const dStart = toYMD(grupStartDate);
+      const dEnd = toYMD(grupEndDate);
+      const q = `
+        SELECT TOP 30
+          CASE 
+            WHEN h.sth_cari_srm_merkezi IS NOT NULL AND h.sth_cari_srm_merkezi <> '' THEN h.sth_cari_srm_merkezi
+            WHEN h.sth_stok_srm_merkezi IS NOT NULL AND h.sth_stok_srm_merkezi <> '' THEN h.sth_stok_srm_merkezi
+            ELSE 'TANIMSIZ'
+          END as SomKod,
+          ISNULL((
+            SELECT TOP 1 som_isim FROM SORUMLULUK_MERKEZLERI WITH (NOLOCK) 
+            WHERE som_kod = CASE 
+              WHEN h.sth_cari_srm_merkezi IS NOT NULL AND h.sth_cari_srm_merkezi <> '' THEN h.sth_cari_srm_merkezi
+              ELSE h.sth_stok_srm_merkezi
+            END
+          ), 'TANIMSIZ') as SomIsim,
+          COUNT(DISTINCT h.sth_stok_kod) as UrunCesidi,
+          SUM(h.sth_miktar) as ToplamMiktar,
+          SUM(h.sth_tutar) as ToplamTutar,
+          COUNT(*) as SatisSayisi
+        FROM STOK_HAREKETLERI h WITH (NOLOCK)
+        WHERE h.sth_tip = 1 
+          AND h.sth_cins = 0
+          AND h.sth_tarih >= '${dStart}' 
+          AND h.sth_tarih <= '${dEnd}'
+        GROUP BY 
+          CASE 
+            WHEN h.sth_cari_srm_merkezi IS NOT NULL AND h.sth_cari_srm_merkezi <> '' THEN h.sth_cari_srm_merkezi
+            WHEN h.sth_stok_srm_merkezi IS NOT NULL AND h.sth_stok_srm_merkezi <> '' THEN h.sth_stok_srm_merkezi
+            ELSE 'TANIMSIZ'
+          END,
+          h.sth_cari_srm_merkezi, h.sth_stok_srm_merkezi
+        ORDER BY ToplamTutar DESC
+      `;
+      const res = await axios.post(API_URL, { query: q }, { timeout: 14000 });
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setSomData(res.data.data);
+      }
+    } catch (e) {
+      ToastAndroid.show('Sorumluluk merkezi raporu çekilemedi.', ToastAndroid.SHORT);
+    } finally {
+      setIsLoadingSom(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'stok_analiz' && stokData.length === 0) {
+      fetchStokHareketOzeti();
+    } else if (activeTab === 'grup_som') {
+      if (grupSomSubTab === 'grup' && grupData.length === 0) {
+        fetchGrupReport();
+      } else if (grupSomSubTab === 'som' && somData.length === 0) {
+        fetchSomReport();
+      }
+    }
+  }, [activeTab, grupSomSubTab]);
 
   // ----------------------------------------------------
   // TAB 1 ACTIONS: Geliş Raporu & Sonraki Satışlar
@@ -767,6 +1028,122 @@ export default function ReportsView({
     }
   };
 
+  const exportStokExcel = () => {
+    const excelRows = stokData.map((item, idx) => ({
+      'Sıra': idx + 1,
+      'Stok Kodu': item.StokKodu,
+      'Ürün Adı': item.UrunAdi,
+      'Fiyat': item.Fiyat,
+      'Giriş Adedi': item.GirisAdedi,
+      'Çıkış Adedi': item.CikisAdedi,
+      'Kalan Stok': item.KalanAdet,
+      'İlk Giriş': toDMY(item.GirisTarihi),
+      'Son Hareket': toDMY(item.SonHareketTarihi)
+    }));
+    exportExcel(`Stok_Giris_Cikis_${toYMD(stokStartDate)}_${toYMD(stokEndDate)}`, 'Stok Analiz', excelRows);
+  };
+
+  const exportStokPdf = () => {
+    const totalGiris = stokData.reduce((acc, i) => acc + (i.GirisAdedi || 0), 0);
+    const totalCikis = stokData.reduce((acc, i) => acc + (i.CikisAdedi || 0), 0);
+    const totalKalan = stokData.reduce((acc, i) => acc + (i.KalanAdet || 0), 0);
+    const pdfRows = stokData.map((item, idx) => [
+      (idx + 1).toString(),
+      item.StokKodu,
+      item.UrunAdi,
+      `+${formatPrice(item.GirisAdedi)}`,
+      `-${formatPrice(item.CikisAdedi)}`,
+      `${formatPrice(item.KalanAdet)}`,
+      `${formatPrice(item.Fiyat)} TL`
+    ]);
+    exportPdf(
+      'Stok Giriş - Çıkış ve Bakiye Analizi',
+      `${toDMY(stokStartDate)} - ${toDMY(stokEndDate)} Dönemi`,
+      [
+        { label: 'Toplam Kalem', value: `${stokData.length} Ürün` },
+        { label: 'Toplam Giriş', value: `+${formatPrice(totalGiris)}`, color: '#16A34A' },
+        { label: 'Toplam Çıkış', value: `-${formatPrice(totalCikis)}`, color: '#DC2626' },
+        { label: 'Toplam Kalan', value: `${formatPrice(totalKalan)}`, color: '#0051D5' }
+      ],
+      ['#', 'Stok Kodu', 'Ürün Adı', 'Giriş', 'Çıkış', 'Kalan', 'Fiyat'],
+      pdfRows
+    );
+  };
+
+  const exportGrupExcel = () => {
+    const rows = grupData.map((g, idx) => ({
+      'Sıra': idx + 1,
+      'Ana Grup Kodu': g.AnaGrup,
+      'Grup Adı': g.AnaGrupAdi,
+      'Ürün Çeşidi': g.UrunCesidi,
+      'Satılan Miktar': g.ToplamMiktar,
+      'Ciro (TL)': g.ToplamTutar,
+      'İşlem Sayısı': g.IslemSayisi
+    }));
+    exportExcel(`Kategori_Satis_${toYMD(grupStartDate)}_${toYMD(grupEndDate)}`, 'Kategoriler', rows);
+  };
+
+  const exportGrupPdf = () => {
+    const totalMiktar = grupData.reduce((a, b) => a + (b.ToplamMiktar || 0), 0);
+    const totalCiro = grupData.reduce((a, b) => a + (b.ToplamTutar || 0), 0);
+    const rows = grupData.map((g, idx) => [
+      (idx + 1).toString(),
+      g.AnaGrupAdi,
+      `${g.UrunCesidi} Çeşit`,
+      `${formatPrice(g.ToplamMiktar)} Adet`,
+      `${formatPrice(g.ToplamTutar)} TL`,
+      `${g.IslemSayisi}`
+    ]);
+    exportPdf(
+      'Kategori & Grup Bazlı Satış Raporu',
+      `${toDMY(grupStartDate)} - ${toDMY(grupEndDate)} Dönemi`,
+      [
+        { label: 'Toplam Kategori', value: `${grupData.length}` },
+        { label: 'Toplam Satılan', value: `${formatPrice(totalMiktar)} Adet`, color: '#DC2626' },
+        { label: 'Toplam Ciro', value: `${formatPrice(totalCiro)} TL`, color: '#16A34A' }
+      ],
+      ['#', 'Kategori Adı', 'Çeşit', 'Satılan Adet', 'Ciro (TL)', 'İşlem'],
+      rows
+    );
+  };
+
+  const exportSomExcel = () => {
+    const rows = somData.map((s, idx) => ({
+      'Sıra': idx + 1,
+      'Sorumluluk Merkezi': s.SomKod,
+      'Temsilci / Şube': s.SomIsim,
+      'Ürün Çeşidi': s.UrunCesidi,
+      'Satılan Miktar': s.ToplamMiktar,
+      'Ciro (TL)': s.ToplamTutar,
+      'Satış Sayısı': s.SatisSayisi
+    }));
+    exportExcel(`Temsilci_Satis_${toYMD(grupStartDate)}_${toYMD(grupEndDate)}`, 'Sorumluluk Merkezleri', rows);
+  };
+
+  const exportSomPdf = () => {
+    const totalMiktar = somData.reduce((a, b) => a + (b.ToplamMiktar || 0), 0);
+    const totalCiro = somData.reduce((a, b) => a + (b.ToplamTutar || 0), 0);
+    const rows = somData.map((s, idx) => [
+      (idx + 1).toString(),
+      s.SomIsim,
+      `${s.UrunCesidi} Çeşit`,
+      `${formatPrice(s.ToplamMiktar)} Adet`,
+      `${formatPrice(s.ToplamTutar)} TL`,
+      `${s.SatisSayisi}`
+    ]);
+    exportPdf(
+      'Sorumluluk Merkezi (Temsilci) Satış Raporu',
+      `${toDMY(grupStartDate)} - ${toDMY(grupEndDate)} Dönemi`,
+      [
+        { label: 'Toplam Temsilci', value: `${somData.length}` },
+        { label: 'Toplam Satılan', value: `${formatPrice(totalMiktar)} Adet`, color: '#DC2626' },
+        { label: 'Toplam Ciro', value: `${formatPrice(totalCiro)} TL`, color: '#16A34A' }
+      ],
+      ['#', 'Temsilci / Sorumluluk Merkezi', 'Çeşit', 'Satılan Adet', 'Ciro (TL)', 'Satış'],
+      rows
+    );
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* HEADER SECTION */}
@@ -780,44 +1157,505 @@ export default function ReportsView({
         </View>
       </View>
 
-      {/* SEGMENTED TAB SELECTOR */}
-      <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'gelis' && [styles.tabItemActive, { borderBottomColor: colors.primary }]]}
-          onPress={() => setActiveTab('gelis')}
+      {/* SCROLLABLE 5-TAB SELECTOR */}
+      <View style={{ backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4, gap: 6 }}
         >
-          <Ionicons name="cube-outline" size={18} color={activeTab === 'gelis' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabText, { color: activeTab === 'gelis' ? colors.primary : colors.textMuted }]}>
-            Geliş Tarihi
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabPill,
+              activeTab === 'stok_analiz' && [styles.tabPillActive, { borderBottomColor: colors.primary, backgroundColor: colors.primarySoft }]
+            ]}
+            onPress={() => {
+              setActiveTab('stok_analiz');
+              if (stokData.length === 0) fetchStokHareketOzeti();
+            }}
+          >
+            <Ionicons name="swap-vertical-outline" size={16} color={activeTab === 'stok_analiz' ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabPillText, { color: activeTab === 'stok_analiz' ? colors.primary : colors.textMuted }]}>
+              Giriş - Çıkış
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'fatura' && [styles.tabItemActive, { borderBottomColor: colors.primary }]]}
-          onPress={() => {
-            setActiveTab('fatura');
-            if (invoices.length === 0) fetchInvoices();
-          }}
-        >
-          <Ionicons name="receipt-outline" size={18} color={activeTab === 'fatura' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabText, { color: activeTab === 'fatura' ? colors.primary : colors.textMuted }]}>
-            Faturalar
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabPill,
+              activeTab === 'gelis' && [styles.tabPillActive, { borderBottomColor: colors.primary, backgroundColor: colors.primarySoft }]
+            ]}
+            onPress={() => setActiveTab('gelis')}
+          >
+            <Ionicons name="cube-outline" size={16} color={activeTab === 'gelis' ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabPillText, { color: activeTab === 'gelis' ? colors.primary : colors.textMuted }]}>
+              Geliş Tarihi
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'satis' && [styles.tabItemActive, { borderBottomColor: colors.primary }]]}
-          onPress={() => {
-            setActiveTab('satis');
-            if (salesReportData.length === 0) fetchSalesReport();
-          }}
-        >
-          <Ionicons name="trending-up-outline" size={18} color={activeTab === 'satis' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabText, { color: activeTab === 'satis' ? colors.primary : colors.textMuted }]}>
-            Satış Raporu
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabPill,
+              activeTab === 'fatura' && [styles.tabPillActive, { borderBottomColor: colors.primary, backgroundColor: colors.primarySoft }]
+            ]}
+            onPress={() => {
+              setActiveTab('fatura');
+              if (invoices.length === 0) fetchInvoices();
+            }}
+          >
+            <Ionicons name="receipt-outline" size={16} color={activeTab === 'fatura' ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabPillText, { color: activeTab === 'fatura' ? colors.primary : colors.textMuted }]}>
+              Faturalar
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabPill,
+              activeTab === 'satis' && [styles.tabPillActive, { borderBottomColor: colors.primary, backgroundColor: colors.primarySoft }]
+            ]}
+            onPress={() => {
+              setActiveTab('satis');
+              if (salesReportData.length === 0) fetchSalesReport();
+            }}
+          >
+            <Ionicons name="trending-up-outline" size={16} color={activeTab === 'satis' ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabPillText, { color: activeTab === 'satis' ? colors.primary : colors.textMuted }]}>
+              Satış Sıralaması
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabPill,
+              activeTab === 'grup_som' && [styles.tabPillActive, { borderBottomColor: colors.primary, backgroundColor: colors.primarySoft }]
+            ]}
+            onPress={() => {
+              setActiveTab('grup_som');
+              if (grupSomSubTab === 'grup' && grupData.length === 0) fetchGrupReport();
+              if (grupSomSubTab === 'som' && somData.length === 0) fetchSomReport();
+            }}
+          >
+            <Ionicons name="pie-chart-outline" size={16} color={activeTab === 'grup_som' ? colors.primary : colors.textMuted} />
+            <Text style={[styles.tabPillText, { color: activeTab === 'grup_som' ? colors.primary : colors.textMuted }]}>
+              Kategori & Temsilci
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
+
+      {/* ========================================================================= */}
+      {/* TAB: STOK GİRİŞ - ÇIKIŞ ANALİZİ (E-KATALOG PANELİ ENTEGRASYONU)           */}
+      {/* ========================================================================= */}
+      {activeTab === 'stok_analiz' && (
+        <View style={{ flex: 1, padding: 14 }}>
+          {/* FILTER CARD */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 12, padding: 12 }]}>
+            {/* DATE PICKERS */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[styles.dateButton, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                onPress={() => setShowStokStartPicker(true)}
+              >
+                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: 'bold' }}>BAŞLANGIÇ</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
+                  {toDMY(stokStartDate)}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dateButton, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                onPress={() => setShowStokEndPicker(true)}
+              >
+                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: 'bold' }}>BİTİŞ</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
+                  {toDMY(stokEndDate)}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {showStokStartPicker && (
+              <DateTimePicker
+                value={stokStartDate}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowStokStartPicker(false);
+                  if (date) setStokStartDate(date);
+                }}
+              />
+            )}
+            {showStokEndPicker && (
+              <DateTimePicker
+                value={stokEndDate}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowStokEndPicker(false);
+                  if (date) setStokEndDate(date);
+                }}
+              />
+            )}
+
+            {/* DEPOT SELECTOR SCROLL */}
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: 'bold', marginBottom: 5 }}>
+                ŞUBE / DEPO FİLTRESİ
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <TouchableOpacity
+                  onPress={() => setStokSelectedDepo(0)}
+                  style={[
+                    styles.filterPill,
+                    {
+                      backgroundColor: stokSelectedDepo === 0 ? colors.primary : colors.cardAlt,
+                      borderColor: stokSelectedDepo === 0 ? colors.primary : colors.border,
+                      paddingVertical: 5,
+                      paddingHorizontal: 10
+                    }
+                  ]}
+                >
+                  <Text style={{ color: stokSelectedDepo === 0 ? '#fff' : colors.text, fontSize: 11, fontWeight: 'bold' }}>
+                    🏢 Tüm Depolar
+                  </Text>
+                </TouchableOpacity>
+                {branches.map(b => (
+                  <TouchableOpacity
+                    key={b.dep_no}
+                    onPress={() => setStokSelectedDepo(b.dep_no)}
+                    style={[
+                      styles.filterPill,
+                      {
+                        backgroundColor: stokSelectedDepo === b.dep_no ? colors.primary : colors.cardAlt,
+                        borderColor: stokSelectedDepo === b.dep_no ? colors.primary : colors.border,
+                        paddingVertical: 5,
+                        paddingHorizontal: 10
+                      }
+                    ]}
+                  >
+                    <Text style={{ color: stokSelectedDepo === b.dep_no ? '#fff' : colors.text, fontSize: 11, fontWeight: 'bold' }}>
+                      {b.dep_adi}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* SEARCH INPUT & REFRESH BUTTON */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <TextInput
+                style={[styles.filterInput, { flex: 1, backgroundColor: colors.cardAlt, borderColor: colors.border, color: colors.text }]}
+                placeholder="Stok kodu veya ürün adı ile filtrele..."
+                placeholderTextColor={colors.textMuted}
+                value={stokFilterQuery}
+                onChangeText={setStokFilterQuery}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={[styles.filterSubmitBtn, { backgroundColor: colors.primary }]}
+                onPress={() => fetchStokHareketOzeti()}
+              >
+                <Ionicons name="refresh" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Raporla</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* QUICK FILTER PILLS */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {[
+                { key: 'ALL', label: 'Tümü' },
+                { key: 'IN_STOCK', label: 'Stokta Var (>0)' },
+                { key: 'OUT_OF_STOCK', label: 'Tükenenler (≤0)' },
+                { key: 'HAS_IN', label: 'Girişi Olanlar' },
+                { key: 'HAS_OUT', label: 'Çıkışı Olanlar' }
+              ].map(chip => (
+                <TouchableOpacity
+                  key={chip.key}
+                  onPress={() => {
+                    const c = chip.key as any;
+                    setStokChipFilter(c);
+                    fetchStokHareketOzeti(c);
+                  }}
+                  style={[
+                    styles.filterPill,
+                    {
+                      backgroundColor: stokChipFilter === chip.key ? colors.primary : colors.cardAlt,
+                      borderColor: stokChipFilter === chip.key ? colors.primary : colors.border,
+                      paddingVertical: 5,
+                      paddingHorizontal: 10
+                    }
+                  ]}
+                >
+                  <Text style={{ color: stokChipFilter === chip.key ? '#fff' : colors.text, fontSize: 11, fontWeight: 'bold' }}>
+                    {chip.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* KPI SUMMARY RIBBON */}
+            {stokData.length > 0 && (
+              <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <View style={styles.kpiRibbon}>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>KALEM</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.text }]}>{stokData.length}</Text>
+                  </View>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>TOPLAM GİRİŞ</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.success }]}>
+                      +{formatPrice(stokData.reduce((acc, i) => acc + (i.GirisAdedi || 0), 0))}
+                    </Text>
+                  </View>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>TOPLAM ÇIKIŞ</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.danger }]}>
+                      -{formatPrice(stokData.reduce((acc, i) => acc + (i.CikisAdedi || 0), 0))}
+                    </Text>
+                  </View>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>TOPLAM KALAN</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.primary }]}>
+                      {formatPrice(stokData.reduce((acc, i) => acc + (i.KalanAdet || 0), 0))}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* EXCEL & PDF EXPORT */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#10B981', paddingVertical: 9 }]}
+                    disabled={isExporting}
+                    onPress={exportStokExcel}
+                  >
+                    <Ionicons name="document-text-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
+                    <Text style={styles.actionBtnText}>Excel İndir</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#EF4444', paddingVertical: 9 }]}
+                    disabled={isExporting}
+                    onPress={exportStokPdf}
+                  >
+                    <Ionicons name="download-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
+                    <Text style={styles.actionBtnText}>PDF İndir</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* LIST */}
+          {isLoadingStok ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={{ color: colors.textMuted, marginTop: 12, fontSize: 13 }}>Stok hareketleri analiz ediliyor...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={stokData}
+              keyExtractor={(item) => item.StokKodu}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const isExpanded = expandedSku === item.StokKodu;
+                const netFark = (item.GirisAdedi || 0) - (item.CikisAdedi || 0);
+                const devir = (item.KalanAdet || 0) - netFark;
+                const isPositiveStock = item.KalanAdet > 0;
+
+                return (
+                  <View style={[styles.invoiceCard, { backgroundColor: colors.card, borderColor: isExpanded ? colors.primary : colors.border, marginBottom: 10 }]}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => toggleStokAccordion(item.StokKodu)}
+                    >
+                      {/* CARD TOP BAR */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '900' }}>
+                          {item.StokKodu}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {item.Fiyat > 0 && (
+                            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+                              {formatPrice(item.Fiyat)} TL
+                            </Text>
+                          )}
+                          <View style={[styles.badge, { backgroundColor: isPositiveStock ? colors.successSoft : colors.dangerSoft }]}>
+                            <Text style={{ color: isPositiveStock ? colors.success : colors.danger, fontSize: 11, fontWeight: '900' }}>
+                              Kalan: {formatPrice(item.KalanAdet)}
+                            </Text>
+                          </View>
+                          <Ionicons
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color={colors.textMuted}
+                          />
+                        </View>
+                      </View>
+
+                      {/* PRODUCT NAME */}
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700', marginBottom: 6 }} numberOfLines={2}>
+                        {item.UrunAdi}
+                      </Text>
+
+                      {/* IN / OUT MOVEMENTS SUMMARY */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <Text style={{ color: colors.success, fontSize: 11, fontWeight: '800' }}>
+                            📥 Giriş: +{formatPrice(item.GirisAdedi)}
+                          </Text>
+                          <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '800' }}>
+                            📤 Çıkış: -{formatPrice(item.CikisAdedi)}
+                          </Text>
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                          Son: {toDMY(item.SonHareketTarihi)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* EXPANDABLE ACCORDION SECTION */}
+                    {isExpanded && (
+                      <View style={[styles.accordionBox, { borderTopColor: colors.border }]}>
+                        {/* 1. DEPO STOKLARI DAĞILIMI */}
+                        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 12, marginTop: 4, marginBottom: 6 }]}>
+                          🏢 Şube & Depo Stokları
+                        </Text>
+                        {isLoadingDepotStocks && !depotStocksMap[item.StokKodu] ? (
+                          <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 8 }} />
+                        ) : (
+                          <View style={styles.depotGrid}>
+                            {(depotStocksMap[item.StokKodu] || []).length === 0 ? (
+                              <Text style={{ color: colors.textMuted, fontSize: 11 }}>Depolarda stok bulunmuyor.</Text>
+                            ) : (
+                              (depotStocksMap[item.StokKodu] || []).map((dep: any, dIdx: number) => (
+                                <View
+                                  key={dIdx}
+                                  style={[
+                                    styles.depotChip,
+                                    { backgroundColor: colors.cardAlt, borderColor: colors.border }
+                                  ]}
+                                >
+                                  <Text style={[styles.depotChipName, { color: colors.textMuted }]} numberOfLines={1}>
+                                    {dep.dep_adi}
+                                  </Text>
+                                  <Text style={[styles.depotChipQty, { color: dep.miktar > 0 ? colors.success : colors.danger }]}>
+                                    {formatPrice(dep.miktar)}
+                                  </Text>
+                                </View>
+                              ))
+                            )}
+                          </View>
+                        )}
+
+                        {/* 2. DÖNEM DEVİR VE NET HAREKET KARTI (E-KATALOG FORMÜLÜ) */}
+                        <View style={[styles.devirBox, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                          <View style={styles.devirCol}>
+                            <Text style={[styles.devirColLbl, { color: colors.textMuted }]}>DÖNEM BAŞI DEVİR</Text>
+                            <Text style={[styles.devirColVal, { color: colors.text }]}>
+                              {formatPrice(devir)}
+                            </Text>
+                          </View>
+                          <View style={styles.devirCol}>
+                            <Text style={[styles.devirColLbl, { color: colors.textMuted }]}>DÖNEM İÇİ NET</Text>
+                            <Text style={[styles.devirColVal, { color: netFark >= 0 ? colors.success : colors.danger }]}>
+                              {netFark >= 0 ? `+${formatPrice(netFark)}` : formatPrice(netFark)}
+                            </Text>
+                          </View>
+                          <View style={styles.devirCol}>
+                            <Text style={[styles.devirColLbl, { color: colors.textMuted }]}>MEVCUT KALAN</Text>
+                            <Text style={[styles.devirColVal, { color: colors.primary }]}>
+                              {formatPrice(item.KalanAdet)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* 3. SON HAREKETLER DÖKÜMÜ */}
+                        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 12, marginTop: 10, marginBottom: 4 }]}>
+                          📑 Son Hareketler ({toDMY(stokStartDate)} - {toDMY(stokEndDate)})
+                        </Text>
+                        {isLoadingMovements && !movementsMap[item.StokKodu] ? (
+                          <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+                        ) : (
+                          <View>
+                            {(movementsMap[item.StokKodu] || []).length === 0 ? (
+                              <Text style={{ color: colors.textMuted, fontSize: 11, paddingVertical: 8 }}>
+                                Bu aralıkta detaylı hareket kaydı bulunamadı.
+                              </Text>
+                            ) : (
+                              (movementsMap[item.StokKodu] || []).map((mov: any, mIdx: number) => {
+                                const isGiris = mov.Tip === 0;
+                                return (
+                                  <TouchableOpacity
+                                    key={mIdx}
+                                    activeOpacity={mov.Seri ? 0.7 : 1}
+                                    onPress={() => {
+                                      if (mov.Seri) {
+                                        openInvoiceDetails({
+                                          Seri: mov.Seri,
+                                          Sira: mov.Sira,
+                                          Tip: mov.Tip,
+                                          Tarih: mov.Tarih,
+                                          CariUnvan: mov.CariUnvan,
+                                          EvrakTipi: mov.Tip === 1 ? 'Satış Faturası' : 'Alış Faturası',
+                                          ToplamTutar: (mov.Miktar || 0) * (mov.BirimFiyat || 0)
+                                        });
+                                      }
+                                    }}
+                                    style={[styles.movementRow, { borderBottomColor: colors.border }]}
+                                  >
+                                    <View style={{ flex: 1, marginRight: 8 }}>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <View style={[styles.miniBadge, { backgroundColor: isGiris ? colors.successSoft : colors.dangerSoft, borderColor: isGiris ? colors.success : colors.danger }]}>
+                                          <Text style={{ color: isGiris ? colors.success : colors.danger, fontSize: 9, fontWeight: '900' }}>
+                                            {isGiris ? 'GİRİŞ' : 'ÇIKIŞ'}
+                                          </Text>
+                                        </View>
+                                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: 'bold' }}>
+                                          {toDMY(mov.Tarih)}
+                                        </Text>
+                                        {mov.Seri ? (
+                                          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '700' }}>
+                                            {mov.Seri} {mov.Sira} 📄
+                                          </Text>
+                                        ) : null}
+                                      </View>
+                                      <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }} numberOfLines={1}>
+                                        {mov.CariUnvan || 'Genel'} {mov.DepoAdi ? `• 🏢 ${mov.DepoAdi}` : ''}
+                                      </Text>
+                                    </View>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                      <Text style={{ color: isGiris ? colors.success : colors.danger, fontWeight: '900', fontSize: 13 }}>
+                                        {isGiris ? '+' : '-'}{formatPrice(mov.Miktar)} Adet
+                                      </Text>
+                                      {mov.BirimFiyat > 0 && (
+                                        <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 1 }}>
+                                          {formatPrice(mov.BirimFiyat)} TL
+                                        </Text>
+                                      )}
+                                    </View>
+                                  </TouchableOpacity>
+                                );
+                              })
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+              ListEmptyComponent={() => (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="swap-vertical-outline" size={48} color={colors.textMuted} style={{ opacity: 0.5, marginBottom: 10 }} />
+                  <Text style={{ color: colors.textMuted, textAlign: 'center' }}>
+                    Kriterlere uygun stok hareketi bulunamadı. Tarihleri veya arama filtresini kontrol edip 'Raporla' butonuna basınız.
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: GELİŞ TARİHİNE GÖRE RAPOR (ÜRÜN BAZLI GELİŞ VE SATIŞLAR)           */}
@@ -1033,6 +1871,49 @@ export default function ReportsView({
                       </Text>
                     </View>
                   </View>
+
+                  {/* GÜNLÜK ERİME HIZI VE TAHMİNİ TÜKENME SÜRESİ (E-KATALOG ANALİZİ) */}
+                  {(() => {
+                    const arrDate = new Date(selectedArrival.GelisTarihi);
+                    const now = new Date();
+                    const diffTime = Math.max(1, now.getTime() - arrDate.getTime());
+                    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                    const sold = salesSummary?.totalQty || 0;
+                    const burnRate = (sold / diffDays).toFixed(2);
+                    const eldekiStok = selectedProduct.toplam_stok || 0;
+                    const daysLeft = Number(burnRate) > 0 ? Math.ceil(eldekiStok / Number(burnRate)) : null;
+                    return (
+                      <View style={[styles.burnRateCard, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                            <View style={[styles.burnRateIconBox, { backgroundColor: colors.accent }]}>
+                              <Ionicons name="speedometer-outline" size={20} color="#fff" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '800' }}>
+                                  Günlük Erime Hızı:
+                                </Text>
+                                <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '900' }}>
+                                  {burnRate} Adet / Gün
+                                </Text>
+                              </View>
+                              <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                                Son {diffDays} günde toplam {formatPrice(sold)} adet satıldı
+                              </Text>
+                            </View>
+                          </View>
+                          {daysLeft !== null && (
+                            <View style={[styles.badge, { backgroundColor: daysLeft <= 15 ? colors.dangerSoft : colors.successSoft, borderColor: daysLeft <= 15 ? colors.danger : colors.success, borderWidth: 1 }]}>
+                              <Text style={{ color: daysLeft <= 15 ? colors.danger : colors.success, fontSize: 11, fontWeight: '900' }}>
+                                {daysLeft <= 0 ? 'Tükendi' : `~${daysLeft} günde biter`}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   {/* SATIŞ DETAY DÖKÜM LİSTESİ */}
                   <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 15 }]}>
@@ -1570,6 +2451,227 @@ export default function ReportsView({
                   <Ionicons name="trending-up-outline" size={48} color={colors.textMuted} style={{ opacity: 0.5, marginBottom: 10 }} />
                   <Text style={{ color: colors.textMuted, textAlign: 'center' }}>
                     Seçilen tarih aralığında satış bulunamadı. Tarihleri kontrol edip 'Raporla' butonuna basınız.
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: KATEGORİ & SORUMLULUK MERKEZİ ANALİZİ (E-KATALOG RAPORLAR)         */}
+      {/* ========================================================================= */}
+      {activeTab === 'grup_som' && (
+        <View style={{ flex: 1, padding: 14 }}>
+          {/* SUB-TAB SELECTOR (Kategori vs Sorumluluk Merkezi) */}
+          <View style={[styles.subTabContainer, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.subTabBtn,
+                grupSomSubTab === 'grup' && [styles.subTabBtnActive, { backgroundColor: colors.primary }]
+              ]}
+              onPress={() => {
+                setGrupSomSubTab('grup');
+                if (grupData.length === 0) fetchGrupReport();
+              }}
+            >
+              <Ionicons
+                name="pricetags-outline"
+                size={15}
+                color={grupSomSubTab === 'grup' ? '#fff' : colors.textMuted}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.subTabBtnText, { color: grupSomSubTab === 'grup' ? '#fff' : colors.text }]}>
+                Kategori & Gruplar
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.subTabBtn,
+                grupSomSubTab === 'som' && [styles.subTabBtnActive, { backgroundColor: colors.primary }]
+              ]}
+              onPress={() => {
+                setGrupSomSubTab('som');
+                if (somData.length === 0) fetchSomReport();
+              }}
+            >
+              <Ionicons
+                name="people-outline"
+                size={15}
+                color={grupSomSubTab === 'som' ? '#fff' : colors.textMuted}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.subTabBtnText, { color: grupSomSubTab === 'som' ? '#fff' : colors.text }]}>
+                Sorumluluk Merkezleri (Temsilci)
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* FILTER CARD */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 12, padding: 12 }]}>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[styles.dateButton, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                onPress={() => setShowGrupStartPicker(true)}
+              >
+                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: 'bold' }}>BAŞLANGIÇ</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
+                  {toDMY(grupStartDate)}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dateButton, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                onPress={() => setShowGrupEndPicker(true)}
+              >
+                <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: 'bold' }}>BİTİŞ</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
+                  {toDMY(grupEndDate)}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.filterSubmitBtn, { backgroundColor: colors.primary, height: 'auto', alignSelf: 'stretch' }]}
+                onPress={() => {
+                  if (grupSomSubTab === 'grup') fetchGrupReport();
+                  else fetchSomReport();
+                }}
+              >
+                <Ionicons name="refresh" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Raporla</Text>
+              </TouchableOpacity>
+            </View>
+
+            {showGrupStartPicker && (
+              <DateTimePicker
+                value={grupStartDate}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowGrupStartPicker(false);
+                  if (date) setGrupStartDate(date);
+                }}
+              />
+            )}
+            {showGrupEndPicker && (
+              <DateTimePicker
+                value={grupEndDate}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowGrupEndPicker(false);
+                  if (date) setGrupEndDate(date);
+                }}
+              />
+            )}
+
+            {/* KPI RIBBON & EXPORTS */}
+            {((grupSomSubTab === 'grup' && grupData.length > 0) || (grupSomSubTab === 'som' && somData.length > 0)) && (
+              <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <View style={styles.kpiRibbon}>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>
+                      {grupSomSubTab === 'grup' ? 'KATEGORİ' : 'TEMSİLCİ'}
+                    </Text>
+                    <Text style={[styles.kpiNumber, { color: colors.text }]}>
+                      {grupSomSubTab === 'grup' ? grupData.length : somData.length}
+                    </Text>
+                  </View>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>TOPLAM SATIŞ</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.danger }]}>
+                      {formatPrice(
+                        (grupSomSubTab === 'grup' ? grupData : somData).reduce((a, b) => a + (b.ToplamMiktar || 0), 0)
+                      )}
+                    </Text>
+                  </View>
+                  <View style={[styles.kpiItem, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                    <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>TOPLAM CİRO</Text>
+                    <Text style={[styles.kpiNumber, { color: colors.success }]}>
+                      {formatPrice(
+                        (grupSomSubTab === 'grup' ? grupData : somData).reduce((a, b) => a + (b.ToplamTutar || 0), 0)
+                      )} TL
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#10B981', paddingVertical: 9 }]}
+                    disabled={isExporting}
+                    onPress={grupSomSubTab === 'grup' ? exportGrupExcel : exportSomExcel}
+                  >
+                    <Ionicons name="document-text-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
+                    <Text style={styles.actionBtnText}>Excel İndir</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#EF4444', paddingVertical: 9 }]}
+                    disabled={isExporting}
+                    onPress={grupSomSubTab === 'grup' ? exportGrupPdf : exportSomPdf}
+                  >
+                    <Ionicons name="download-outline" size={15} color="#fff" style={{ marginRight: 5 }} />
+                    <Text style={styles.actionBtnText}>PDF İndir</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* LIST */}
+          {(grupSomSubTab === 'grup' ? isLoadingGrup : isLoadingSom) ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={{ color: colors.textMuted, marginTop: 12, fontSize: 13 }}>
+                {grupSomSubTab === 'grup' ? 'Kategori satışları analiz ediliyor...' : 'Temsilci satışları analiz ediliyor...'}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={grupSomSubTab === 'grup' ? grupData : somData}
+              keyExtractor={(item, index) => `${item.AnaGrup || item.SomKod || index}`}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item, index }) => {
+                const title = grupSomSubTab === 'grup' ? item.AnaGrupAdi : item.SomIsim;
+                const code = grupSomSubTab === 'grup' ? item.AnaGrup : item.SomKod;
+                const txCount = grupSomSubTab === 'grup' ? item.IslemSayisi : item.SatisSayisi;
+
+                return (
+                  <View style={[styles.invoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={[styles.rankBadge, { backgroundColor: index < 3 ? colors.primary : colors.cardAlt }]}>
+                        <Text style={{ color: index < 3 ? '#fff' : colors.textMuted, fontWeight: '900', fontSize: 12 }}>
+                          #{index + 1}
+                        </Text>
+                      </View>
+
+                      <View style={{ flex: 1, marginLeft: 10, marginRight: 10 }}>
+                        <Text style={{ color: colors.primary, fontSize: 11, fontWeight: 'bold' }}>{code}</Text>
+                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700', marginTop: 2 }}>{title}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                          {item.UrunCesidi} Çeşit Ürün &bull; {txCount} İşlem
+                        </Text>
+                      </View>
+
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: colors.danger, fontWeight: '900', fontSize: 14 }}>
+                          {formatPrice(item.ToplamMiktar)} Adet
+                        </Text>
+                        <Text style={{ color: colors.success, fontWeight: 'bold', fontSize: 13, marginTop: 2 }}>
+                          {formatPrice(item.ToplamTutar)} TL
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              }}
+              ListEmptyComponent={() => (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="pie-chart-outline" size={48} color={colors.textMuted} style={{ opacity: 0.5, marginBottom: 10 }} />
+                  <Text style={{ color: colors.textMuted, textAlign: 'center' }}>
+                    Seçilen tarih aralığında veri bulunamadı. Tarihleri kontrol edip 'Raporla' butonuna basınız.
                   </Text>
                 </View>
               )}
@@ -2217,5 +3319,140 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 7,
     borderWidth: 1
+  },
+  tabPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    gap: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent'
+  },
+  tabPillActive: {
+    // dynamic active style
+  },
+  tabPillText: {
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  burnRateCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 6,
+    marginBottom: 8
+  },
+  burnRateIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  kpiRibbon: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  kpiItem: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center'
+  },
+  kpiLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    marginBottom: 3
+  },
+  kpiNumber: {
+    fontSize: 12.5,
+    fontWeight: '900'
+  },
+  accordionBox: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1
+  },
+  depotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8
+  },
+  depotChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: '47%',
+    flex: 1
+  },
+  depotChipName: {
+    fontSize: 11,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 4
+  },
+  depotChipQty: {
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  devirBox: {
+    flexDirection: 'row',
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginVertical: 6
+  },
+  devirCol: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  devirColLbl: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    marginBottom: 2
+  },
+  devirColVal: {
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  movementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1
+  },
+  subTabContainer: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 12,
+    gap: 4
+  },
+  subTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 10
+  },
+  subTabBtnActive: {
+    // dynamic
+  },
+  subTabBtnText: {
+    fontSize: 12,
+    fontWeight: '800'
   }
 });
