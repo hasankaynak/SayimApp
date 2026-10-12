@@ -1,6 +1,6 @@
 {
-  "version": "1.0.16",
-  "versionCode": 16,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.16/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.16\n• Sayım ve Sevk modülünde 'Açıklama / Not' alanı eklendi (Örn: 20 adet sayıldı, 3 adeti arızalı).\n• Hızlı durum etiketleri (⚠️ Arızalı, 📦 Kutu Hasarlı, 🔍 Eksik Parça, 🏷️ Etiketsiz, ✨ Teşhir) eklendi.\n• Sepet ekranında her kalem için not düzenleme ve silme desteği getirildi.\n• Excel dışa aktarımına 'Açıklama / Not' sütunu eklendi.\n• Mikro ERP aktarımında sayım ve sevk açıklamaları entegre edildi."
+  "version": "1.0.17",
+  "versionCode": 17,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.17/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.17\n• Adet girişinin altındaki 'Açıklama / Not' alanı ve arızalı/hasarlı etiketleri belirginleştirildi, otomatik klavye açılma engeli kaldırıldı.\n• Dashboard aktif depo kartındaki 'Değiştir' butonunun dokunma alanı ve modal tetiklemesi düzeltildi.\n• Son işlemler rafındaki hayali/sahte ürünler kaldırıldı; aktif sepet ve gerçek sayım/okutma verileri entegre edildi.\n• Fiyat Gör modundayken ürün ekranından tek tuşla 'Sayıma Dahil Et' geçişi eklendi."
 }

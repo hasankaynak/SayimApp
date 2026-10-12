@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.16';
-const CURRENT_VERSION_CODE = 16;
+const CURRENT_VERSION = '1.0.17';
+const CURRENT_VERSION_CODE = 17;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -217,6 +217,7 @@ export default function App() {
   const [autoSync, setAutoSync] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [sayimBackups, setSayimBackups] = useState<any[]>([]);
+  const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const [depoSearchQuery, setDepoSearchQuery] = useState('');
   const [editingBackupId, setEditingBackupId] = useState<number | null>(null);
   const [editingEvrakNo, setEditingEvrakNo] = useState<number | null>(null);
@@ -659,6 +660,16 @@ export default function App() {
       if (savedUserNo) setMikroUserNo(savedUserNo);
 
       try {
+        const backups: any[] = await db.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC LIMIT 20');
+        if (backups) setSayimBackups(backups);
+      } catch (e) {}
+
+      try {
+        const recentsStr = await AsyncStorage.getItem('recent_scanned_products');
+        if (recentsStr) setRecentProducts(JSON.parse(recentsStr));
+      } catch (e) {}
+
+      try {
         const uQ = `SELECT KULLANICI_NO, KULLANICI_ADI FROM KULLANICILAR_VIEW WITH (NOLOCK) ORDER BY KULLANICI_NO ASC`;
         const resU = await axios.post(API_URL, { query: uQ }, { timeout: 10000 });
         if(resU.data && resU.data.data) {
@@ -721,6 +732,26 @@ export default function App() {
     }
   };
 
+  const addRecentProduct = (item: any, qty?: number, desc?: string) => {
+    if (!item || !item.stock_code || item.stock_code === '---' || item.name === 'Ürün Bulunamadı') return;
+    setRecentProducts(prev => {
+      const filtered = prev.filter(p => p.stock_code !== item.stock_code);
+      const newEntry = {
+        stock_code: item.stock_code,
+        barcode: item.barcode || '',
+        name: item.name || '',
+        quantity: qty !== undefined ? qty : (item.quantity || 1),
+        unit: item.unit || 'Adet',
+        description: desc !== undefined ? desc : (item.description || ''),
+        depo_adi: selectedDepo ? selectedDepo.depo_adi : (item.depo_adi || '01 - Merkez Depo'),
+        date: new Date().toLocaleDateString('tr-TR')
+      };
+      const updated = [newEntry, ...filtered].slice(0, 10);
+      AsyncStorage.setItem('recent_scanned_products', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  };
+
   const handleBarCodeScanned = async ({ data }: any) => {
     if (scanned || isSyncing) return;
     setScanned(true);
@@ -737,6 +768,7 @@ export default function App() {
       if (result) {
         playSound('success');
         setProduct(result);
+        addRecentProduct(result);
         setSearchQuery('');
         setSearchResults([]);
         if (result.stock_code && result.stock_code !== '---') fetchDepoStok(result.stock_code);
@@ -778,6 +810,7 @@ export default function App() {
 
   const selectProduct = (item: any) => {
     setProduct(item);
+    addRecentProduct(item);
     setScanned(true);
     setWasScannedByCamera(false);
     setDepoStoklar([]);
@@ -983,6 +1016,7 @@ export default function App() {
                 : countDescription.trim();
             }
             saveCartToStorage(newCart); 
+            addRecentProduct(product, newCart[existingIndex].quantity, newCart[existingIndex].description);
             ToastAndroid.show("Eklendi!", ToastAndroid.SHORT); 
             setCountInput('1'); 
             setCountDescription('');
@@ -997,6 +1031,7 @@ export default function App() {
               newCart[existingIndex].description = countDescription.trim();
             }
             saveCartToStorage(newCart); 
+            addRecentProduct(product, quantity, newCart[existingIndex].description);
             ToastAndroid.show("Güncellendi!", ToastAndroid.SHORT); 
             setCountInput('1'); 
             setCountDescription('');
@@ -1022,6 +1057,7 @@ export default function App() {
         added_at: new Date().toISOString() 
       });
       saveCartToStorage(newCart);
+      addRecentProduct(product, quantity, countDescription.trim());
       ToastAndroid.show("Sepete eklendi!", ToastAndroid.SHORT);
       setCountInput('1');
       setCountDescription('');
@@ -1310,11 +1346,15 @@ export default function App() {
           {/* HERO TACTICAL BANNER CARD (#213145) */}
           <View style={styles.heroCard}>
             {/* Ambient Radial Blur Glows */}
-            <View style={styles.heroGlow1} />
-            <View style={styles.heroGlow2} />
+            <View style={styles.heroGlow1} pointerEvents="none" />
+            <View style={styles.heroGlow2} pointerEvents="none" />
 
             {/* Warehouse Selector Row */}
-            <View style={styles.heroDepoRow}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[styles.heroDepoRow, { zIndex: 10, elevation: 10 }]}
+              onPress={() => setShowDepoModal(true)}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                 <View style={styles.heroWarehouseIconBox}>
                   <Ionicons name="business" size={18} color="#FF6B00" />
@@ -1326,14 +1366,11 @@ export default function App() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.heroSwitchBtn}
-                onPress={() => setShowDepoModal(true)}
-              >
+              <View style={styles.heroSwitchBtn}>
                 <Text style={styles.heroSwitchBtnText}>Değiştir</Text>
                 <Ionicons name="chevron-down" size={14} color="#fff" />
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
 
             {/* Live Telemetry KPI Metrics */}
             <View style={styles.heroKpiRow}>
@@ -1548,83 +1585,136 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            {sayimBackups.length > 0 ? (
-              sayimBackups.slice(0, 2).map((item, idx) => (
-                <View key={item.id || idx} style={styles.recentItemRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                    <View style={styles.recentItemIconBox}>
-                      <Ionicons name="cube-outline" size={20} color={idx === 0 ? '#FF6B00' : '#0051D5'} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.recentItemCode}>SYM-{item.mikro_evrak_no || item.id}</Text>
-                        <View style={styles.recentRackBadge}>
-                          <Text style={styles.recentRackText}>{item.backup_date.split(' ')[0]}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.recentItemName} numberOfLines={1}>
-                        {(() => {
-                          try {
-                            const cd = JSON.parse(item.cart_data);
-                            return cd.length > 0 ? cd[0].name : 'Sayım Kaydı';
-                          } catch (e) {
-                            return 'Sayım Kaydı';
-                          }
-                        })()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.recentItemQty}>{item.item_count}</Text>
-                    <Text style={styles.recentItemUnit}>Kalem</Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <>
-                <View style={styles.recentItemRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                    <View style={styles.recentItemIconBox}>
-                      <Ionicons name="hardware-chip-outline" size={20} color="#FF6B00" />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.recentItemCode}>STK-88219</Text>
-                        <View style={styles.recentRackBadge}>
-                          <Text style={styles.recentRackText}>Raf A-12</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.recentItemName} numberOfLines={1}>Hidrolik Rulman 45mm</Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.recentItemQty}>120</Text>
-                    <Text style={styles.recentItemUnit}>Adet</Text>
-                  </View>
-                </View>
+            {(() => {
+              const displayRecentItems: any[] = [];
 
-                <View style={styles.recentItemRow}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                    <View style={styles.recentItemIconBox}>
-                      <Ionicons name="construct-outline" size={20} color="#0051D5" />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.recentItemCode}>STK-44012</Text>
-                        <View style={styles.recentRackBadge}>
-                          <Text style={styles.recentRackText}>Raf B-04</Text>
-                        </View>
+              // 1. First priority: Items from activeCart (currently counted)
+              if (activeCart && activeCart.length > 0) {
+                activeCart.forEach(item => {
+                  if (displayRecentItems.length < 4 && !displayRecentItems.some(d => d.stock_code === item.stock_code)) {
+                    displayRecentItems.push({
+                      id: `cart_${item.stock_code}`,
+                      stock_code: item.stock_code,
+                      name: item.name,
+                      barcode: item.barcode,
+                      quantity: item.quantity,
+                      unit: item.unit || 'Adet',
+                      badge: 'Sepette',
+                      badgeColor: '#FF6B00',
+                      description: item.description,
+                      icon: 'cart-outline',
+                      iconColor: '#FF6B00',
+                      itemRef: item
+                    });
+                  }
+                });
+              }
+
+              // 2. Second priority: Items from recent scanned/searched products
+              if (displayRecentItems.length < 4 && recentProducts && recentProducts.length > 0) {
+                recentProducts.forEach(item => {
+                  if (displayRecentItems.length < 4 && !displayRecentItems.some(d => d.stock_code === item.stock_code)) {
+                    displayRecentItems.push({
+                      id: `recent_${item.stock_code}`,
+                      stock_code: item.stock_code,
+                      name: item.name,
+                      barcode: item.barcode,
+                      quantity: item.quantity || 1,
+                      unit: item.unit || 'Adet',
+                      badge: item.depo_adi || '01 - Depo',
+                      badgeColor: '#00AE78',
+                      description: item.description,
+                      icon: 'cube-outline',
+                      iconColor: '#00AE78',
+                      itemRef: item
+                    });
+                  }
+                });
+              }
+
+              // 3. Third priority: Items from saved sayim backups
+              if (displayRecentItems.length < 4 && sayimBackups && sayimBackups.length > 0) {
+                for (const b of sayimBackups) {
+                  try {
+                    const cd = JSON.parse(b.cart_data);
+                    if (Array.isArray(cd)) {
+                      for (const item of cd) {
+                        if (displayRecentItems.length < 4 && !displayRecentItems.some(d => d.stock_code === item.stock_code)) {
+                          displayRecentItems.push({
+                            id: `backup_${b.id}_${item.stock_code}`,
+                            stock_code: item.stock_code,
+                            name: item.name,
+                            barcode: item.barcode,
+                            quantity: item.quantity,
+                            unit: item.unit || 'Adet',
+                            badge: b.backup_date ? b.backup_date.split(' ')[0] : 'Sayım',
+                            badgeColor: '#0051D5',
+                            description: item.description,
+                            icon: 'checkmark-done-circle-outline',
+                            iconColor: '#0051D5',
+                            itemRef: item
+                          });
+                        }
+                      }
+                    }
+                  } catch (e) {}
+                  if (displayRecentItems.length >= 4) break;
+                }
+              }
+
+              if (displayRecentItems.length > 0) {
+                return displayRecentItems.map((item, idx) => (
+                  <TouchableOpacity
+                    key={item.id || idx}
+                    style={styles.recentItemRow}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setAppMode('fiyatgor');
+                      handleSearch(item.stock_code || item.barcode || item.name);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                      <View style={[styles.recentItemIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+                        <Ionicons name={item.icon as any} size={20} color={item.iconColor} />
                       </View>
-                      <Text style={styles.recentItemName} numberOfLines={1}>Endüstriyel Kayış 32mm</Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text style={styles.recentItemCode}>{item.stock_code}</Text>
+                          <View style={[styles.recentRackBadge, { backgroundColor: item.badgeColor ? `${item.badgeColor}22` : undefined }]}>
+                            <Text style={[styles.recentRackText, { color: item.badgeColor || '#00AE78' }]}>{item.badge}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.recentItemName} numberOfLines={1}>{item.name}</Text>
+                        {!!item.description && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                            <Ionicons name="chatbubble-ellipses" size={11} color="#FF6B00" />
+                            <Text style={{ fontSize: 11, color: '#FF6B00', fontWeight: '700' }} numberOfLines={1}>
+                              {item.description}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.recentItemQty}>45</Text>
-                    <Text style={styles.recentItemUnit}>Adet</Text>
-                  </View>
+                    <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                      <Text style={styles.recentItemQty}>{item.quantity}</Text>
+                      <Text style={styles.recentItemUnit}>{item.unit || 'Adet'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ));
+              }
+
+              return (
+                <View style={{ paddingVertical: 24, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="cube-outline" size={32} color={styles.colors.textMuted} style={{ marginBottom: 8, opacity: 0.6 }} />
+                  <Text style={{ color: styles.colors.textMuted, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+                    Henüz işlem yapılmış ürün bulunmuyor
+                  </Text>
+                  <Text style={{ color: styles.colors.textMuted, fontSize: 11, marginTop: 4, textAlign: 'center', opacity: 0.8 }}>
+                    Barkod okuttuğunuz veya sayım yaptığınız gerçek stoklar burada listelenecektir.
+                  </Text>
                 </View>
-              </>
-            )}
+              );
+            })()}
           </View>
         </ScrollView>
 
@@ -2352,7 +2442,7 @@ export default function App() {
                               keyboardType="numeric"
                               value={countInput}
                               onChangeText={setCountInput}
-                              autoFocus={true}
+                              autoFocus={false}
                               selectTextOnFocus={true}
                             />
                             <TouchableOpacity
@@ -2390,32 +2480,32 @@ export default function App() {
                           </TouchableOpacity>
                         </View>
 
-                        {/* SAYIM NOTU / AÇIKLAMA GİRİŞİ */}
-                        <View style={styles.descInputContainer}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        {/* SAYIM NOTU / AÇIKLAMA GİRİŞİ (VURGULANMIŞ ALAN) */}
+                        <View style={[styles.descInputContainer, { borderWidth: 1.5, borderColor: '#FF6B00', borderRadius: 16, padding: 12, backgroundColor: isDark ? 'rgba(255, 107, 0, 0.08)' : 'rgba(255, 107, 0, 0.05)', marginTop: 10, marginBottom: 12 }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Ionicons name="chatbubble-ellipses-outline" size={15} color="#FF6B00" />
-                              <Text style={{ fontSize: 12, fontWeight: '800', color: styles.colors.text }}>
-                                Sayım Notu / Açıklama (Opsiyonel)
+                              <Ionicons name="chatbubble-ellipses" size={17} color="#FF6B00" />
+                              <Text style={{ fontSize: 13, fontWeight: '800', color: '#FF6B00' }}>
+                                Sayım Notu / Açıklama (Arızalı, Hasarlı vb.)
                               </Text>
                             </View>
                             {countDescription.length > 0 && (
-                              <TouchableOpacity onPress={() => setCountDescription('')}>
+                              <TouchableOpacity onPress={() => setCountDescription('')} style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 6 }}>
                                 <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: 'bold' }}>Temizle</Text>
                               </TouchableOpacity>
                             )}
                           </View>
 
                           <TextInput
-                            style={[styles.descInputField, { backgroundColor: styles.colors.cardLow, borderColor: styles.colors.border, color: styles.colors.text }]}
-                            placeholder="Örn: 20 adet sayıldı, 3 adeti arızalı / kutu hasarlı..."
+                            style={[styles.descInputField, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#cbd5e1', color: styles.colors.text, height: 44, fontSize: 13, paddingHorizontal: 12, borderRadius: 10 }]}
+                            placeholder="Örn: 20 adet sayıldı, 3 adeti arızalı / ambalaj ezik..."
                             placeholderTextColor={styles.colors.textMuted}
                             value={countDescription}
                             onChangeText={setCountDescription}
                           />
 
                           {/* Hızlı Açıklama Etiketleri */}
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 10 }}>
                             {[
                               '⚠️ 1 Adet Arızalı',
                               '⚠️ 2 Adet Arızalı',
@@ -2427,12 +2517,12 @@ export default function App() {
                             ].map((tag, tIdx) => (
                               <TouchableOpacity
                                 key={tIdx}
-                                style={[styles.quickTagBtn, { backgroundColor: styles.colors.cardLow, borderColor: styles.colors.border }]}
+                                style={[styles.quickTagBtn, { backgroundColor: isDark ? '#334155' : '#ffffff', borderColor: '#FF6B00', borderWidth: 1 }]}
                                 onPress={() => {
                                   setCountDescription(prev => prev ? `${prev}, ${tag}` : tag);
                                 }}
                               >
-                                <Text style={[styles.quickTagText, { color: styles.colors.text }]}>{tag}</Text>
+                                <Text style={[styles.quickTagText, { color: isDark ? '#fff' : '#1e293b' }]}>{tag}</Text>
                               </TouchableOpacity>
                             ))}
                           </ScrollView>
@@ -2449,6 +2539,19 @@ export default function App() {
                           </Text>
                         </TouchableOpacity>
                       </View>
+                    )}
+
+                    {/* FİYAT GÖR MODUNDA SAYIMA DAHİL ETME KISAYOLU */}
+                    {product.name !== 'Ürün Bulunamadı' && appMode === 'fiyatgor' && (
+                      <TouchableOpacity
+                        style={[styles.modalSubmit, { backgroundColor: '#FF6B00', marginTop: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}
+                        onPress={() => {
+                          setAppMode('sayim');
+                        }}
+                      >
+                        <Ionicons name="barcode-outline" size={20} color="#fff" />
+                        <Text style={styles.modalSubmitText}>BU ÜRÜNÜ SAYIMA DAHİL ET (ADET & NOT GİRİŞİ)</Text>
+                      </TouchableOpacity>
                     )}
 
                     {/* WAREHOUSE STOCK BREAKDOWN ACCORDION */}
@@ -3326,7 +3429,8 @@ const getStyles = (isDark: boolean) => {
       alignItems: 'center',
       justifyContent: 'space-between',
       position: 'relative',
-      zIndex: 2,
+      zIndex: 10,
+      elevation: 10,
       marginBottom: 12
     },
     heroWarehouseIconBox: {
