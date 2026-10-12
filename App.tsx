@@ -373,7 +373,7 @@ export default function App() {
         const contentUri = await FileSystem.getContentUriAsync(result.uri);
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
           data: contentUri,
-          flags: 1,
+          flags: 268435457,
           type: 'application/vnd.android.package-archive',
         });
       } else {
@@ -381,7 +381,10 @@ export default function App() {
       }
     } catch (error: any) {
       setIsDownloading(false);
-      Alert.alert('İndirme Hatası', `Güncelleme dosyası indirilemedi:\n${error.message || error}`);
+      Alert.alert(
+        'Yükleme Başlatılamadı',
+        `Güncelleme indirildi ancak kurulum başlatılamadı:\n${error.message || error}\n\nLütfen ayarlardan 'Bilinmeyen uygulamaları yükle' iznini kontrol edin.`
+      );
     }
   };
 

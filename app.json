@@ -26,7 +26,8 @@
         "android.permission.CAMERA",
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
       "predictiveBackGestureEnabled": false
     },
