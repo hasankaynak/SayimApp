@@ -1,6 +1,6 @@
 {
-  "version": "1.0.13",
-  "versionCode": 13,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.13/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil Uygulaması v1.0.13\n• GitHub otomatik güncelleme ve anlık indirme testi başarılı.\n• Ürün ismi değiştiğinde aktif sepetin de anında güncellenmesi sağlandı."
+  "version": "1.0.14",
+  "versionCode": 14,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.14/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.14\n• Stitch UI tasarımı ile 1-e-1 yenilenen modern arayüz.\n• Taktiksel lazerli barkod vizörü, özet paneli ve yapışkan sepet barı eklendi."
 }

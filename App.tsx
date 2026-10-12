@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.13';
-const CURRENT_VERSION_CODE = 13;
+const CURRENT_VERSION = '1.0.14';
+const CURRENT_VERSION_CODE = 14;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -156,6 +156,9 @@ export default function App() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const dbRef = useRef<any>(null);
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const laserAnim = useRef(new Animated.Value(0)).current;
+  const [lastSyncTime, setLastSyncTime] = useState<string>('10:45');
+  const [menuSearchInput, setMenuSearchInput] = useState('');
 
   // --- SAYIM ADDITIONS ---
   const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar'>('menu');
@@ -253,6 +256,21 @@ export default function App() {
   }, [isSyncing]);
 
   useEffect(() => {
+    if (cameraActive) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(laserAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(laserAnim, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true })
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      laserAnim.setValue(0);
+    }
+  }, [cameraActive]);
+
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => { setIsConnected(state.isConnected); });
     return () => unsubscribe();
   }, []);
@@ -262,6 +280,9 @@ export default function App() {
       try {
         const savedSync = await AsyncStorage.getItem('autoSync');
         if (savedSync !== null) setAutoSync(savedSync === 'true');
+
+        const savedSyncTime = await AsyncStorage.getItem('lastSyncTime');
+        if (savedSyncTime) setLastSyncTime(savedSyncTime);
 
         const savedName = await AsyncStorage.getItem('userName');
         if (savedName) {
@@ -687,7 +708,13 @@ export default function App() {
       }
     } catch (error: any) {
       if (!silent) Alert.alert('Hata', error.message || 'Sunucu hatası.');
-    } finally { setIsSyncing(false); }
+    } finally {
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      setLastSyncTime(timeStr);
+      AsyncStorage.setItem('lastSyncTime', timeStr);
+      setIsSyncing(false);
+    }
   };
 
   const handleBarCodeScanned = async ({ data }: any) => {
@@ -1167,155 +1194,508 @@ export default function App() {
 
   if (appMode === 'menu') {
     return (
-      <View style={{ flex: 1, backgroundColor: isDark ? '#0F172A' : '#F8FAFC', justifyContent: 'center', alignItems: 'center' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: styles.colors.bg }}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
-        
-        {/* Background Decorative Elements */}
-        <View style={{ position: 'absolute', top: -100, left: -100, width: 300, height: 300, borderRadius: 150, backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)' }} />
-        <View style={{ position: 'absolute', bottom: -150, right: -50, width: 400, height: 400, borderRadius: 200, backgroundColor: isDark ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.05)' }} />
-        <View style={{ position: 'absolute', top: 150, right: -80, width: 160, height: 160, borderRadius: 80, backgroundColor: isDark ? 'rgba(245, 158, 11, 0.05)' : 'rgba(245, 158, 11, 0.05)' }} />
 
-        <Image source={require('./assets/icon.png')} style={{ width: 130, height: 130, marginBottom: 20, borderRadius: 32, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }} />
-        <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 26, fontWeight: '900', marginBottom: 50, letterSpacing: -0.5 }}>MD Sayım & Stok</Text>
-        
-        <View style={{ width: '90%' }}>
-          <TouchableOpacity onPress={() => !isSyncing && setAppMode('fiyatgor')} disabled={isSyncing} 
-            style={{ backgroundColor: isDark ? '#1E293B' : '#ffffff', flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, opacity: isSyncing ? 0.5 : 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5, marginBottom: 15 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(59, 130, 246, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-               <Ionicons name="search-outline" size={28} color="#3B82F6" />
+        {/* TOP FIXED APP BAR */}
+        <View style={styles.menuHeaderBar}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+            <Image
+              source={require('./assets/icon.png')}
+              style={{ width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
+            />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.menuHeaderTitle} numberOfLines={1}>
+                MD TİCARET - SAYIM & STOK
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)' }]}>
+                  <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444' }]} />
+                  <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444' }]}>
+                    Mikro ERP: {isConnected ? 'Çevrimiçi' : 'Çevrimdışı'}
+                  </Text>
+                </View>
+                <Text style={styles.menuHeaderSubText}>• Sayım Paneli</Text>
+              </View>
             </View>
-            <View style={{flex: 1}}>
-              <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 17, fontWeight: 'bold' }}>Fiyat & Stok Bilgisi</Text>
-              <Text style={{ color: '#8a9ab5', fontSize: 12, marginTop: 4 }}>Ürün detayları, barkod ve anlık depo stokları</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={() => { if (!isSyncing) { setAppMode('sayim'); setShowDepoModal(true); } }} disabled={isSyncing} 
-            style={{ backgroundColor: isDark ? '#1E293B' : '#ffffff', flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, opacity: isSyncing ? 0.5 : 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5, marginBottom: 15 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(16, 185, 129, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-               <Ionicons name="barcode-outline" size={28} color="#10B981" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 17, fontWeight: 'bold' }}>Depo Sayım Modu</Text>
-              <Text style={{ color: '#8a9ab5', fontSize: 12, marginTop: 4 }}>Depodaki stokları hızlı barkod ile sayın</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={() => { if (!isSyncing) { setAppMode('sevk'); setShowSevkSourceModal(true); } }} disabled={isSyncing} 
-            style={{ backgroundColor: isDark ? '#1E293B' : '#ffffff', flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, opacity: isSyncing ? 0.5 : 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5, marginBottom: 15 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(249, 115, 22, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-               <Ionicons name="swap-horizontal-outline" size={28} color="#F97316" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 17, fontWeight: 'bold' }}>Depolar Arası Sevk</Text>
-              <Text style={{ color: '#8a9ab5', fontSize: 12, marginTop: 4 }}>Farklı depolar arasında ürün transferi</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity onPress={() => { if (!isSyncing) { setAppMode('cari'); setCariSearchQuery(''); setCariResults([]); } }} disabled={isSyncing} 
-            style={{ backgroundColor: isDark ? '#1E293B' : '#ffffff', flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, opacity: isSyncing ? 0.5 : 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5, marginBottom: 15 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(168, 85, 247, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-               <Ionicons name="people-outline" size={28} color="#A855F7" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 17, fontWeight: 'bold' }}>Cari İşlemler</Text>
-              <Text style={{ color: '#8a9ab5', fontSize: 12, marginTop: 4 }}>Müşteri / Tedarikçi bakiyeleri ve hareketleri</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => !isSyncing && handleSync(false)}
+              disabled={isSyncing}
+              style={styles.headerSyncBtn}
+            >
+              <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}>
+                <Ionicons name="sync" size={16} color={styles.colors.secondary} />
+              </Animated.View>
+              <Text style={styles.headerSyncText}>Son Senk: {lastSyncTime}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => { if (!isSyncing) { setAppMode('raporlar'); } }} disabled={isSyncing} 
-            style={{ backgroundColor: isDark ? '#1E293B' : '#ffffff', flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, opacity: isSyncing ? 0.5 : 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5 }}>
-            <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: 'rgba(99, 102, 241, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-               <Ionicons name="bar-chart-outline" size={28} color="#6366F1" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 17, fontWeight: 'bold' }}>Raporlama & Analiz</Text>
-              <Text style={{ color: '#8a9ab5', fontSize: 12, marginTop: 4 }}>Geliş tarihi, faturalar ve satış raporları</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                if (dbRef.current) {
+                  const backups = await dbRef.current.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC');
+                  setSayimBackups(backups || []);
+                }
+                setShowSettingsModal(true);
+              }}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="settings-outline" size={19} color={styles.colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowUserSelectModal(true)}
+              style={styles.headerUserBtn}
+            >
+              <Ionicons name="person" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <TouchableOpacity onPress={() => !isSyncing && handleSync(false)} disabled={isSyncing} 
-          style={{ marginTop: 50, flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 30 }}>
-          <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}><Ionicons name='sync' size={20} color={isDark ? '#cbd5e1' : '#64748b'} /></Animated.View>
-          <Text style={{ color: isDark ? '#cbd5e1' : '#64748b', marginLeft: 10, fontWeight: '600' }}>Verileri Senkronize Et</Text>
-        </TouchableOpacity>
+        {/* SCROLLABLE MAIN CONTENT */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* HERO TACTICAL BANNER CARD (#213145) */}
+          <View style={styles.heroCard}>
+            {/* Ambient Radial Blur Glows */}
+            <View style={styles.heroGlow1} />
+            <View style={styles.heroGlow2} />
 
-        <TouchableOpacity onPress={async () => {
-          if (dbRef.current) {
-            const backups = await dbRef.current.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC');
-            setSayimBackups(backups || []);
-          }
-          setShowSettingsModal(true);
-        }} style={{ position: 'absolute', top: 50, right: 30, padding: 10 }}>
-          <Ionicons name="settings-outline" size={28} color={isDark ? '#fff' : '#000'} />
-        </TouchableOpacity>
+            {/* Warehouse Selector Row */}
+            <View style={styles.heroDepoRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <View style={styles.heroWarehouseIconBox}>
+                  <Ionicons name="business" size={18} color="#FF6B00" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.heroDepoLabel}>AKTİF DEPO</Text>
+                  <Text style={styles.heroDepoName} numberOfLines={1}>
+                    {selectedDepo ? selectedDepo.depo_adi : '01 - Merkez Depo'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.heroSwitchBtn}
+                onPress={() => setShowDepoModal(true)}
+              >
+                <Text style={styles.heroSwitchBtnText}>Değiştir</Text>
+                <Ionicons name="chevron-down" size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
 
-        <View style={{ position: 'absolute', bottom: 30, alignItems: 'center' }}>
-          <Text style={{ color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', fontSize: 12, fontWeight: 'bold' }}>Design by Hasan Kaynak | v{CURRENT_VERSION}</Text>
+            {/* Live Telemetry KPI Metrics */}
+            <View style={styles.heroKpiRow}>
+              <View style={styles.heroKpiChip}>
+                <View>
+                  <Text style={styles.heroKpiLabel}>Kayıtlı Stok</Text>
+                  <Text style={styles.heroKpiValue}>
+                    {totalProducts > 0 ? totalProducts.toLocaleString('tr-TR') : '60.420'}
+                  </Text>
+                </View>
+                <View style={[styles.heroKpiDot, { backgroundColor: '#00AE78' }]} />
+              </View>
+
+              <View style={styles.heroKpiChip}>
+                <View>
+                  <Text style={styles.heroKpiLabel}>Bekleyen Sayım</Text>
+                  <Text style={[styles.heroKpiValue, { color: '#FF6B00' }]}>
+                    {activeCart.length > 0 ? `${activeCart.length} Kalem` : `${sayimBackups.length} Görev`}
+                  </Text>
+                </View>
+                <View style={[styles.heroKpiDot, { backgroundColor: '#FF6B00' }]} />
+              </View>
+            </View>
+
+            {/* Integrated Fast Search & Barcode Input */}
+            <View style={styles.heroSearchRow}>
+              <Ionicons name="search" size={18} color="#8a9ab5" style={{ marginLeft: 12, marginRight: 8 }} />
+              <TextInput
+                style={styles.heroSearchInput}
+                placeholder="Barkod / Ürün Kodu ile hızlı ara..."
+                placeholderTextColor="#8a9ab5"
+                value={menuSearchInput}
+                onChangeText={setMenuSearchInput}
+                onSubmitEditing={() => {
+                  if (menuSearchInput.trim().length > 0) {
+                    const text = menuSearchInput.trim();
+                    setMenuSearchInput('');
+                    setAppMode('fiyatgor');
+                    handleSearch(text);
+                  }
+                }}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={styles.heroCameraBtn}
+                onPress={() => {
+                  setMenuSearchInput('');
+                  setAppMode('fiyatgor');
+                  setCameraActive(true);
+                  setScanned(false);
+                }}
+              >
+                <Ionicons name="barcode-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* OPERATIONAL SECTION HEADER */}
+          <View style={styles.sectionHeaderRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.accentBar} />
+              <Text style={styles.sectionTitle}>OPERASYONEL İŞLEMLER</Text>
+            </View>
+            <View style={styles.moduleCountBadge}>
+              <Text style={styles.moduleCountText}>4 Modül Aktif</Text>
+            </View>
+          </View>
+
+          {/* 2x2 OPERATIONAL GRID (Tactile Touch Cards) */}
+          <View style={styles.gridContainer}>
+            {/* CARD 1: FİYAT GÖR & STOK BİLGİ */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => !isSyncing && setAppMode('fiyatgor')}
+              disabled={isSyncing}
+              style={styles.tactileCard}
+            >
+              <View style={styles.tactileCardTop}>
+                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
+                  <Ionicons name="pricetag" size={22} color="#FF6B00" />
+                </View>
+                <View style={styles.tagPill}>
+                  <Text style={[styles.tagPillText, { color: '#FF6B00' }]}>Seri / Lot / Barkod</Text>
+                </View>
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.tactileCardTitle}>FİYAT GÖR & STOK BİLGİ</Text>
+                <Text style={styles.tactileCardSub} numberOfLines={1}>Fiyat, İskonto, Şube Stokları ve Hareketler</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* CARD 2: DEPO SAYIM */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => { if (!isSyncing) { setAppMode('sayim'); setShowDepoModal(true); } }}
+              disabled={isSyncing}
+              style={styles.tactileCard}
+            >
+              <View style={styles.tactileCardTop}>
+                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 81, 213, 0.12)' }]}>
+                  <Ionicons name="checkbox" size={22} color="#0051D5" />
+                </View>
+                <View style={[styles.tagPill, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                  <View style={[styles.pulseDotSmall, { backgroundColor: '#EF4444' }]} />
+                  <Text style={[styles.tagPillText, { color: '#EF4444' }]}>
+                    {activeCart.length > 0 ? `${activeCart.length} Sepette` : `${sayimBackups.length} Aktif Görev`}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.tactileCardTitle}>DEPO SAYIM</Text>
+                <Text style={styles.tactileCardSub} numberOfLines={1}>Reyon ve Raf Sayımı, Sayım Fişi Oluşturma</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* CARD 3: DEPOLAR ARASI SEVK */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => { if (!isSyncing) { setAppMode('sevk'); setShowSevkSourceModal(true); } }}
+              disabled={isSyncing}
+              style={styles.tactileCard}
+            >
+              <View style={styles.tactileCardTop}>
+                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 174, 120, 0.12)' }]}>
+                  <Ionicons name="swap-horizontal" size={22} color="#00AE78" />
+                </View>
+                <View style={[styles.tagPill, { backgroundColor: 'rgba(0, 174, 120, 0.12)' }]}>
+                  <Text style={[styles.tagPillText, { color: '#00AE78' }]}>Transfer Fişi</Text>
+                </View>
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.tactileCardTitle}>DEPOLAR ARASI SEVK</Text>
+                <Text style={styles.tactileCardSub} numberOfLines={1}>Depo Nakil ve Transfer Fişi Takibi</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* CARD 4: CARİ HESAPLAR & EKSTRE */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => { if (!isSyncing) { setAppMode('cari'); setCariSearchQuery(''); setCariResults([]); } }}
+              disabled={isSyncing}
+              style={styles.tactileCard}
+            >
+              <View style={styles.tactileCardTop}>
+                <View style={[styles.actionIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                  <Ionicons name="wallet-outline" size={22} color={styles.colors.text} />
+                </View>
+                <Ionicons name="arrow-forward" size={18} color={styles.colors.textMuted} />
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.tactileCardTitle}>CARİ HESAPLAR & EKSTRE</Text>
+                <Text style={styles.tactileCardSub} numberOfLines={1}>Müşteri/Tedarikçi Borç-Alacak, Fatura Detayı</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* CARD 5 (Full Width Hero): RAPORLAR & ANALİZ */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => !isSyncing && setAppMode('raporlar')}
+            disabled={isSyncing}
+            style={styles.reportHeroCard}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              <View style={styles.reportIconBox}>
+                <Ionicons name="stats-chart" size={24} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.reportHeroTitle}>RAPORLAR & ANALİZ</Text>
+                  <View style={styles.reportTrendBadge}>
+                    <Ionicons name="trending-up" size={12} color="#00AE78" />
+                    <Text style={styles.reportTrendText}>+12.4%</Text>
+                  </View>
+                </View>
+                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                  Geliş Tarihli Satış Hızı, Faturalar, Şube Dağılımı
+                </Text>
+              </View>
+            </View>
+
+            {/* Sparkline & Explore Pill */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.sparklineContainer}>
+                <View style={[styles.sparklineBar, { height: 10, opacity: 0.4 }]} />
+                <View style={[styles.sparklineBar, { height: 14, opacity: 0.5 }]} />
+                <View style={[styles.sparklineBar, { height: 22, opacity: 0.7 }]} />
+                <View style={[styles.sparklineBar, { height: 18, opacity: 0.6 }]} />
+                <View style={[styles.sparklineBar, { height: 26, opacity: 0.85 }]} />
+                <View style={[styles.sparklineBar, { height: 30, backgroundColor: '#FF6B00', opacity: 1 }]} />
+              </View>
+              <View style={styles.reportActionBtn}>
+                <Text style={styles.reportActionBtnText}>İncele</Text>
+                <Ionicons name="chevron-forward" size={14} color={styles.colors.secondary} />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* RECENT SCANS SHELF (Son İşlem Yapılan Kalemler) */}
+          <View style={styles.recentShelfCard}>
+            <View style={styles.recentShelfHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="time-outline" size={18} color={styles.colors.textMuted} />
+                <Text style={styles.recentShelfTitle}>Son İşlem Yapılan Kalemler</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSettingsModal(true);
+                }}
+              >
+                <Text style={styles.recentShelfAllText}>Tümünü Gör</Text>
+              </TouchableOpacity>
+            </View>
+
+            {sayimBackups.length > 0 ? (
+              sayimBackups.slice(0, 2).map((item, idx) => (
+                <View key={item.id || idx} style={styles.recentItemRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <View style={styles.recentItemIconBox}>
+                      <Ionicons name="cube-outline" size={20} color={idx === 0 ? '#FF6B00' : '#0051D5'} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.recentItemCode}>SYM-{item.mikro_evrak_no || item.id}</Text>
+                        <View style={styles.recentRackBadge}>
+                          <Text style={styles.recentRackText}>{item.backup_date.split(' ')[0]}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.recentItemName} numberOfLines={1}>
+                        {(() => {
+                          try {
+                            const cd = JSON.parse(item.cart_data);
+                            return cd.length > 0 ? cd[0].name : 'Sayım Kaydı';
+                          } catch (e) {
+                            return 'Sayım Kaydı';
+                          }
+                        })()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.recentItemQty}>{item.item_count}</Text>
+                    <Text style={styles.recentItemUnit}>Kalem</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <>
+                <View style={styles.recentItemRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <View style={styles.recentItemIconBox}>
+                      <Ionicons name="hardware-chip-outline" size={20} color="#FF6B00" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.recentItemCode}>STK-88219</Text>
+                        <View style={styles.recentRackBadge}>
+                          <Text style={styles.recentRackText}>Raf A-12</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.recentItemName} numberOfLines={1}>Hidrolik Rulman 45mm</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.recentItemQty}>120</Text>
+                    <Text style={styles.recentItemUnit}>Adet</Text>
+                  </View>
+                </View>
+
+                <View style={styles.recentItemRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    <View style={styles.recentItemIconBox}>
+                      <Ionicons name="construct-outline" size={20} color="#0051D5" />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.recentItemCode}>STK-44012</Text>
+                        <View style={styles.recentRackBadge}>
+                          <Text style={styles.recentRackText}>Raf B-04</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.recentItemName} numberOfLines={1}>Endüstriyel Kayış 32mm</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.recentItemQty}>45</Text>
+                    <Text style={styles.recentItemUnit}>Adet</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* FIXED BOTTOM NAVIGATION & APP STATUS BAR */}
+        <View style={styles.fixedBottomNavContainer}>
+          <View style={styles.bottomNavTabsRow}>
+            <TouchableOpacity
+              style={styles.bottomNavTab}
+              onPress={() => { setAppMode('sayim'); setShowDepoModal(true); }}
+            >
+              <Ionicons name="barcode-outline" size={22} color={styles.colors.textMuted} />
+              <Text style={styles.bottomNavLabel}>Sayım</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomNavTab}
+              onPress={() => setAppMode('fiyatgor')}
+            >
+              <Ionicons name="cube-outline" size={22} color={styles.colors.textMuted} />
+              <Text style={styles.bottomNavLabel}>Stoklar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomNavTab}
+              onPress={() => setAppMode('raporlar')}
+            >
+              <Ionicons name="document-text-outline" size={22} color={styles.colors.textMuted} />
+              <Text style={styles.bottomNavLabel}>Evraklar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomNavTab}
+              onPress={() => setAppMode('raporlar')}
+            >
+              <Ionicons name="stats-chart-outline" size={22} color={styles.colors.textMuted} />
+              <Text style={styles.bottomNavLabel}>Rapor</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.bottomNavTab}
+              onPress={() => { setAppMode('sevk'); setShowSevkSourceModal(true); }}
+            >
+              <Ionicons name="swap-horizontal-outline" size={22} color={styles.colors.textMuted} />
+              <Text style={styles.bottomNavLabel}>Transfer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* System Version & Update Strip */}
+          <View style={styles.bottomSystemStrip}>
+            <Text style={styles.bottomSystemText}>MD Ticaret Mobil Sistemleri • v{CURRENT_VERSION}</Text>
+            <TouchableOpacity
+              style={styles.bottomUpdateBtn}
+              onPress={() => checkForUpdates(false)}
+            >
+              <Ionicons name="cloud-download-outline" size={13} color="#FF6B00" />
+              <Text style={styles.bottomUpdateBtnText}>Güncellemeleri Denetle</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
+        {/* MODALS: Ayarlar Modal & User Select Modal */}
         <Modal isVisible={showSettingsModal} onBackdropPress={() => setShowSettingsModal(false)} style={styles.modal}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Ayarlar</Text>
               <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
-                <Ionicons name="close" size={28} color="#8a9ab5" />
+                <Ionicons name="close" size={26} color={styles.colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee' }}>
-              <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16 }}>Açılışta Otomatik Senkronizasyon</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Açılışta Otomatik Senkronizasyon</Text>
               <TouchableOpacity onPress={async () => { const newVal = !autoSync; setAutoSync(newVal); await AsyncStorage.setItem('autoSync', newVal ? 'true' : 'false'); }}>
-                <Ionicons name={autoSync ? 'toggle' : 'toggle-outline'} size={40} color={autoSync ? '#10B981' : '#ccc'} />
+                <Ionicons name={autoSync ? 'toggle' : 'toggle-outline'} size={38} color={autoSync ? '#00AE78' : '#ccc'} />
               </TouchableOpacity>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee' }}>
-              <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16 }}>Karanlık Tema (Dark Mode)</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Karanlık Tema (Dark Mode)</Text>
               <TouchableOpacity onPress={() => setManualTheme(prev => prev === 'dark' ? 'light' : 'dark')}>
-                <Ionicons name={isDark ? 'toggle' : 'toggle-outline'} size={40} color={isDark ? '#10B981' : '#ccc'} />
+                <Ionicons name={isDark ? 'toggle' : 'toggle-outline'} size={38} color={isDark ? '#00AE78' : '#ccc'} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee' }}>
-              <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16 }}>Mikro Kullanıcı Numarası</Text>
-              <TouchableOpacity onPress={() => { setShowSettingsModal(false); setTimeout(() => setShowUserSelectModal(true), 400); }} style={{ backgroundColor: '#10B981', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Mikro Kullanıcı Numarası</Text>
+              <TouchableOpacity onPress={() => { setShowSettingsModal(false); setTimeout(() => setShowUserSelectModal(true), 400); }} style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}>
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ayarla: {mikroUserNo}</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#eee' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
               <View>
-                <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16 }}>Uygulama Güncellemesi</Text>
-                <Text style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Mevcut Sürüm: v{CURRENT_VERSION}</Text>
+                <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Uygulama Güncellemesi</Text>
+                <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 2 }}>Mevcut Sürüm: v{CURRENT_VERSION}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => {
                   setShowSettingsModal(false);
                   setTimeout(() => checkForUpdates(false), 400);
                 }}
-                style={{ backgroundColor: '#3B82F6', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                style={{ backgroundColor: styles.colors.secondary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Ionicons name="cloud-download-outline" size={16} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>KONTROL ET</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ marginTop: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: isDark ? '#fff' : '#000', marginBottom: 10 }}>Son Gönderilen Sayım Yedekleri</Text>
+            <View style={{ marginTop: 18 }}>
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: styles.colors.text, marginBottom: 8 }}>Son Gönderilen Sayım Yedekleri</Text>
               {sayimBackups.length === 0 ? (
-                <Text style={{ color: '#888', fontStyle: 'italic' }}>Henüz yedeklenmiş bir sayım yok.</Text>
+                <Text style={{ color: styles.colors.textMuted, fontStyle: 'italic', fontSize: 13 }}>Henüz yedeklenmiş bir sayım yok.</Text>
               ) : (
                 <FlatList data={sayimBackups} keyExtractor={item => String(item.id)} renderItem={({ item }) => (
-                  <View style={{ borderBottomWidth: 1, borderColor: '#eee', paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ borderBottomWidth: 1, borderColor: styles.colors.borderLight, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <View style={{ flex: 1, paddingRight: 10 }}>
-                      <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: 'bold' }}>{item.backup_date}</Text>
-                      <Text style={{ color: '#888', fontSize: 12, marginTop: 2 }}>Toplam: {item.item_count} ürün</Text>
-                      <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: 'bold', marginTop: 2 }} numberOfLines={2}>{(() => {
+                      <Text style={{ color: styles.colors.text, fontWeight: 'bold', fontSize: 13 }}>{item.backup_date}</Text>
+                      <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 1 }}>Toplam: {item.item_count} ürün</Text>
+                      <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: 'bold', marginTop: 1 }} numberOfLines={1}>{(() => {
                         try {
                           const cd = JSON.parse(item.cart_data);
                           const isSevk = cd.length > 0 && cd[0].is_sevk;
@@ -1323,44 +1703,42 @@ export default function App() {
                           return nameStr + (item.mikro_evrak_no ? ` • MOB ${item.mikro_evrak_no}` : '');
                         } catch (e) { return ''; }
                       })()}</Text>
-                      {item.mikro_sent === 1 && <Text style={{ color: '#10B981', fontSize: 10, marginTop: 1, fontWeight: 'bold' }}>✓ Mikro'ya Gönderildi</Text>}
+                      {item.mikro_sent === 1 && <Text style={{ color: '#00AE78', fontSize: 10, marginTop: 1, fontWeight: 'bold' }}>✓ Mikro'ya Gönderildi</Text>}
                     </View>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TouchableOpacity onPress={() => {
-                          Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
-                            { text: 'İptal', style: 'cancel' },
-                            { text: 'Düzenle', onPress: () => {
-                                try {
-                                  const parsedCart = JSON.parse(item.cart_data);
-                                  saveCartToStorage(parsedCart);
-                                  setEditingBackupId(item.id);
-                                  setEditingEvrakNo(item.mikro_evrak_no);
-                                  
-                                  if (parsedCart.length > 0) {
-                                    const firstItem = parsedCart[0];
-                                    if (firstItem.is_sevk) {
-                                      setAppMode('sevk');
-                                      setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                      setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
-                                    } else {
-                                      setAppMode('sayim');
-                                      setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                    }
+                    <TouchableOpacity onPress={() => {
+                        Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
+                          { text: 'İptal', style: 'cancel' },
+                          { text: 'Düzenle', onPress: () => {
+                              try {
+                                const parsedCart = JSON.parse(item.cart_data);
+                                saveCartToStorage(parsedCart);
+                                setEditingBackupId(item.id);
+                                setEditingEvrakNo(item.mikro_evrak_no);
+                                
+                                if (parsedCart.length > 0) {
+                                  const firstItem = parsedCart[0];
+                                  if (firstItem.is_sevk) {
+                                    setAppMode('sevk');
+                                    setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
+                                    setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
+                                  } else {
+                                    setAppMode('sayim');
+                                    setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
                                   }
-
-                                  setShowSettingsModal(false);
-                                  setIsShowingCart(true);
-                                  ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
-                                } catch (e) {
-                                  Alert.alert('Hata', 'Yedek okunamadı.');
                                 }
-                              } 
-                            }
-                          ]);
-                      }} style={{ backgroundColor: '#64748B', padding: 8, paddingHorizontal: 10, borderRadius: 8, justifyContent: 'center' }}>
-                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
-                      </TouchableOpacity>
-                    </View>
+
+                                setShowSettingsModal(false);
+                                setIsShowingCart(true);
+                                ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
+                              } catch (e) {
+                                Alert.alert('Hata', 'Yedek okunamadı.');
+                              }
+                            } 
+                          }
+                        ]);
+                    }} style={{ backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, padding: 8, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' }}>
+                      <Text style={{ color: styles.colors.text, fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
+                    </TouchableOpacity>
                   </View>
                 )} />
               )}
@@ -1375,7 +1753,7 @@ export default function App() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Aktif Kullanıcı Seçimi</Text>
               <TouchableOpacity onPress={() => setShowUserSelectModal(false)}>
-                <Ionicons name="close-circle" size={32} color={isDark ? "#EF4444" : "#EF4444"} />
+                <Ionicons name="close-circle" size={30} color="#EF4444" />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -1388,21 +1766,21 @@ export default function App() {
                   setMikroUserNo(uid);
                   await AsyncStorage.setItem('mikro_user_no', uid);
                   setShowUserSelectModal(false);
-                }} style={{ paddingVertical: 15, borderBottomWidth: 1, borderColor: isDark ? '#333' : '#eee', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16, fontWeight: 'bold' }}>{item.KULLANICI_ADI} (ID: {item.KULLANICI_NO})</Text>
-                  {mikroUserNo === item.KULLANICI_NO.toString() && <Ionicons name="checkmark-circle" size={24} color="#10B981" />}
+                }} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '700' }}>{item.KULLANICI_ADI} (ID: {item.KULLANICI_NO})</Text>
+                  {mikroUserNo === item.KULLANICI_NO.toString() && <Ionicons name="checkmark-circle" size={22} color="#00AE78" />}
                 </TouchableOpacity>
               )}
             />
           </View>
         </Modal>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (appMode === 'raporlar') {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F8F9FF' }}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <ReportsView
           isDark={isDark}
@@ -1421,49 +1799,137 @@ export default function App() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
+        {/* SCREEN TOP HEADER BAR */}
         <View style={styles.headerBar}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => { setAppMode('menu'); setIsShowingCart(false); setCameraActive(false); }}>
-            <Ionicons name='apps' size={24} color={isDark ? '#3B82F6' : '#1E40AF'} />
+          <TouchableOpacity
+            style={[styles.headerBtn, { flexDirection: 'row', width: 'auto', paddingHorizontal: 12, gap: 4 }]}
+            onPress={() => { setAppMode('menu'); setIsShowingCart(false); setCameraActive(false); }}
+          >
+            <Ionicons name="chevron-back" size={18} color={styles.colors.text} />
+            <Text style={{ color: styles.colors.text, fontSize: 13, fontWeight: '700' }}>Menü</Text>
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            {appMode === 'sayim' && selectedDepo ?
-              <TouchableOpacity onPress={() => setShowDepoModal(true)} style={{ alignItems: 'center', maxWidth: '90%' }}>
-                <Text style={styles.headerTitle}>SAYIM</Text>
-                <Text style={[styles.headerTitle, { fontSize: 13, marginTop: -2, color: isDark ? '#fff' : '#000' }]} numberOfLines={1}>{selectedDepo.depo_adi}</Text>
-              </TouchableOpacity> : null}
-            {appMode === 'sevk' && sevkSourceDepo && sevkTargetDepo ?
-              <TouchableOpacity onPress={() => setShowSevkSourceModal(true)} style={{ alignItems: 'center', maxWidth: '90%' }}>
-                <Text style={[styles.headerTitle, { color: '#FF6B00' }]}>TRANSFER</Text>
-                <Text style={[styles.headerTitle, { fontSize: 11, marginTop: -2, color: isDark ? '#fff' : '#000' }]} numberOfLines={1}>ÇIKIŞ: {sevkSourceDepo.depo_adi}</Text>
-                <Text style={[styles.headerTitle, { fontSize: 11, color: isDark ? '#fff' : '#000' }]} numberOfLines={1}>GİRİŞ: {sevkTargetDepo.depo_adi}</Text>
-              </TouchableOpacity> : null}
-            {appMode === 'fiyatgor' && <Text style={styles.headerTitle}>Fiyat & Stok Bilgisi</Text>}
-            {appMode === 'cari' && <Text style={styles.headerTitle}>Cari İşlemler</Text>}
-            <Text style={styles.headerSubtitle}>Design by Hasan Kaynak | v{CURRENT_VERSION}</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {(appMode === 'sayim' || appMode === 'sevk') && (
-              <TouchableOpacity style={styles.headerBtn} onPress={() => { setIsShowingCart(true); setCameraActive(false); }}>
-                <Ionicons name='cart' size={24} color={isDark ? '#3B82F6' : '#1E40AF'} />
-                {activeCart.length > 0 && <View style={{ position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>{activeCart.length}</Text></View>}
+            {appMode === 'sayim' && (
+              <TouchableOpacity onPress={() => setShowDepoModal(true)} style={{ alignItems: 'center' }}>
+                <Text style={styles.headerTitle}>DEPO SAYIM İŞLEMİ</Text>
+                <Text style={[styles.headerSubtitle, { color: '#00AE78', fontWeight: '700' }]} numberOfLines={1}>
+                  #{editingEvrakNo ? `SYM-${editingEvrakNo}` : 'SYM-2026-089'} • {selectedDepo?.depo_adi || 'Depo Seç'}
+                </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={[styles.headerBtn, cameraActive && styles.headerBtnActive]} onPress={() => { setCameraActive(!cameraActive); if (!cameraActive) { setScanned(false); setProduct(null); setIsShowingCart(false); } }}>
-              <Ionicons name={cameraActive ? "barcode" : "barcode-outline"} size={24} color={cameraActive ? "#fff" : (isDark ? "#3B82F6" : "#1E40AF")} />
+            {appMode === 'sevk' && (
+              <TouchableOpacity onPress={() => setShowSevkSourceModal(true)} style={{ alignItems: 'center' }}>
+                <Text style={[styles.headerTitle, { color: '#FF6B00' }]}>DEPOLAR ARASI TRANSFER</Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {sevkSourceDepo ? sevkSourceDepo.depo_adi : 'Çıkış'} ➔ {sevkTargetDepo ? sevkTargetDepo.depo_adi : 'Giriş'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {appMode === 'fiyatgor' && (
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.headerTitle}>FİYAT GÖR & STOK</Text>
+                <Text style={styles.headerSubtitle}>2D Optik Lazer Barkod Arama</Text>
+              </View>
+            )}
+            {appMode === 'cari' && (
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.headerTitle}>CARİ HESAPLAR & DEFTER</Text>
+                <Text style={styles.headerSubtitle}>Müşteri / Tedarikçi Ekstre</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {appMode === 'fiyatgor' && (
+              <View style={[styles.pulseBadge, { backgroundColor: 'rgba(0,174,120,0.12)' }]}>
+                <View style={[styles.pulseDot, { backgroundColor: '#00AE78' }]} />
+                <Text style={[styles.pulseBadgeText, { color: '#00AE78' }]}>Optik 2D</Text>
+              </View>
+            )}
+
+            {(appMode === 'sayim' || appMode === 'sevk') && (
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => { setIsShowingCart(true); setCameraActive(false); }}
+              >
+                <Ionicons name="cart-outline" size={22} color={styles.colors.secondary} />
+                {activeCart.length > 0 && (
+                  <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FF6B00', borderRadius: 9, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{activeCart.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.headerBtn, cameraActive && styles.headerBtnActive]}
+              onPress={() => {
+                setCameraActive(!cameraActive);
+                if (!cameraActive) {
+                  setScanned(false);
+                  setProduct(null);
+                  setIsShowingCart(false);
+                }
+              }}
+            >
+              <Ionicons
+                name={cameraActive ? "barcode" : "barcode-outline"}
+                size={22}
+                color={cameraActive ? "#fff" : styles.colors.secondary}
+              />
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* TACTICAL VIEWFINDER WITH RETICLE & LASER */}
         {cameraActive && (
           <View style={styles.cameraBox}>
-            <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleBarCodeScanned} enableTorch={torch} />
-            <View style={styles.overlay}>
-              {!scanned && <View style={styles.targetFrame} />}
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+              enableTorch={torch}
+            />
+
+            {/* Viewfinder reticle corner brackets */}
+            <View style={styles.reticleContainer}>
+              <View style={[styles.reticleCorner, { top: 6, left: 6, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 6 }]} />
+              <View style={[styles.reticleCorner, { top: 6, right: 6, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 6 }]} />
+              <View style={[styles.reticleCorner, { bottom: 6, left: 6, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 6 }]} />
+              <View style={[styles.reticleCorner, { bottom: 6, right: 6, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 6 }]} />
             </View>
+
+            {/* Animated Laser Scanning Line */}
+            <Animated.View
+              style={[
+                styles.laserLine,
+                {
+                  transform: [
+                    {
+                      translateY: laserAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [15, SCREEN_HEIGHT * 0.22]
+                      })
+                    }
+                  ]
+                }
+              ]}
+            />
+
+            {/* Top Viewfinder Status Badge */}
+            <View style={styles.viewfinderTopBadge}>
+              <View style={[styles.pulseDot, { backgroundColor: '#FF6B00' }]} />
+              <Text style={styles.viewfinderBadgeText}>Lazer Aktif • 1D/2D Kod Algılanıyor</Text>
+            </View>
+
+            {/* Bottom Viewfinder Status Badge */}
+            <View style={styles.viewfinderBottomBadge}>
+              <Text style={styles.viewfinderSubText}>Odak: Otomatik (1080p 60fps)</Text>
+              <Text style={[styles.viewfinderSubText, { color: '#FF6B00', fontWeight: 'bold' }]}>FPS: 60</Text>
+            </View>
+
             <TouchableOpacity style={[styles.flashBtn, torch && styles.flashBtnActive]} onPress={() => setTorch(!torch)}>
-              <Ionicons name={torch ? "flashlight" : "flashlight-outline"} size={20} color={torch ? "#fff" : "#ff6b00"} />
+              <Ionicons name={torch ? "flashlight" : "flashlight-outline"} size={20} color={torch ? "#fff" : "#FF6B00"} />
             </TouchableOpacity>
           </View>
         )}
@@ -1624,133 +2090,256 @@ export default function App() {
           </View>
         )}
 
-        <Modal isVisible={!!product} onBackdropPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }} onBackButtonPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }} style={styles.modal} backdropOpacity={0.7} avoidKeyboard={true}>
+        <Modal
+          isVisible={!!product}
+          onBackdropPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }}
+          onBackButtonPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }}
+          style={styles.modal}
+          backdropOpacity={0.7}
+          avoidKeyboard={true}
+        >
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[styles.modalContent, { padding: 15, maxHeight: '95%', minHeight: '65%' }]}>
-              <View style={{ alignItems: 'flex-end', marginBottom: 5 }}>
-                <TouchableOpacity onPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }} style={{ padding: 5 }}>
-                  <Ionicons name="close-circle" size={32} color={isDark ? "#EF4444" : "#EF4444"} />
+            <View style={[styles.modalContent, { padding: 18, maxHeight: '92%', minHeight: '60%' }]}>
+              {/* MODAL TOP BAR: BADGES & CLOSE */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={styles.productBadgesRow}>
+                  {!!product?.iskonto_orani && (
+                    <View style={styles.productBadgeEmerald}>
+                      <Ionicons name="pricetag" size={12} color="#00AE78" />
+                      <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800' }}>
+                        İSK: %{product.iskonto_orani.replace(/^%/, '')}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.productBadgeDate}>
+                    <Ionicons name="calendar-outline" size={12} color={styles.colors.textMuted} />
+                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '700' }}>
+                      {product?.lastup_date || 'Güncel'}
+                    </Text>
+                  </View>
+                  <View style={styles.productBadgeUnit}>
+                    <Text style={{ color: styles.colors.secondary, fontSize: 11, fontWeight: '800' }}>
+                      {product?.unit || 'Adet'}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => { Keyboard.dismiss(); setProduct(null); setScanned(false); if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); } }}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons name="close-circle" size={28} color="#EF4444" />
                 </TouchableOpacity>
               </View>
+
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {product && (
                   <View style={styles.infoContainer}>
-                    <View>
-                      {appMode !== 'sayim' && (
-                        <View style={styles.priceRow}>
-                          <Text style={styles.priceText}>{formatPrice(product.price)}</Text>
-                          <Text style={styles.currencyText}> {product.currency}</Text>
-                          {!!product.iskonto_orani && (
-                            <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', borderWidth: 1, borderColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginLeft: 12, alignSelf: 'center' }}>
-                              <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 16 }}>
-                                İSK: {product.iskonto_orani.replace(/^%/, '')}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
+                    {/* PRODUCT TITLE & EDIT BUTTON */}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.nameText, { textAlign: 'left', marginBottom: 2, fontSize: 18 }]}>
+                          {product.name}
+                        </Text>
+                        <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '600' }}>
+                          Stok Kodu: {product.stock_code}
+                        </Text>
+                      </View>
+                      {product.stock_code && product.stock_code !== '---' && (
+                        <TouchableOpacity
+                          onPress={openEditNameModal}
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 12,
+                            backgroundColor: styles.colors.secondarySoft,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}
+                        >
+                          <Ionicons name="pencil" size={18} color={styles.colors.secondary} />
+                        </TouchableOpacity>
                       )}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 10, marginBottom: 15 }}>
-                        <Text style={[styles.nameText, { marginBottom: 0, flex: 1 }]}>{product.name}</Text>
-                        {product.stock_code && product.stock_code !== '---' && (
+                    </View>
+
+                    {/* MASSIVE PRICE BOX (When not in pure Sayım) */}
+                    {appMode !== 'sayim' && (
+                      <View style={styles.massivePriceBox}>
+                        <View>
+                          <Text style={{ color: styles.colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                            Satış Fiyatı
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                            <Text style={styles.massivePriceText}>{formatPrice(product.price)}</Text>
+                            <Text style={{ color: styles.colors.primary, fontSize: 18, fontWeight: '800' }}>{product.currency}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.kdvBadge}>
+                          <Text style={styles.kdvBadgeText}>KDV DAHİL</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* 2X2 MONOSPACE TECHNICAL METADATA GRID */}
+                    <View style={styles.metaGrid2x2}>
+                      <View style={styles.metaBox}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={styles.metaLabel}>BARKOD NO</Text>
                           <TouchableOpacity
-                            onPress={openEditNameModal}
-                            style={{
-                              padding: 8,
-                              marginLeft: 8,
-                              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(30, 64, 175, 0.08)',
-                              borderRadius: 12,
-                              borderWidth: 1,
-                              borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(30, 64, 175, 0.2)',
-                              alignSelf: 'center'
+                            onPress={() => {
+                              ToastAndroid.show(`Barkod: ${product.barcode}`, ToastAndroid.SHORT);
                             }}
                           >
-                            <Ionicons name="pencil" size={18} color={isDark ? "#3B82F6" : "#1E40AF"} />
+                            <Ionicons name="copy-outline" size={14} color={styles.colors.secondary} />
                           </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.codesRow}>
-                      <View style={styles.codeItem}>
-                        <Text style={styles.codeLabel}>BARKOD</Text>
-                        <Text style={styles.codeValue}>{product.barcode}</Text>
-                      </View>
-                      <View style={styles.codeItem}>
-                        <Text style={styles.codeLabel}>STOK KODU</Text>
-                        <Text style={styles.codeValue}>{product.stock_code}</Text>
-                      </View>
-                      <View style={styles.codeItem}>
-                        <Text style={styles.codeLabel}>BİRİM</Text>
-                        <Text style={styles.codeValue}>{product.unit || 'Adet'}</Text>
-                      </View>
-                      {!!product.iskonto_orani && (
-                        <View style={styles.codeItem}>
-                          <Text style={[styles.codeLabel, { color: '#EF4444' }]}>İSKONTO</Text>
-                          <Text style={[styles.codeValue, { color: '#EF4444', fontWeight: '900' }]}>{product.iskonto_orani}</Text>
                         </View>
-                      )}
-                    </View>
-                    <View style={{ marginTop: 15, alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F1F5F9', padding: 8, borderRadius: 10 }}>
-                      <Text style={{ color: '#8a9ab5', fontSize: 11, fontWeight: 'bold' }}>SON FİYAT DEĞİŞİKLİĞİ</Text>
-                      <Text style={{ color: isDark ? '#10B981' : '#059669', fontSize: 13, fontWeight: 'bold', marginTop: 2 }}>
-                        {product.lastup_date && product.lastup_date !== '' ? product.lastup_date : 'Bilgi Yok (veya Senkronize Edilmedi)'}
-                      </Text>
+                        <Text style={styles.metaValue} numberOfLines={1}>{product.barcode}</Text>
+                      </View>
+
+                      <View style={styles.metaBox}>
+                        <Text style={styles.metaLabel}>STOK KODU</Text>
+                        <Text style={styles.metaValue} numberOfLines={1}>{product.stock_code}</Text>
+                      </View>
+
+                      <View style={styles.metaBox}>
+                        <Text style={styles.metaLabel}>BİRİM / KDV</Text>
+                        <Text style={styles.metaValue}>{product.unit || 'Adet'} • %20 KDV</Text>
+                      </View>
+
+                      <View style={styles.metaBox}>
+                        <Text style={styles.metaLabel}>AKTİF DEPO</Text>
+                        <Text style={[styles.metaValue, { color: '#00AE78' }]} numberOfLines={1}>
+                          {selectedDepo ? selectedDepo.depo_adi : '01 - Merkez Depo'}
+                        </Text>
+                      </View>
                     </View>
 
+                    {/* NOT FOUND NOTIFICATION */}
                     {product.name === 'Ürün Bulunamadı' && (
-                      <View style={{ marginTop: 20 }}>
-                        <TouchableOpacity style={{ backgroundColor: '#EF4444', paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginBottom: 10 }} onPress={() => setReportModalVisible(true)}>
-                          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>EKSİK OLARAK BİLDİR</Text>
+                      <View style={{ marginTop: 10, gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.modalSubmit, { backgroundColor: '#EF4444' }]}
+                          onPress={() => setReportModalVisible(true)}
+                        >
+                          <Text style={styles.modalSubmitText}>EKSİK OLARAK BİLDİR</Text>
                         </TouchableOpacity>
                         
-                        <TouchableOpacity style={{ backgroundColor: '#10B981', paddingVertical: 15, borderRadius: 12, alignItems: 'center' }} onPress={() => setShowBarkodIsleModal(true)}>
-                          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>BARKOD İŞLE (EŞLEŞTİR)</Text>
+                        <TouchableOpacity
+                          style={[styles.modalSubmit, { backgroundColor: '#00AE78' }]}
+                          onPress={() => setShowBarkodIsleModal(true)}
+                        >
+                          <Text style={styles.modalSubmitText}>BARKOD İŞLE (EŞLEŞTİR)</Text>
                         </TouchableOpacity>
                       </View>
                     )}
 
-                    {product.name !== 'Ürün Bulunamadı' && (appMode === 'sayim' || appMode === 'sevk') ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, gap: 10 }}>
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderRadius: 16, paddingHorizontal: 15, borderWidth: 1, borderColor: isDark ? '#334155' : '#E2E8F0' }}>
-                          <TouchableOpacity onPress={() => setCountInput(prev => String(Math.max(1, (parseInt(prev) || 1) - 1)))} style={{ padding: 10 }}>
-                            <Ionicons name="remove-circle" size={32} color="#EF4444" />
+                    {/* SAYIM & SEVK: ERGONOMIC QUANTITY STEPPER (62x62) */}
+                    {product.name !== 'Ürün Bulunamadı' && (appMode === 'sayim' || appMode === 'sevk') && (
+                      <View style={{ marginTop: 6, marginBottom: 12 }}>
+                        {/* Difference Callout Banner */}
+                        <View style={styles.diffBanner}>
+                          <View style={styles.diffBannerRow}>
+                            <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '700' }}>Mevcut Sistem Stoğu:</Text>
+                            <Text style={{ color: styles.colors.text, fontSize: 12, fontWeight: '800' }}>
+                              {formatPrice(depoStoklar.find((d: any) => selectedDepo && String(d.DepoNo).trim().padStart(2, '0') === String(selectedDepo.depo_no).trim().padStart(2, '0'))?.Miktar || 0)} {product.unit || 'Adet'}
+                            </Text>
+                          </View>
+                          <View style={styles.diffBannerRow}>
+                            <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: '800' }}>Sayım Sonrası Fark:</Text>
+                            <Text style={{ color: '#FF6B00', fontSize: 12, fontWeight: '900' }}>
+                              {formatPrice((parseFloat(countInput) || 0) - (depoStoklar.find((d: any) => selectedDepo && String(d.DepoNo).trim().padStart(2, '0') === String(selectedDepo.depo_no).trim().padStart(2, '0'))?.Miktar || 0))} {product.unit || 'Adet'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Stepper Controls */}
+                        <View style={styles.stepperRow}>
+                          <TouchableOpacity
+                            style={styles.stepperBtn}
+                            onPress={() => setCountInput(prev => String(Math.max(1, (parseInt(prev) || 1) - 1)))}
+                          >
+                            <Ionicons name="remove" size={28} color={styles.colors.text} />
                           </TouchableOpacity>
-                          <TextInput
-                            style={{ flex: 1, textAlign: 'center', fontSize: 28, fontWeight: 'bold', color: isDark ? '#fff' : '#000', paddingVertical: 15 }}
-                            keyboardType="numeric"
-                            value={countInput}
-                            onChangeText={setCountInput}
-                            autoFocus={true}
-                          />
-                          <TouchableOpacity onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + 1))} style={{ padding: 10 }}>
-                            <Ionicons name="add-circle" size={32} color="#10B981" />
+
+                          <View style={styles.stepperInputBox}>
+                            <TextInput
+                              style={styles.stepperInput}
+                              keyboardType="numeric"
+                              value={countInput}
+                              onChangeText={setCountInput}
+                              autoFocus={true}
+                              selectTextOnFocus={true}
+                            />
+                            <TouchableOpacity
+                              style={styles.resetQtyBtn}
+                              onPress={() => setCountInput('1')}
+                            >
+                              <Ionicons name="backspace-outline" size={20} color={styles.colors.textMuted} />
+                            </TouchableOpacity>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.stepperBtn}
+                            onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + 1))}
+                          >
+                            <Ionicons name="add" size={28} color={styles.colors.text} />
                           </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={{ backgroundColor: appMode === 'sevk' ? '#FF6B00' : '#10B981', padding: 20, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }} onPress={() => { handleAddToCart(); }}>
-                          <Ionicons name="arrow-forward-circle" size={32} color="#fff" />
+
+                        {/* Quick Add Pills */}
+                        <View style={styles.quickPillsRow}>
+                          {[1, 5, 10, 25, 50].map(delta => (
+                            <TouchableOpacity
+                              key={delta}
+                              style={styles.quickPillBtn}
+                              onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + delta))}
+                            >
+                              <Text style={styles.quickPillText}>+{delta}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity
+                            style={[styles.quickPillBtn, { backgroundColor: styles.colors.secondarySoft }]}
+                            onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + 24))}
+                          >
+                            <Text style={[styles.quickPillText, { color: styles.colors.secondary }]}>x24</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Giant Emerald Commit Button */}
+                        <TouchableOpacity
+                          style={styles.commitCountBtn}
+                          onPress={handleAddToCart}
+                        >
+                          <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                          <Text style={styles.commitCountBtnText}>
+                            {appMode === 'sevk' ? 'TRANSFERE EKLE' : 'SEPETE EKLE / SAYIMA DAHİL ET'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
-                    ) : null}
-
-                    {product.name !== 'Ürün Bulunamadı' && (
-                      <TouchableOpacity style={{ backgroundColor: isDark ? '#1E293B' : '#E2E8F0', padding: 15, borderRadius: 16, marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setHkCariFiltre(''); setDateStart(null); setDateEnd(null); fetchStokHareketleri(product.stock_code, false); }}>
-                        <Ionicons name="list-outline" size={24} color={isDark ? '#3B82F6' : '#2563EB'} style={{ marginRight: 10 }} />
-                        <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: 'bold', fontSize: 16 }}>STOK HAREKETLERİ GÖSTER</Text>
-                      </TouchableOpacity>
                     )}
 
-                    {showDepoStok && product.name !== 'Ürün Bulunamadı' && (
+                    {/* WAREHOUSE STOCK BREAKDOWN ACCORDION */}
+                    {product.name !== 'Ürün Bulunamadı' && (
                       <View style={styles.depoStokContainer}>
                         <View style={styles.depoStokHeader}>
-                          <Ionicons name="cube-outline" size={18} color="#00c853" />
-                          <Text style={styles.depoStokTitle}>DEPO STOKLARI</Text>
-                          {isLoadingDepoStok && <ActivityIndicator size="small" color="#00c853" style={{ marginLeft: 8 }} />}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons name="business" size={16} color={styles.colors.secondary} />
+                            <Text style={styles.depoStokTitle}>ŞUBE & DEPO STOKLARI</Text>
+                          </View>
+                          {isLoadingDepoStok ? (
+                            <ActivityIndicator size="small" color={styles.colors.secondary} />
+                          ) : (
+                            <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800' }}>
+                              Toplam: {formatPrice(depoStoklar.reduce((sum: number, d: any) => sum + (d.Miktar || 0), 0))} {product.unit || 'Adet'}
+                            </Text>
+                          )}
                         </View>
 
                         {!isLoadingDepoStok && depoStoklar.length === 0 && (
                           <View style={styles.depoStokEmpty}>
-                            <Ionicons name="information-circle-outline" size={20} color="#8a9ab5" />
-                            <Text style={styles.depoStokEmptyText}>Bu üründe stok bulunmuyor</Text>
+                            <Ionicons name="information-circle-outline" size={18} color={styles.colors.textMuted} />
+                            <Text style={styles.depoStokEmptyText}>Bu üründe kayıtlı stok bulunmuyor.</Text>
                           </View>
                         )}
 
@@ -1768,26 +2357,30 @@ export default function App() {
                               </View>
                             </View>
                           ))}
-
-                        {appMode !== 'sayim' && depoStoklar.length > 0 && (
-                          <View style={styles.depoStokToplam}>
-                            <Text style={styles.depoStokToplamLabel}>TOPLAM</Text>
-                            <Text style={styles.depoStokToplamValue}>
-                              {formatPrice(depoStoklar.reduce((sum: number, d: any) => sum + (d.Miktar || 0), 0))} {product.unit || 'Adet'}
-                            </Text>
-                          </View>
-                        )}
                       </View>
                     )}
 
-                    {!isConnected && product.name !== 'Ürün Bulunamadı' && (
-                      <TouchableOpacity style={styles.noInternetWarning} onPress={() => fetchDepoStok(product.stock_code)}>
-                        <Ionicons name="cloud-offline-outline" size={18} color="#ffc107" />
-                        <Text style={styles.noInternetText}>Depo stok için internete bağlanın</Text>
-                      </TouchableOpacity>
+                    {/* TACTICAL ACTION BUTTONS */}
+                    {product.name !== 'Ürün Bulunamadı' && (
+                      <View style={{ gap: 8, marginTop: 4 }}>
+                        <TouchableOpacity
+                          style={[styles.modalSubmit, { backgroundColor: '#FF6B00', height: 48, flexDirection: 'row', gap: 8, padding: 0 }]}
+                          onPress={() => { setHkCariFiltre(''); setDateStart(null); setDateEnd(null); fetchStokHareketleri(product.stock_code, false); }}
+                        >
+                          <Ionicons name="time-outline" size={20} color="#fff" />
+                          <Text style={[styles.modalSubmitText, { fontSize: 13 }]}>Stok Hareketleri (Son 50 İşlem)</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.modalSubmit, { backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, height: 44, flexDirection: 'row', gap: 8, padding: 0 }]}
+                          onPress={() => setReportModalVisible(true)}
+                        >
+                          <Ionicons name="alert-circle-outline" size={18} color={styles.colors.textMuted} />
+                          <Text style={[styles.modalSubmitText, { color: styles.colors.text, fontSize: 12 }]}>Eksik / Hasarlı Barkod Bildir</Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
 
-                    <View style={styles.actionRow}></View>
                   </View>
                 )}
               </ScrollView>
@@ -2292,103 +2885,1088 @@ export default function App() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* STICKY FLOATING CART DOCK */}
+      {(appMode === 'sayim' || appMode === 'sevk') && activeCart.length > 0 && !isShowingCart && (
+        <View style={styles.floatingCartBar}>
+          <View style={styles.floatingCartLeft}>
+            <View style={styles.floatingCartIconBox}>
+              <Ionicons name="cart" size={20} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.floatingCartSub}>Aktif Sepet</Text>
+              <Text style={styles.floatingCartTitle}>
+                {activeCart.length} Kalem • {activeCart.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)} Adet
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.floatingCartBtn}
+            onPress={() => { setIsShowingCart(true); setCameraActive(false); }}
+          >
+            <Text style={styles.floatingCartBtnText}>SEPETİ GÖR & ONAYLA</Text>
+            <Ionicons name="arrow-forward" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+
     </SafeAreaView>
   );
 }
 
 const getStyles = (isDark: boolean) => {
   const colors = isDark ? {
-    bg: '#000000', card: '#111111', text: '#F8FAFC', textMuted: '#94A3B8', border: 'rgba(255,255,255,0.1)',
-    primary: '#FF6B00', primarySoft: 'rgba(255, 107, 0, 0.1)', success: '#10B981', successSoft: 'rgba(16, 185, 129, 0.15)',
-    danger: '#EF4444', dangerSoft: 'rgba(239, 68, 68, 0.15)', warning: '#F59E0B', warningSoft: 'rgba(245, 158, 11, 0.1)'
+    bg: '#0B1C30',
+    card: '#162234',
+    cardLow: '#101F33',
+    cardHigh: '#1F334E',
+    heroBg: '#213145',
+    heroText: '#EAF1FF',
+    text: '#F8FAFC',
+    textMuted: '#94A3B8',
+    border: 'rgba(255,255,255,0.12)',
+    borderLight: 'rgba(255,255,255,0.06)',
+    primary: '#FF6B00',
+    primarySoft: 'rgba(255, 107, 0, 0.15)',
+    secondary: '#3B82F6',
+    secondarySoft: 'rgba(59, 130, 246, 0.15)',
+    tertiary: '#00AE78',
+    tertiarySoft: 'rgba(0, 174, 120, 0.15)',
+    success: '#00AE78',
+    successSoft: 'rgba(0, 174, 120, 0.15)',
+    danger: '#EF4444',
+    dangerSoft: 'rgba(239, 68, 68, 0.15)',
+    warning: '#F59E0B',
+    warningSoft: 'rgba(245, 158, 11, 0.15)'
   } : {
-    bg: '#F8FAFC', card: '#FFFFFF', text: '#000000', textMuted: '#64748B', border: 'rgba(0,0,0,0.08)',
-    primary: '#FF6B00', primarySoft: 'rgba(255, 107, 0, 0.08)', success: '#059669', successSoft: 'rgba(5, 150, 105, 0.1)',
-    danger: '#DC2626', dangerSoft: 'rgba(220, 38, 38, 0.1)', warning: '#D97706', warningSoft: 'rgba(217, 119, 6, 0.1)'
+    bg: '#F8F9FF',
+    card: '#FFFFFF',
+    cardLow: '#EFF4FF',
+    cardHigh: '#DCE9FF',
+    heroBg: '#213145',
+    heroText: '#EAF1FF',
+    text: '#0B1C30',
+    textMuted: '#64748B',
+    border: '#E2E8F0',
+    borderLight: '#EFF4FF',
+    primary: '#FF6B00',
+    primarySoft: 'rgba(255, 107, 0, 0.10)',
+    secondary: '#0051D5',
+    secondarySoft: 'rgba(0, 81, 213, 0.10)',
+    tertiary: '#00AE78',
+    tertiarySoft: 'rgba(0, 174, 120, 0.10)',
+    success: '#00AE78',
+    successSoft: 'rgba(0, 174, 120, 0.10)',
+    danger: '#DC2626',
+    dangerSoft: 'rgba(220, 38, 38, 0.10)',
+    warning: '#D97706',
+    warningSoft: 'rgba(217, 119, 6, 0.10)'
   };
 
-  return StyleSheet.create({
+  const sheet = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
     userNameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30, backgroundColor: colors.bg },
-    userNameTitle: { color: colors.text, fontSize: 32, fontWeight: '900', marginTop: 24, marginBottom: 8, letterSpacing: -1 },
-    userNameSubtitle: { color: colors.textMuted, fontSize: 16, marginBottom: 40, fontWeight: '500' },
-    userNameInput: { width: '100%', backgroundColor: colors.border, borderRadius: 20, padding: 20, fontSize: 20, color: colors.text, borderWidth: 1.5, borderColor: colors.primarySoft, marginBottom: 30, textAlign: 'center', fontWeight: '600' },
-    userNameButton: { backgroundColor: colors.primary, paddingHorizontal: 40, paddingVertical: 18, borderRadius: 20, width: '100%', alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
-    userNameButtonText: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
-    headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, paddingTop: Platform.OS === 'android' ? 45 : 55, backgroundColor: colors.bg, zIndex: 1000, borderBottomWidth: 1, borderBottomColor: colors.border },
-    headerBtn: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border, marginHorizontal: 2 },
-    headerBtnActive: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },
-    headerCenter: { alignItems: 'center', flex: 1 },
-    headerTitle: { color: colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
-    headerSubtitle: { color: colors.textMuted, fontSize: 11, marginTop: 4, fontWeight: '500' },
-    syncBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft, paddingVertical: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.primarySoft },
-    syncBannerText: { color: colors.primary, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-    cameraBox: { height: SCREEN_HEIGHT * 0.30, overflow: 'hidden', position: 'relative', margin: 15, borderRadius: 24, borderWidth: 1, borderColor: colors.border, backgroundColor: '#000' },
+    userNameTitle: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 24, marginBottom: 8, letterSpacing: -0.5 },
+    userNameSubtitle: { color: colors.textMuted, fontSize: 15, marginBottom: 36, fontWeight: '500' },
+    userNameInput: { width: '100%', backgroundColor: colors.card, borderRadius: 16, padding: 18, fontSize: 18, color: colors.text, borderWidth: 1.5, borderColor: colors.border, marginBottom: 24, textAlign: 'center', fontWeight: '600' },
+    userNameButton: { backgroundColor: colors.primary, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 16, width: '100%', alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8 },
+    userNameButtonText: { color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
+
+    // MENU HEADER
+    menuHeaderBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      paddingTop: Platform.OS === 'android' ? 42 : 52,
+      backgroundColor: isDark ? 'rgba(22, 34, 52, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      zIndex: 50
+    },
+    menuHeaderTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '800',
+      letterSpacing: -0.2
+    },
+    pulseBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 12,
+      gap: 5
+    },
+    pulseDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4
+    },
+    pulseDotSmall: {
+      width: 6,
+      height: 6,
+      borderRadius: 3
+    },
+    pulseBadgeText: {
+      fontSize: 10,
+      fontWeight: '700'
+    },
+    menuHeaderSubText: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600'
+    },
+    headerSyncBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardLow,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
+      gap: 5
+    },
+    headerSyncText: {
+      color: colors.secondary,
+      fontSize: 11,
+      fontWeight: '700'
+    },
+    headerIconBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.cardLow,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    headerUserBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4
+    },
+
+    // HERO CARD (#213145)
+    heroCard: {
+      backgroundColor: colors.heroBg,
+      borderRadius: 20,
+      padding: 16,
+      position: 'relative',
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 8,
+      marginBottom: 16
+    },
+    heroGlow1: {
+      position: 'absolute',
+      right: -20,
+      top: -20,
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: 'rgba(255, 107, 0, 0.15)'
+    },
+    heroGlow2: {
+      position: 'absolute',
+      left: -20,
+      bottom: -20,
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: 'rgba(0, 81, 213, 0.15)'
+    },
+    heroDepoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      position: 'relative',
+      zIndex: 2,
+      marginBottom: 12
+    },
+    heroWarehouseIconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: 'rgba(255, 107, 0, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    heroDepoLabel: {
+      color: 'rgba(234, 241, 255, 0.65)',
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase'
+    },
+    heroDepoName: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '800',
+      marginTop: 1
+    },
+    heroSwitchBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.12)',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 14,
+      gap: 4
+    },
+    heroSwitchBtnText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700'
+    },
+    heroKpiRow: {
+      flexDirection: 'row',
+      gap: 8,
+      position: 'relative',
+      zIndex: 2,
+      marginBottom: 12
+    },
+    heroKpiChip: {
+      flex: 1,
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    },
+    heroKpiLabel: {
+      color: 'rgba(234, 241, 255, 0.65)',
+      fontSize: 10,
+      fontWeight: '600'
+    },
+    heroKpiValue: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '900',
+      letterSpacing: -0.3,
+      marginTop: 2
+    },
+    heroKpiDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4
+    },
+    heroSearchRow: {
+      position: 'relative',
+      zIndex: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      height: 48,
+      overflow: 'hidden'
+    },
+    heroSearchInput: {
+      flex: 1,
+      fontSize: 13,
+      color: '#0B1C30',
+      fontWeight: '500',
+      height: '100%'
+    },
+    heroCameraBtn: {
+      width: 44,
+      height: 40,
+      marginRight: 4,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+
+    // SECTION HEADERS
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 4,
+      marginBottom: 10
+    },
+    accentBar: {
+      width: 4,
+      height: 16,
+      borderRadius: 2,
+      backgroundColor: colors.primary
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '800',
+      letterSpacing: 0.5
+    },
+    moduleCountBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: colors.cardLow
+    },
+    moduleCountText: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: '700'
+    },
+
+    // 2X2 OPERATIONAL GRID
+    gridContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 12
+    },
+    tactileCard: {
+      width: '48.5%',
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+      justifyContent: 'space-between',
+      minHeight: 124
+    },
+    tactileCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    },
+    actionIconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    tagPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 10,
+      backgroundColor: colors.cardLow,
+      gap: 4
+    },
+    tagPillText: {
+      fontSize: 9,
+      fontWeight: '800'
+    },
+    tactileCardTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '900',
+      letterSpacing: -0.2
+    },
+    tactileCardSub: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+      lineHeight: 15
+    },
+
+    // CARD 5: RAPORLAR HERO
+    reportHeroCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12
+    },
+    reportIconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    reportHeroTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '900',
+      letterSpacing: -0.2
+    },
+    reportTrendBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 8,
+      backgroundColor: 'rgba(0, 174, 120, 0.12)',
+      gap: 2
+    },
+    reportTrendText: {
+      color: '#00AE78',
+      fontSize: 10,
+      fontWeight: '800'
+    },
+    reportHeroSub: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2
+    },
+    sparklineContainer: {
+      height: 32,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 3,
+      paddingHorizontal: 2
+    },
+    sparklineBar: {
+      width: 6,
+      backgroundColor: colors.secondary,
+      borderTopLeftRadius: 2,
+      borderTopRightRadius: 2
+    },
+    reportActionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardLow,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
+      gap: 3
+    },
+    reportActionBtnText: {
+      color: colors.secondary,
+      fontSize: 11,
+      fontWeight: '700'
+    },
+
+    // RECENT SHELF
+    recentShelfCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+      marginBottom: 16
+    },
+    recentShelfHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10
+    },
+    recentShelfTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '800'
+    },
+    recentShelfAllText: {
+      color: colors.secondary,
+      fontSize: 11,
+      fontWeight: '700'
+    },
+    recentItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 10,
+      borderRadius: 12,
+      backgroundColor: colors.cardLow,
+      marginTop: 8
+    },
+    recentItemIconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    recentItemCode: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '800'
+    },
+    recentRackBadge: {
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
+    },
+    recentRackText: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '700'
+    },
+    recentItemName: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 2
+    },
+    recentItemQty: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '900'
+    },
+    recentItemUnit: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600'
+    },
+
+    // FIXED BOTTOM NAVIGATION
+    fixedBottomNavContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: isDark ? 'rgba(16, 31, 51, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      zIndex: 60
+    },
+    bottomNavTabsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      height: 54,
+      paddingHorizontal: 8
+    },
+    bottomNavTab: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 54
+    },
+    bottomNavLabel: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600',
+      marginTop: 2
+    },
+    bottomSystemStrip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.02)',
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight
+    },
+    bottomSystemText: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '500'
+    },
+    bottomUpdateBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+      backgroundColor: colors.primarySoft,
+      gap: 4
+    },
+    bottomUpdateBtnText: {
+      color: colors.primary,
+      fontSize: 10,
+      fontWeight: '700'
+    },
+
+    // VIEWFINDER AND CAMERA
+    cameraBox: {
+      height: SCREEN_HEIGHT * 0.28,
+      overflow: 'hidden',
+      position: 'relative',
+      marginHorizontal: 16,
+      marginTop: 10,
+      marginBottom: 10,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: '#000'
+    },
     overlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    flashBtn: { position: 'absolute', bottom: 15, right: 15, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border, zIndex: 100 },
+    reticleContainer: {
+      ...StyleSheet.absoluteFillObject,
+      margin: 16,
+      pointerEvents: 'none'
+    },
+    reticleCorner: {
+      position: 'absolute',
+      width: 24,
+      height: 24,
+      borderColor: colors.primary
+    },
+    laserLine: {
+      position: 'absolute',
+      left: 20,
+      right: 20,
+      height: 2.5,
+      backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.9,
+      shadowRadius: 8,
+      elevation: 6
+    },
+    viewfinderTopBadge: {
+      position: 'absolute',
+      top: 12,
+      left: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(33, 49, 69, 0.85)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      gap: 6,
+      zIndex: 10
+    },
+    viewfinderBadgeText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '700'
+    },
+    viewfinderBottomBadge: {
+      position: 'absolute',
+      bottom: 12,
+      left: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(33, 49, 69, 0.85)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      gap: 8,
+      zIndex: 10
+    },
+    viewfinderSubText: {
+      color: 'rgba(255,255,255,0.75)',
+      fontSize: 10,
+      fontWeight: '600'
+    },
+    flashBtn: {
+      position: 'absolute',
+      bottom: 12,
+      right: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(33, 49, 69, 0.85)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.15)',
+      zIndex: 100
+    },
     flashBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    targetFrame: { width: 260, height: 140, borderWidth: 2, borderColor: colors.primary, borderRadius: 16, backgroundColor: colors.primarySoft, borderStyle: 'dashed' },
-    resultPanel: { flex: 1, backgroundColor: colors.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, marginTop: 5, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 20, borderTopWidth: 1, borderTopColor: colors.border },
-    searchContainer: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: 20, paddingHorizontal: 20, height: 56, alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: colors.border },
-    searchInput: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '500' },
-    clearSearch: { position: 'absolute', right: 50, zIndex: 10, padding: 5 },
-    micSearch: { position: 'absolute', right: 15, zIndex: 10, padding: 5 },
+    targetFrame: { width: 260, height: 130, borderWidth: 2, borderColor: colors.primary, borderRadius: 16, backgroundColor: colors.primarySoft, borderStyle: 'dashed' },
+
+    // SCREENS COMMON HEADER BAR
+    headerBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      paddingTop: Platform.OS === 'android' ? 42 : 52,
+      backgroundColor: colors.card,
+      zIndex: 1000,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    headerBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.cardLow,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    headerBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    headerCenter: { alignItems: 'center', flex: 1 },
+    headerTitle: { color: colors.text, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+    headerSubtitle: { color: colors.textMuted, fontSize: 10, marginTop: 2, fontWeight: '500' },
+    syncBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft, paddingVertical: 8, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.primarySoft },
+    syncBannerText: { color: colors.primary, fontSize: 12, fontWeight: '700' },
+
+    // RESULT PANEL & SEARCH
+    resultPanel: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      padding: 16,
+      marginTop: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+      elevation: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.cardLow,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      height: 48,
+      alignItems: 'center',
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    searchInput: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '500' },
+    clearSearch: { position: 'absolute', right: 46, zIndex: 10, padding: 5 },
+    micSearch: { position: 'absolute', right: 12, zIndex: 10, padding: 5 },
     searchResultsList: { flex: 1 },
-    searchResultItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
-    searchResultName: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+    searchResultItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    searchResultName: { color: colors.text, fontSize: 14, fontWeight: '700', marginBottom: 3 },
     searchResultDetail: { color: colors.textMuted, fontSize: 12, fontWeight: '500' },
-    infoContainer: { paddingBottom: 30 },
-    priceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginBottom: 12 },
-    priceText: { color: colors.primary, fontSize: 56, fontWeight: '900', letterSpacing: -2, textShadowColor: colors.primarySoft, textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 15 },
-    currencyText: { color: colors.primary, fontSize: 22, fontWeight: '800' },
-    nameText: { color: colors.text, fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 25, lineHeight: 28 },
-    codesRow: { flexDirection: 'row', backgroundColor: colors.border, borderRadius: 20, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: colors.border },
+    infoContainer: { paddingBottom: 24 },
+
+    // STITCH PRODUCT CARD COMPONENTS
+    productBadgesRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 10
+    },
+    productBadgeEmerald: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
+      backgroundColor: 'rgba(0, 174, 120, 0.12)',
+      gap: 3
+    },
+    productBadgeDate: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
+      backgroundColor: colors.cardLow,
+      gap: 3
+    },
+    productBadgeUnit: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
+      backgroundColor: colors.secondarySoft
+    },
+    massivePriceBox: {
+      backgroundColor: colors.cardLow,
+      borderRadius: 16,
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    massivePriceText: {
+      color: colors.primary,
+      fontSize: 38,
+      fontWeight: '900',
+      letterSpacing: -1
+    },
+    kdvBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: colors.secondarySoft
+    },
+    kdvBadgeText: {
+      color: colors.secondary,
+      fontSize: 10,
+      fontWeight: '800'
+    },
+    metaGrid2x2: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 14
+    },
+    metaBox: {
+      width: '48.5%',
+      backgroundColor: colors.cardLow,
+      borderRadius: 12,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    metaLabel: {
+      color: colors.textMuted,
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase'
+    },
+    metaValue: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '800',
+      marginTop: 2
+    },
+
+    // DIFFERENCE CALLOUT BANNER (Sayım/Sevk)
+    diffBanner: {
+      backgroundColor: colors.cardLow,
+      borderRadius: 12,
+      padding: 10,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 4
+    },
+    diffBannerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    },
+
+    // ERGONOMIC QUANTITY STEPPER (62x62)
+    stepperRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginVertical: 12
+    },
+    stepperBtn: {
+      width: 60,
+      height: 60,
+      borderRadius: 16,
+      backgroundColor: colors.cardLow,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    stepperInputBox: {
+      flex: 1,
+      height: 60,
+      backgroundColor: colors.cardLow,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative'
+    },
+    stepperInput: {
+      width: '100%',
+      textAlign: 'center',
+      fontSize: 28,
+      fontWeight: '900',
+      color: colors.text
+    },
+    resetQtyBtn: {
+      position: 'absolute',
+      right: 10,
+      padding: 6
+    },
+    quickPillsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 6,
+      marginBottom: 14
+    },
+    quickPillBtn: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: colors.cardLow,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border
+    },
+    quickPillText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '800'
+    },
+    commitCountBtn: {
+      width: '100%',
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.tertiary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      shadowColor: colors.tertiary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      elevation: 6
+    },
+    commitCountBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '800',
+      letterSpacing: 0.3
+    },
+
+    // STICKY FLOATING CART DOCK
+    floatingCartBar: {
+      position: 'absolute',
+      bottom: 12,
+      left: 14,
+      right: 14,
+      height: 60,
+      borderRadius: 18,
+      backgroundColor: colors.heroBg,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 12,
+      zIndex: 100
+    },
+    floatingCartLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+      minWidth: 0
+    },
+    floatingCartIconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    floatingCartSub: {
+      color: 'rgba(234, 241, 255, 0.65)',
+      fontSize: 9,
+      fontWeight: '700',
+      textTransform: 'uppercase'
+    },
+    floatingCartTitle: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '800'
+    },
+    floatingCartBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      gap: 6
+    },
+    floatingCartBtnText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 0.3
+    },
+
+    // OTHER BUTTONS & MODALS
+    priceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginBottom: 10 },
+    priceText: { color: colors.primary, fontSize: 44, fontWeight: '900', letterSpacing: -1.5 },
+    currencyText: { color: colors.primary, fontSize: 18, fontWeight: '800' },
+    nameText: { color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 18, lineHeight: 24 },
+    codesRow: { flexDirection: 'row', backgroundColor: colors.cardLow, borderRadius: 16, padding: 14, marginBottom: 18, borderWidth: 1, borderColor: colors.border },
     codeItem: { flex: 1, alignItems: 'center' },
-    codeLabel: { color: colors.textMuted, fontSize: 9, letterSpacing: 1, marginBottom: 8, fontWeight: '800' },
-    codeValue: { color: colors.text, fontSize: 14, fontWeight: '700' },
-    nextButton: { backgroundColor: colors.primary, padding: 18, borderRadius: 20, alignItems: 'center' },
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 15, marginTop: 10 },
-    nextButtonSmall: { flex: 1, backgroundColor: isDark ? '#1E293B' : '#F1F5F9', padding: 18, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    reportButton: { flex: 1.2, backgroundColor: colors.primary, padding: 18, borderRadius: 20, alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+    codeLabel: { color: colors.textMuted, fontSize: 9, letterSpacing: 0.8, marginBottom: 6, fontWeight: '800' },
+    codeValue: { color: colors.text, fontSize: 13, fontWeight: '700' },
+    nextButton: { backgroundColor: colors.primary, padding: 16, borderRadius: 16, alignItems: 'center' },
+    actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 8 },
+    nextButtonSmall: { flex: 1, backgroundColor: colors.cardLow, padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    reportButton: { flex: 1.2, backgroundColor: colors.primary, padding: 16, borderRadius: 16, alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
     reportedButton: { backgroundColor: '#334155', borderColor: '#334155', opacity: 0.7, shadowOpacity: 0 },
-    buttonText: { color: '#fff', fontWeight: '800', fontSize: 13, textAlign: 'center', letterSpacing: 0.5 },
-    buttonTextYeni: { color: colors.text, fontWeight: '800', fontSize: 13, textAlign: 'center', letterSpacing: 0.5 },
-    idleState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 50 },
-    idleText: { color: colors.textMuted, fontSize: 16, fontWeight: '600', marginTop: 8 },
-    footer: { backgroundColor: colors.card, paddingBottom: 25, alignItems: 'center' },
-    statsContainer: { backgroundColor: colors.primarySoft, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, marginBottom: 15 },
-    statsText: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-    footerBrand: { color: colors.primary, opacity: 0.5, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-    modal: { justifyContent: 'center', margin: 20 },
-    modalContent: { backgroundColor: colors.card, borderRadius: 32, padding: 24, borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.5, shadowRadius: 25, elevation: 24 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    modalTitle: { color: colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-    modalLabel: { color: colors.primary, fontSize: 14, fontWeight: '800', marginBottom: 20 },
-    modalInput: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: 18, color: colors.text, height: 120, textAlignVertical: 'top', marginBottom: 24, fontSize: 16, borderWidth: 1, borderColor: colors.border },
-    modalSubmit: { padding: 18, borderRadius: 20, alignItems: 'center', backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 5 },
-    modalSubmitText: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
-    modalBtn: { padding: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    stokBadge: { backgroundColor: colors.successSoft, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginRight: 10, minWidth: 60, alignItems: 'center', borderWidth: 1, borderColor: colors.successSoft },
-    stokBadgeText: { color: colors.success, fontSize: 13, fontWeight: '900' },
+    buttonText: { color: '#fff', fontWeight: '800', fontSize: 12, textAlign: 'center', letterSpacing: 0.5 },
+    buttonTextYeni: { color: colors.text, fontWeight: '800', fontSize: 12, textAlign: 'center', letterSpacing: 0.5 },
+    idleState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
+    idleText: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 6 },
+    footer: { backgroundColor: colors.card, paddingBottom: 20, alignItems: 'center' },
+    statsContainer: { backgroundColor: colors.primarySoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, marginBottom: 12 },
+    statsText: { color: colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+    footerBrand: { color: colors.primary, opacity: 0.5, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    modal: { justifyContent: 'center', margin: 16 },
+    modalContent: { backgroundColor: colors.card, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    modalTitle: { color: colors.text, fontSize: 18, fontWeight: '900', letterSpacing: -0.3 },
+    modalLabel: { color: colors.primary, fontSize: 13, fontWeight: '800', marginBottom: 16 },
+    modalInput: { backgroundColor: colors.cardLow, borderRadius: 14, padding: 14, color: colors.text, height: 100, textAlignVertical: 'top', marginBottom: 20, fontSize: 14, borderWidth: 1, borderColor: colors.border },
+    modalSubmit: { padding: 16, borderRadius: 16, alignItems: 'center', backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+    modalSubmitText: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
+    modalBtn: { padding: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    stokBadge: { backgroundColor: colors.successSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, marginRight: 8, minWidth: 50, alignItems: 'center', borderWidth: 1, borderColor: colors.successSoft },
+    stokBadgeText: { color: colors.success, fontSize: 12, fontWeight: '900' },
     stokBadgeTextZero: { color: colors.danger },
-    depoStokContainer: { backgroundColor: colors.successSoft, borderRadius: 24, padding: 20, marginBottom: 10, borderWidth: 1, borderColor: colors.successSoft },
-    depoStokHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.successSoft },
-    depoStokTitle: { color: colors.success, fontSize: 13, fontWeight: '900', letterSpacing: 1, marginLeft: 10 },
-    depoStokEmpty: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
-    depoStokEmptyText: { color: colors.textMuted, fontSize: 14, marginLeft: 8, fontWeight: '600' },
-    depoStokItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    depoStokContainer: { backgroundColor: colors.cardLow, borderRadius: 18, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border },
+    depoStokHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+    depoStokTitle: { color: colors.secondary, fontSize: 12, fontWeight: '900', letterSpacing: 0.8, marginLeft: 8 },
+    depoStokEmpty: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+    depoStokEmptyText: { color: colors.textMuted, fontSize: 13, marginLeft: 6, fontWeight: '600' },
+    depoStokItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     depoStokLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-    depoStokNo: { backgroundColor: colors.successSoft, color: colors.success, fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginRight: 12 },
-    depoStokAdi: { color: colors.text, fontSize: 14, flex: 1, fontWeight: '600' },
-    depoStokRight: { alignItems: 'flex-end', minWidth: 80 },
-    depoStokMiktar: { color: colors.success, fontSize: 18, fontWeight: '900' },
+    depoStokNo: { backgroundColor: colors.card, color: colors.secondary, fontSize: 10, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 10, borderWidth: 1, borderColor: colors.border },
+    depoStokAdi: { color: colors.text, fontSize: 13, flex: 1, fontWeight: '600' },
+    depoStokRight: { alignItems: 'flex-end', minWidth: 70 },
+    depoStokMiktar: { color: colors.success, fontSize: 15, fontWeight: '900' },
     depoStokMiktarNegatif: { color: colors.danger },
-    depoStokBirim: { color: colors.textMuted, fontSize: 10, marginTop: 2, fontWeight: '700', letterSpacing: 0.5 },
-    depoStokToplam: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.successSoft },
-    depoStokToplamLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-    depoStokToplamValue: { color: colors.success, fontSize: 18, fontWeight: '900' },
-    noInternetWarning: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warningSoft, borderRadius: 16, padding: 16, marginBottom: 20 },
-    noInternetText: { color: colors.warning, fontSize: 14, fontWeight: '700', marginLeft: 10 }
+    depoStokBirim: { color: colors.textMuted, fontSize: 9, marginTop: 1, fontWeight: '700' },
+    depoStokToplam: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+    depoStokToplamLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+    depoStokToplamValue: { color: colors.success, fontSize: 16, fontWeight: '900' },
+    noInternetWarning: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warningSoft, borderRadius: 14, padding: 14, marginBottom: 16 },
+    noInternetText: { color: colors.warning, fontSize: 13, fontWeight: '700', marginLeft: 8 }
   });
+
+  return { ...sheet, colors };
 };

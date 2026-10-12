@@ -111,37 +111,39 @@ export default function ReportsView({
   const [showSalesProdModal, setShowSalesProdModal] = useState(false);
 
   const colors = isDark ? {
-    bg: '#0F172A',
-    card: '#1E293B',
-    cardAlt: '#090D16',
+    bg: '#0B1C30',
+    card: '#162234',
+    cardAlt: '#101F33',
+    heroBg: '#213145',
     text: '#F8FAFC',
     textMuted: '#94A3B8',
-    border: '#334155',
-    primary: '#6366F1',
-    primarySoft: 'rgba(99, 102, 241, 0.15)',
-    success: '#10B981',
-    successSoft: 'rgba(16, 185, 129, 0.15)',
+    border: 'rgba(255,255,255,0.12)',
+    primary: '#3B82F6',
+    primarySoft: 'rgba(59, 130, 246, 0.15)',
+    success: '#00AE78',
+    successSoft: 'rgba(0, 174, 120, 0.15)',
     danger: '#EF4444',
     dangerSoft: 'rgba(239, 68, 68, 0.15)',
     warning: '#F59E0B',
     warningSoft: 'rgba(245, 158, 11, 0.15)',
-    accent: '#0EA5E9'
+    accent: '#FF6B00'
   } : {
-    bg: '#F8FAFC',
+    bg: '#F8F9FF',
     card: '#FFFFFF',
-    cardAlt: '#F1F5F9',
-    text: '#0F172A',
+    cardAlt: '#EFF4FF',
+    heroBg: '#213145',
+    text: '#0B1C30',
     textMuted: '#64748B',
     border: '#E2E8F0',
-    primary: '#4F46E5',
-    primarySoft: 'rgba(79, 70, 229, 0.1)',
-    success: '#059669',
-    successSoft: 'rgba(5, 150, 105, 0.1)',
+    primary: '#0051D5',
+    primarySoft: 'rgba(0, 81, 213, 0.10)',
+    success: '#00AE78',
+    successSoft: 'rgba(0, 174, 120, 0.10)',
     danger: '#DC2626',
-    dangerSoft: 'rgba(220, 38, 38, 0.1)',
+    dangerSoft: 'rgba(220, 38, 38, 0.10)',
     warning: '#D97706',
-    warningSoft: 'rgba(217, 119, 6, 0.1)',
-    accent: '#0284C7'
+    warningSoft: 'rgba(217, 119, 6, 0.10)',
+    accent: '#FF6B00'
   };
 
   const toYMD = (d: Date) => {
@@ -680,8 +682,8 @@ export default function ReportsView({
           <style>
             @page { size: A4; margin: 15mm; }
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0F172A; margin: 0; padding: 0; font-size: 11px; }
-            .header { border-bottom: 2px solid #4F46E5; padding-bottom: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
-            .brand { font-size: 18px; font-weight: 900; color: #4F46E5; letter-spacing: -0.5px; }
+            .header { border-bottom: 2px solid #0051D5; padding-bottom: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .brand { font-size: 18px; font-weight: 900; color: #0051D5; letter-spacing: -0.5px; }
             .title { font-size: 15px; font-weight: 800; color: #0F172A; margin-top: 4px; }
             .subtitle { font-size: 11px; color: #64748B; margin-top: 2px; }
             .meta { text-align: right; font-size: 10px; color: #64748B; }
