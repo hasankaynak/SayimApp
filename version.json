@@ -1,6 +1,6 @@
 {
-  "version": "1.0.19",
-  "versionCode": 19,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.19/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.19\n• Ürün kartında 'İsmi Düzenle' butonu belirginleştirildi; Mikro ve telefon hafızasında anlık isim güncelleme güvenceye alındı.\n• Satış fiyatının altına iskontolu net fiyat alanı ve tek dokunuşla fiyat kopyalama eklendi.\n• Hızlı 2D optik lazer barkod kamera butonu ve son incelenen ürünler rafı entegre edildi.\n• Tüm sayım, transfer, stok hareketleri ve eksik bildirim fonksiyonları korundu."
+  "version": "1.0.20",
+  "versionCode": 20,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.20/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.20\n• Ana menü panosundaki Aktif Depo Değiştir butonu ve depo seçim penceresi onarıldı.\n• Depo arama, seçim ve anlık bildirim geri bildirimleri menü ve sayım ekranları arasında tam senkronize edildi.\n• Ürün ismi düzenleme, iskontolu net fiyat gösterimi ve hızlı 2D lazer tarayıcı özellikleri korundu."
 }

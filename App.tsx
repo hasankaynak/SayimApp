@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.19';
-const CURRENT_VERSION_CODE = 19;
+const CURRENT_VERSION = '1.0.20';
+const CURRENT_VERSION_CODE = 20;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -988,8 +988,10 @@ export default function App() {
   // --- SAYIM METHODS ---
   const selectDepoAndSave = async (depo: any) => {
     setSelectedDepo(depo);
-    await AsyncStorage.setItem('selected_depo_no', depo.depo_no);
+    await AsyncStorage.setItem('selected_depo_no', String(depo.depo_no));
     setShowDepoModal(false);
+    setDepoSearchQuery('');
+    ToastAndroid.show(`Aktif depo seçildi: ${depo.depo_adi}`, ToastAndroid.SHORT);
   };
   const saveCartToStorage = async (newCart: any[]) => {
     setActiveCart([...newCart]);
@@ -1274,6 +1276,105 @@ export default function App() {
     );
   }
 
+  const renderDepoModal = () => (
+    <Modal
+      isVisible={showDepoModal}
+      onBackdropPress={() => {
+        setShowDepoModal(false);
+        setDepoSearchQuery('');
+      }}
+      style={styles.modal}
+      avoidKeyboard={true}
+    >
+      <View style={[styles.modalContent, { maxHeight: '75%' }]}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Depo Seçimi</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setShowDepoModal(false);
+              setDepoSearchQuery('');
+            }}
+          >
+            <Ionicons name="close" size={28} color="#8a9ab5" />
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={{
+            height: 50,
+            paddingHorizontal: 15,
+            borderRadius: 12,
+            marginBottom: 15,
+            backgroundColor: isDark ? '#333' : '#F1F5F9',
+            color: isDark ? '#fff' : '#000',
+            fontSize: 16,
+          }}
+          placeholder="Depo ara..."
+          placeholderTextColor="#8a9ab5"
+          value={depoSearchQuery}
+          onChangeText={(t) => setDepoSearchQuery(t.toLocaleUpperCase('tr-TR'))}
+          autoCapitalize="characters"
+        />
+
+        <FlatList
+          data={depos.filter(
+            (d) =>
+              (d.depo_adi?.toLowerCase() || '').includes(depoSearchQuery.toLowerCase()) ||
+              String(d.depo_no).includes(depoSearchQuery)
+          )}
+          keyExtractor={(d) => String(d.depo_no)}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => selectDepoAndSave(item)}
+              style={{
+                paddingVertical: 15,
+                paddingHorizontal: 10,
+                borderBottomWidth: 1,
+                borderColor: isDark ? '#333' : '#eee',
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginRight: 15,
+                }}
+              >
+                <Text style={{ color: '#FF6B00', fontWeight: 'bold' }}>{item.depo_no}</Text>
+              </View>
+              <Text
+                style={{
+                  color: isDark ? '#fff' : '#000',
+                  fontSize: 16,
+                  flex: 1,
+                  fontWeight: '500',
+                }}
+              >
+                {item.depo_adi}
+              </Text>
+              {String(selectedDepo?.depo_no) === String(item.depo_no) && (
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              )}
+            </TouchableOpacity>
+          )}
+          style={{ maxHeight: 400 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: '#8a9ab5', fontSize: 14 }}>Depo bulunamadı</Text>
+            </View>
+          }
+        />
+      </View>
+    </Modal>
+  );
+
   if (appMode === 'menu') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: styles.colors.bg }}>
@@ -1353,7 +1454,11 @@ export default function App() {
             <TouchableOpacity
               activeOpacity={0.7}
               style={[styles.heroDepoRow, { zIndex: 10, elevation: 10 }]}
-              onPress={() => setShowDepoModal(true)}
+              onPress={() => {
+                setDepoSearchQuery('');
+                setShowDepoModal(true);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                 <View style={styles.heroWarehouseIconBox}>
@@ -1366,7 +1471,7 @@ export default function App() {
                   </Text>
                 </View>
               </View>
-              <View style={styles.heroSwitchBtn}>
+              <View style={styles.heroSwitchBtn} pointerEvents="none">
                 <Text style={styles.heroSwitchBtnText}>Değiştir</Text>
                 <Ionicons name="chevron-down" size={14} color="#fff" />
               </View>
@@ -1910,6 +2015,8 @@ export default function App() {
             />
           </View>
         </Modal>
+
+        {renderDepoModal()}
       </SafeAreaView>
     );
   }
@@ -2756,41 +2863,7 @@ export default function App() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal isVisible={showDepoModal} onBackdropPress={() => setShowDepoModal(false)} style={styles.modal}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Depo Seçimi</Text>
-            <TouchableOpacity onPress={() => setShowDepoModal(false)}>
-              <Ionicons name="close" size={28} color="#8a9ab5" />
-            </TouchableOpacity>
-          </View>
-
-          <TextInput
-            style={{ height: 50, paddingHorizontal: 15, borderRadius: 12, marginBottom: 15, backgroundColor: isDark ? '#333' : '#F1F5F9', color: isDark ? '#fff' : '#000', fontSize: 16 }}
-            placeholder="Depo ara..."
-            placeholderTextColor="#8a9ab5"
-            value={depoSearchQuery}
-            onChangeText={(t) => setDepoSearchQuery(t.toLocaleUpperCase('tr-TR'))}
-            autoCapitalize="characters"
-          />
-
-          <FlatList
-            data={depos.filter((d) => (d.depo_adi?.toLowerCase() || '').includes(depoSearchQuery.toLowerCase()) || String(d.depo_no).includes(depoSearchQuery))}
-            keyExtractor={d => d.depo_no}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => selectDepoAndSave(item)} style={{ paddingVertical: 15, paddingHorizontal: 10, borderBottomWidth: 1, borderColor: isDark ? '#333' : '#eee', flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 107, 0, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-                  <Text style={{ color: '#FF6B00', fontWeight: 'bold' }}>{item.depo_no}</Text>
-                </View>
-                <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 16, flex: 1, fontWeight: '500' }}>{item.depo_adi}</Text>
-                {selectedDepo?.depo_no === item.depo_no && <Ionicons name="checkmark-circle" size={24} color="#10B981" />}
-              </TouchableOpacity>
-            )}
-            style={{ maxHeight: 400 }}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-      </Modal>
+      {renderDepoModal()}
 
       {/* SEVK SOURCE (ÇIKIŞ) MODAL */}
       <Modal isVisible={showSevkSourceModal} onBackdropPress={() => { setShowSevkSourceModal(false); if(!sevkSourceDepo) setAppMode('menu'); }} style={styles.modal}>
