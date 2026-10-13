@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.17';
-const CURRENT_VERSION_CODE = 17;
+const CURRENT_VERSION = '1.0.18';
+const CURRENT_VERSION_CODE = 18;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -2205,12 +2205,90 @@ export default function App() {
                 keyboardShouldPersistTaps="handled"
               />
             ) : (
-              <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View style={styles.idleState}>
-                  <Ionicons name="barcode-outline" size={60} color="rgba(255, 107, 0, 0.3)" />
-                  <Text style={styles.idleText}>Barkod taramak için sağ üstteki</Text>
-                  <Text style={styles.idleText}>barkod butonuna basınız.</Text>
-                </View>
+              <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {/* HIZLI BARKOD OKUT KARTI */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: isDark ? '#1C2738' : '#FFFFFF',
+                    borderRadius: 18,
+                    padding: 16,
+                    marginHorizontal: 16,
+                    marginTop: 14,
+                    borderWidth: 1.5,
+                    borderColor: '#FF6B00',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    shadowColor: '#FF6B00',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 10,
+                    elevation: 4
+                  }}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setCameraActive(true);
+                    setScanned(false);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: 'rgba(255, 107, 0, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="barcode-outline" size={26} color="#FF6B00" />
+                    </View>
+                    <View>
+                      <Text style={{ color: isDark ? '#fff' : '#0B132B', fontSize: 15, fontWeight: '900' }}>HIZLI BARKOD OKUT</Text>
+                      <Text style={{ color: '#8a9ab5', fontSize: 11, fontWeight: '600', marginTop: 2 }}>2D Optik Lazer Kamera ile Tara</Text>
+                    </View>
+                  </View>
+                  <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#FF6B00', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="scan" size={17} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+
+                {/* SON İNCELENEN ÜRÜNLER LİSTESİ */}
+                {recentProducts && recentProducts.length > 0 ? (
+                  <View style={{ marginHorizontal: 16, marginTop: 20 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="time-outline" size={16} color="#8a9ab5" />
+                        <Text style={{ color: isDark ? '#fff' : '#0B132B', fontSize: 13, fontWeight: '800' }}>SON İNCELENEN ÜRÜNLER</Text>
+                      </View>
+                      <Text style={{ color: '#8a9ab5', fontSize: 11, fontWeight: '700' }}>{recentProducts.length} Ürün</Text>
+                    </View>
+                    {recentProducts.slice(0, 5).map((rp, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={{
+                          backgroundColor: isDark ? '#162032' : '#FFFFFF',
+                          borderRadius: 14,
+                          padding: 12,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor: isDark ? '#2E3E55' : '#E2E8F0',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          handleSearch(rp.stock_code || rp.barcode);
+                        }}
+                      >
+                        <View style={{ flex: 1, marginRight: 10 }}>
+                          <Text style={{ color: isDark ? '#fff' : '#000', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>{rp.name}</Text>
+                          <Text style={{ color: '#8a9ab5', fontSize: 11, marginTop: 2 }}>{rp.stock_code} {rp.barcode ? `• ${rp.barcode}` : ''}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#FF6B00" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={[styles.idleState, { marginTop: 30 }]}>
+                    <Ionicons name="barcode-outline" size={60} color="rgba(255, 107, 0, 0.3)" />
+                    <Text style={styles.idleText}>Barkod taramak için yukarıdaki</Text>
+                    <Text style={styles.idleText}>veya sağ üstteki butona dokunun.</Text>
+                  </View>
+                )}
               </ScrollView>
             )}
           </View>
@@ -2323,34 +2401,61 @@ export default function App() {
                         <TouchableOpacity
                           onPress={openEditNameModal}
                           style={{
-                            width: 38,
-                            height: 38,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
                             borderRadius: 12,
                             backgroundColor: styles.colors.secondarySoft,
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderWidth: 1.5,
+                            borderColor: styles.colors.secondary,
                             flexShrink: 0
                           }}
                         >
-                          <Ionicons name="pencil" size={18} color={styles.colors.secondary} />
+                          <Ionicons name="pencil" size={16} color={styles.colors.secondary} />
+                          <Text style={{ color: styles.colors.secondary, fontSize: 13, fontWeight: '800' }}>İsmi Düzenle</Text>
                         </TouchableOpacity>
                       )}
                     </View>
 
                     {/* MASSIVE PRICE BOX (When not in pure Sayım) */}
                     {appMode !== 'sayim' && (
-                      <View style={styles.massivePriceBox}>
-                        <View>
-                          <Text style={{ color: styles.colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                            Satış Fiyatı
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
-                            <Text style={styles.massivePriceText}>{formatPrice(product.price)}</Text>
-                            <Text style={{ color: styles.colors.primary, fontSize: 18, fontWeight: '800' }}>{product.currency}</Text>
+                      <View style={[styles.massivePriceBox, { backgroundColor: isDark ? '#162032' : '#F8FAFC', borderColor: '#00AE78', borderWidth: 1.5, padding: 16 }]}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <Ionicons name="pricetag" size={13} color="#00AE78" />
+                            <Text style={{ color: styles.colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                              Satış Fiyatı (Peşin)
+                            </Text>
                           </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                            <Text style={[styles.massivePriceText, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>{formatPrice(product.price)}</Text>
+                            <Text style={{ color: '#00AE78', fontSize: 20, fontWeight: '900' }}>{product.currency}</Text>
+                          </View>
+                          {!!product?.iskonto_orani && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: 'rgba(0, 174, 120, 0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' }}>
+                              <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>
+                                %{product.iskonto_orani.replace(/^%/, '')} İsk. Net:
+                              </Text>
+                              <Text style={{ color: isDark ? '#38BDF8' : '#0284C7', fontSize: 14, fontWeight: '900' }}>
+                                {formatPrice((parseFloat(product.price) || 0) * (1 - (parseFloat(product.iskonto_orani.replace(/^%/, '')) || 0) / 100))} {product.currency}
+                              </Text>
+                            </View>
+                          )}
                         </View>
-                        <View style={styles.kdvBadge}>
-                          <Text style={styles.kdvBadgeText}>KDV DAHİL</Text>
+                        <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                          <View style={styles.kdvBadge}>
+                            <Text style={styles.kdvBadgeText}>KDV DAHİL</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              ToastAndroid.show(`Fiyat kopyalandı: ${formatPrice(product.price)} ${product.currency}`, ToastAndroid.SHORT);
+                            }}
+                            style={{ padding: 6, backgroundColor: isDark ? '#2E3E55' : '#E2E8F0', borderRadius: 8 }}
+                          >
+                            <Ionicons name="copy-outline" size={15} color={styles.colors.textMuted} />
+                          </TouchableOpacity>
                         </View>
                       </View>
                     )}
