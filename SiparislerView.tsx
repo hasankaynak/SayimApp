@@ -40,6 +40,8 @@ export interface SiparisItem {
   TeslimMiktar: number;
   KalanMiktar: number;
   Aciklama: string;
+  Aciklama1: string;
+  Aciklama2: string;
   SormerkKod: string;
   DepoAdi: string;
   DepoNo: number;
@@ -221,7 +223,9 @@ export default function SiparislerView({
           ISNULL(sip_miktar, 0) as SiparisMiktar,
           ISNULL(sip_teslim_miktar, 0) as TeslimMiktar,
           ISNULL(sip_miktar - sip_teslim_miktar, 0) as KalanMiktar,
-          ISNULL(sip_aciklama, '') as Aciklama,
+          ISNULL(sip_aciklama, '') as Aciklama1,
+          ISNULL(sip_aciklama2, '') as Aciklama2,
+          RTRIM(LTRIM(ISNULL(sip_aciklama, '') + CASE WHEN ISNULL(sip_aciklama2, '') <> '' THEN ' ' + sip_aciklama2 ELSE '' END)) as Aciklama,
           ISNULL(NULLIF(sip_stok_sormerk, ''), ISNULL(NULLIF(sip_cari_sormerk, ''), ISNULL(sip_satici_kod, ''))) as SormerkKod,
           ISNULL(d.dep_adi, 'Depo ' + CAST(sip_depono AS VARCHAR)) as DepoAdi,
           ISNULL(sip_depono, 0) as DepoNo,
@@ -389,6 +393,8 @@ export default function SiparislerView({
         'Sipariş Miktar': item.SiparisMiktar,
         'Kalan Miktar': item.KalanMiktar,
         'Birim': item.Birim,
+        'Açıklama 1': item.Aciklama1,
+        'Açıklama 2': item.Aciklama2,
         'Açıklama': item.Aciklama,
         'SOM': item.SormerkKod,
         'Depo': item.DepoAdi,
@@ -505,16 +511,7 @@ export default function SiparislerView({
         {/* Card Body: Stok Bilgileri */}
         <View style={styles.cardBodyRow}>
           <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.stockCode, { color: theme.primary }]}>{item.StokKodu}</Text>
-              {Boolean(item.Aciklama) && (
-                <View style={[styles.noteBadge, { backgroundColor: theme.purpleLight }]}>
-                  <Text style={[styles.noteBadgeText, { color: theme.purple }]} numberOfLines={1}>
-                    {item.Aciklama}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <Text style={[styles.stockCode, { color: theme.primary }]}>{item.StokKodu}</Text>
             <Text style={[styles.stockName, { color: theme.text }]} numberOfLines={2}>
               {item.StokIsmi}
             </Text>
@@ -543,6 +540,25 @@ export default function SiparislerView({
             )}
           </View>
         </View>
+
+        {/* Açıklama Satırı (Mikro 038003 Açıklama 1 / Açıklama 2) */}
+        {Boolean(item.Aciklama) ? (
+          <View style={[styles.cardNoteRow, { backgroundColor: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF', borderColor: isDark ? 'rgba(139, 92, 246, 0.35)' : '#DDD6FE' }]}>
+            <Ionicons name="chatbox-ellipses" size={13} color="#8B5CF6" style={{ marginTop: 1 }} />
+            <Text style={[styles.cardNoteLabel, { color: isDark ? '#C4B5FD' : '#7C3AED' }]}>Açıklama:</Text>
+            <Text style={[styles.cardNoteText, { color: isDark ? '#EDE9FE' : '#4C1D95' }]} numberOfLines={2}>
+              {item.Aciklama}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.cardNoteRowEmpty, { backgroundColor: theme.cardAlt }]}>
+            <Ionicons name="chatbox-outline" size={11} color={theme.textMuted} style={{ marginTop: 1 }} />
+            <Text style={[styles.cardNoteLabelEmpty, { color: theme.textMuted }]}>Açıklama:</Text>
+            <Text style={[styles.cardNoteTextEmpty, { color: theme.textMuted }]}>
+              Belirtilmemiş
+            </Text>
+          </View>
+        )}
 
         {/* Card Footer: Fiyat, Depo & Detay İpucu */}
         <View style={styles.cardFooterRow}>
@@ -619,11 +635,20 @@ export default function SiparislerView({
                   <Text style={[styles.subItemName, { color: theme.text }]} numberOfLines={1}>
                     {subItem.StokIsmi}
                   </Text>
-                  {Boolean(subItem.Aciklama) && (
-                    <Text style={{ fontSize: 11, color: theme.purple, fontStyle: 'italic', marginTop: 1 }}>
-                      {subItem.Aciklama}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                    <Ionicons name="chatbox-ellipses-outline" size={11} color={subItem.Aciklama ? '#8B5CF6' : theme.textMuted} />
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: subItem.Aciklama ? (isDark ? '#DDD6FE' : '#6D28D9') : theme.textMuted,
+                        fontWeight: subItem.Aciklama ? '700' : '400',
+                        fontStyle: subItem.Aciklama ? 'normal' : 'italic',
+                      }}
+                      numberOfLines={1}
+                    >
+                      Açıklama: {subItem.Aciklama || 'Belirtilmemiş'}
                     </Text>
-                  )}
+                  </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: Number(subItem.KalanMiktar) > 0 ? theme.warning : theme.success }}>
@@ -693,13 +718,22 @@ export default function SiparislerView({
                   <Text style={[styles.subItemName, { color: theme.text }]} numberOfLines={1}>
                     {subItem.CariIsmi}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                     <Text style={{ fontSize: 11, color: theme.textMuted }}>{subItem.BolgeIsmi || 'Bölge Belirtilmemiş'}</Text>
-                    {Boolean(subItem.Aciklama) && (
-                      <Text style={{ fontSize: 11, color: theme.purple, fontStyle: 'italic' }}>
-                        • {subItem.Aciklama}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="chatbox-ellipses-outline" size={11} color={subItem.Aciklama ? '#8B5CF6' : theme.textMuted} />
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: subItem.Aciklama ? (isDark ? '#DDD6FE' : '#6D28D9') : theme.textMuted,
+                          fontWeight: subItem.Aciklama ? '700' : '400',
+                          fontStyle: subItem.Aciklama ? 'normal' : 'italic',
+                        }}
+                        numberOfLines={1}
+                      >
+                        Açıklama: {subItem.Aciklama || 'Belirtilmemiş'}
                       </Text>
-                    )}
+                    </View>
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -1298,14 +1332,24 @@ export default function SiparislerView({
                     <Text style={{ fontSize: 14, fontWeight: '800', color: theme.text, marginTop: 2 }}>
                       {selectedOrder.StokIsmi}
                     </Text>
-                    {Boolean(selectedOrder.Aciklama) && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                        <Ionicons name="information-circle" size={14} color={theme.purple} />
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: theme.purple }}>
-                          Açıklama: {selectedOrder.Aciklama}
+                    <View style={{ marginTop: 8, gap: 4, borderTopWidth: 0.5, borderTopColor: theme.cardBorder, paddingTop: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                        <Ionicons name="chatbox-ellipses" size={13} color="#8B5CF6" style={{ marginTop: 2 }} />
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#8B5CF6' }}>Açıklama 1:</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: selectedOrder.Aciklama1 ? theme.text : theme.textMuted, flex: 1 }}>
+                          {selectedOrder.Aciklama1 || 'Belirtilmemiş'}
                         </Text>
                       </View>
-                    )}
+                      {Boolean(selectedOrder.Aciklama2) && (
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                          <Ionicons name="chatbox-ellipses-outline" size={13} color="#8B5CF6" style={{ marginTop: 2 }} />
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#8B5CF6' }}>Açıklama 2:</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text, flex: 1 }}>
+                            {selectedOrder.Aciklama2}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
 
                   {/* Miktar Özeti */}
@@ -1666,6 +1710,43 @@ const styles = StyleSheet.create({
   qtySub: {
     fontSize: 8.5,
     fontWeight: '600',
+  },
+  cardNoteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  cardNoteLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cardNoteText: {
+    flex: 1,
+    fontSize: 11.5,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  cardNoteRowEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  cardNoteLabelEmpty: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  cardNoteTextEmpty: {
+    fontSize: 10.5,
+    fontStyle: 'italic',
   },
   cardFooterRow: {
     flexDirection: 'row',
