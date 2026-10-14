@@ -78,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.26';
-const CURRENT_VERSION_CODE = 26;
+const CURRENT_VERSION = '1.0.27';
+const CURRENT_VERSION_CODE = 27;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -1442,7 +1442,7 @@ export default function App() {
             ) VALUES (
               NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
               ${userNum}, @Now, ${userNum}, @Now,
-              '', '', '', 21, '17.05d', '12810',
+              '', '', '', 21, '17.05d', '12800',
               '', '', '', 0, '', 0,
               0, 0, @Tarih, 1, 3, 0, 6, '${evrakSeri}',
               @NextSira, ${index}, '', @Tarih, '${sKod}',
@@ -1487,7 +1487,7 @@ export default function App() {
       // Update ui list
       setSayimBackups(prev => prev.map(p => p.id === backupItem.id ? {...p, mikro_sent: 1} : p));
 
-      const fişTipi = isSevkList ? 'Depo Transfer Fişi' : 'Sayım Sonucu Fişi (012810)';
+      const fişTipi = isSevkList ? 'Depo Transfer Fişi' : 'Depo Sayım Fişi (012800)';
       ToastAndroid.show(`Mikro'ya başarıyla gönderildi! (${fişTipi} Sıra: ${targetEvrakNo})`, ToastAndroid.LONG);
       return true;
     } catch (err: any) {
@@ -1501,7 +1501,7 @@ export default function App() {
     if (activeCart.length === 0) return;
     try {
       const isSevk = appMode === 'sevk';
-      const fisTipi = isSevk ? 'Depolar Arası Sevk Fişi' : 'Sayım Sonucu Fişi (012810)';
+      const fisTipi = isSevk ? 'Depolar Arası Sevk Fişi' : 'Depo Sayım Fişi (012800)';
 
       const saveBackupToDb = async (): Promise<{ id: number; cart_data: string; mikro_evrak_no: number } | null> => {
         const db = dbRef.current;
