@@ -689,22 +689,26 @@ export default function SiparislerView({
               let totalIskonto = 0;
               let totalKdv = 0;
               let totalNet = 0;
+              const taxesByPntr: { [pntr: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
               selectedItems.forEach(it => {
                 const qty = Number(it.invoiceQty);
                 const bFiyat = Number(it.BirimFiyat) || 0;
                 const brut = qty * bFiyat;
-                const iskOran = Number(it.SiparisMiktar) > 0 ? (Number(it.Iskonto1) / (Number(it.SiparisMiktar) * bFiyat || 1)) : 0;
-                const isk = brut * iskOran;
-                const netSatir = brut - isk;
-                const kdvPntr = Number(it.VergiPntr) || 4;
-                const kdvRate = kdvPntr === 5 ? 0.20 : 0.16;
-                const kdv = netSatir * kdvRate;
+                const sipMiktar = Number(it.SiparisMiktar) || qty || 1;
+                const isk = (Number(it.Iskonto1) || 0) > 0 ? (Number(it.Iskonto1) * (qty / sipMiktar)) : 0;
+                const netSatir = Math.max(0, brut - isk);
+                const kdvPntr = Number(it.VergiPntr) || 5;
+                const kdv = (Number(it.Vergi) || 0) > 0
+                  ? (Number(it.Vergi) * (qty / sipMiktar))
+                  : (netSatir * (kdvPntr === 5 ? 0.20 : (kdvPntr === 4 ? 0.10 : 0.20)));
 
                 totalBrut += brut;
                 totalIskonto += isk;
                 totalKdv += kdv;
                 totalNet += (netSatir + kdv);
+
+                taxesByPntr[kdvPntr] = (taxesByPntr[kdvPntr] || 0) + kdv;
               });
 
               const todayStr = new Date().toISOString().split('T')[0];
@@ -724,7 +728,8 @@ export default function SiparislerView({
                   cha_tarihi, cha_tip, cha_cinsi, cha_normal_Iade, cha_tpoz, cha_ticaret_turu, cha_belge_no, cha_belge_tarih,
                   cha_aciklama, cha_satici_kodu, cha_cari_cins, cha_kod, cha_ciro_cari_kodu, cha_d_cins, cha_d_kur, cha_altd_kur,
                   cha_grupno, cha_srmrkkodu, cha_meblag, cha_aratoplam, cha_vade,
-                  cha_ft_iskonto1, cha_ft_iskonto2, cha_kdv_toplam
+                  cha_ft_iskonto1, cha_ft_iskonto2,
+                  cha_vergi1, cha_vergi2, cha_vergi3, cha_vergi4, cha_vergi5
                 ) VALUES (
                   @FatGuid, 0, 0, 0, 51, 0, 0, 0, 0,
                   ${userNum}, @Now, ${userNum}, @Now,
@@ -733,7 +738,8 @@ export default function SiparislerView({
                   @Tarih, 0, 6, 0, 0, 0, '', @Tarih,
                   'Mobil Sipariş Faturalaştırma', '${(selectedItems[0]?.SaticiKod || '').replace(/'/g, "''")}', 0, '${cariKod}', '${cariKod}', 0, 1, 49.25,
                   0, '${(selectedItems[0]?.SormerkKod || '').replace(/'/g, "''")}', ${totalNet.toFixed(2)}, ${totalBrut.toFixed(2)}, 0,
-                  ${totalIskonto.toFixed(2)}, 0, ${totalKdv.toFixed(2)}
+                  ${totalIskonto.toFixed(2)}, 0,
+                  ${(taxesByPntr[1] || 0).toFixed(2)}, ${(taxesByPntr[2] || 0).toFixed(2)}, ${(taxesByPntr[3] || 0).toFixed(2)}, ${(taxesByPntr[4] || 0).toFixed(2)}, ${(taxesByPntr[5] || 0).toFixed(2)}
                 );
               `;
 
@@ -741,6 +747,13 @@ export default function SiparislerView({
                 const qty = Number(it.invoiceQty);
                 const bFiyat = Number(it.BirimFiyat) || 0;
                 const brut = qty * bFiyat;
+                const sipMiktar = Number(it.SiparisMiktar) || qty || 1;
+                const satirIsk = (Number(it.Iskonto1) || 0) > 0 ? (Number(it.Iskonto1) * (qty / sipMiktar)) : 0;
+                const netSatir = Math.max(0, brut - satirIsk);
+                const kdvPntr = Number(it.VergiPntr) || 5;
+                const satirKdv = (Number(it.Vergi) || 0) > 0
+                  ? (Number(it.Vergi) * (qty / sipMiktar))
+                  : (netSatir * (kdvPntr === 5 ? 0.20 : (kdvPntr === 4 ? 0.10 : 0.20)));
                 const sKod = (it.StokKodu || '').replace(/'/g, "''");
                 const sipGuidStr = it.sipGuid || '';
 
@@ -753,6 +766,7 @@ export default function SiparislerView({
                     sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip,
                     sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
                     sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+                    sth_iskonto1, sth_vergi_pntr, sth_vergi,
                     sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
                     sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_cari_kodu, sth_plasiyer_kodu,
                     sth_sip_uid, sth_fat_uid, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
@@ -763,6 +777,7 @@ export default function SiparislerView({
                     0, 0, @Tarih, 1, 0, 0, 4,
                     '${cleanSeri.replace(/'/g, "''")}', ${sira}, ${idx}, '', @Tarih, '${sKod}',
                     ${qty}, ${qty}, 1, ${bFiyat.toFixed(4)}, ${brut.toFixed(2)},
+                    ${satirIsk.toFixed(2)}, ${kdvPntr}, ${satirKdv.toFixed(2)},
                     ${depoNo}, ${depoNo}, @Tarih,
                     '${(it.SormerkKod || '').replace(/'/g, "''")}', '${(it.SormerkKod || '').replace(/'/g, "''")}', '${cariKod}', '${(it.SaticiKod || '').replace(/'/g, "''")}',
                     ${sipGuidStr ? `'${sipGuidStr}'` : '00000000-0000-0000-0000-000000000000'}, @FatGuid, 0, 1, 49.25, 0, 1
