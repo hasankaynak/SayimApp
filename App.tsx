@@ -75,8 +75,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.20';
-const CURRENT_VERSION_CODE = 20;
+const CURRENT_VERSION = '1.0.21';
+const CURRENT_VERSION_CODE = 21;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -179,6 +179,17 @@ export default function App() {
   const [targetSearchQuery, setTargetSearchQuery] = useState('');
   const [showTargetSearch, setShowTargetSearch] = useState(false);
   const [isProcessingBarkod, setIsProcessingBarkod] = useState(false);
+
+  // YENİ STOK KARTI MODAL STATE
+  const [showNewCardModal, setShowNewCardModal] = useState(false);
+  const [newCardBarcode, setNewCardBarcode] = useState('');
+  const [newCardCode, setNewCardCode] = useState('');
+  const [newCardName, setNewCardName] = useState('');
+  const [newCardPrice, setNewCardPrice] = useState('');
+  const [newCardCurrency, setNewCardCurrency] = useState<'TL' | 'USD' | 'EUR' | 'GBP'>('TL');
+  const [newCardVat, setNewCardVat] = useState<number>(20);
+  const [newCardUnit, setNewCardUnit] = useState<string>('ADET');
+  const [isCreatingNewCard, setIsCreatingNewCard] = useState(false);
 
   const [beepSound, setBeepSound] = useState<Audio.Sound | null>(null);
 
@@ -881,6 +892,179 @@ export default function App() {
     }
   };
 
+  // --- YENİ STOK KARTI METODLARI ---
+  const openNewCardModal = (prefilledBarcode: string = '') => {
+    const cleanBarcode = (prefilledBarcode || '').trim();
+    setNewCardBarcode(cleanBarcode);
+    if (cleanBarcode.length > 0) {
+      setNewCardCode(`STK-${cleanBarcode.substring(0, 15)}`);
+    } else {
+      setNewCardCode(`STK-${Date.now().toString().slice(-6)}`);
+    }
+    setNewCardName('');
+    setNewCardPrice('');
+    setNewCardCurrency('TL');
+    setNewCardVat(20);
+    setNewCardUnit('ADET');
+    setShowNewCardModal(true);
+  };
+
+  const handleCreateNewStockCard = async () => {
+    const barcode = newCardBarcode.trim();
+    const stockCode = newCardCode.trim().toUpperCase();
+    const name = newCardName.trim().toUpperCase();
+    const priceNum = parseFloat(newCardPrice.replace(',', '.')) || 0;
+
+    if (!barcode) {
+      Alert.alert('Eksik Bilgi', 'Lütfen ürün barkodunu girin.');
+      return;
+    }
+    if (!stockCode) {
+      Alert.alert('Eksik Bilgi', 'Lütfen stok kodunu girin.');
+      return;
+    }
+    if (!name) {
+      Alert.alert('Eksik Bilgi', 'Lütfen ürün adını girin.');
+      return;
+    }
+    if (name.length < 3) {
+      Alert.alert('Uyarı', 'Ürün adı en az 3 karakter olmalıdır.');
+      return;
+    }
+
+    setIsCreatingNewCard(true);
+    try {
+      // 1. Pre-flight kontrol: Barkod veya Kod Mikro'da zaten var mı?
+      const checkQ = `
+        SELECT 
+          (SELECT COUNT(1) FROM STOKLAR WITH (NOLOCK) WHERE sto_kod = '${stockCode.replace(/'/g, "''")}') AS kod_count,
+          (SELECT COUNT(1) FROM BARKOD_TANIMLARI WITH (NOLOCK) WHERE bar_kodu = '${barcode.replace(/'/g, "''")}') AS bar_count;
+      `;
+      const checkRes = await axios.post(API_URL, { query: checkQ }, { timeout: 10000 });
+      const counts = checkRes.data?.data?.[0];
+      if (counts?.kod_count > 0) {
+        Alert.alert('Stok Kodu Mevcut', `Bu stok kodu (${stockCode}) Mikro ERP'de zaten kayıtlı. Lütfen farklı bir stok kodu belirleyin.`);
+        setIsCreatingNewCard(false);
+        return;
+      }
+      if (counts?.bar_count > 0) {
+        Alert.alert('Barkod Mevcut', `Bu barkod (${barcode}) Mikro ERP'de başka bir ürüne tanımlı. Lütfen farklı bir barkod girin veya Barkod Eşleştirme yapın.`);
+        setIsCreatingNewCard(false);
+        return;
+      }
+
+      // 2. Parametreler
+      const userNum = parseInt(mikroUserNo) || 4;
+      const dovizMap: Record<string, number> = { 'TL': 0, 'USD': 1, 'EUR': 2, 'GBP': 3 };
+      const dovizInt = dovizMap[newCardCurrency] || 0;
+      const vatMap: Record<number, number> = { 20: 5, 10: 3, 1: 1 };
+      const vatPntr = vatMap[newCardVat] || 5;
+
+      const escapedCode = stockCode.replace(/'/g, "''");
+      const escapedName = name.replace(/'/g, "''");
+      const escapedBarcode = barcode.replace(/'/g, "''");
+      const escapedUnit = (newCardUnit || 'ADET').replace(/'/g, "''");
+
+      const insertQ = `
+        BEGIN TRANSACTION;
+        BEGIN TRY
+          -- 1. STOKLAR TABLOSUNA INSERT (sto_plu_no IDENTITY olduğu için yazılmaz)
+          INSERT INTO STOKLAR (
+            sto_Guid, sto_DBCno, sto_create_date, sto_create_user, sto_lastup_date, sto_lastup_user,
+            sto_fileid, sto_MainProgramNo, sto_VersionNo, sto_MenuNo, sto_Hash,
+            sto_kod, sto_isim, sto_kisa_ismi, sto_cins, sto_doviz_cinsi,
+            sto_birim1_ad, sto_birim1_katsayi,
+            sto_muh_kod, sto_muh_Iade_kod, sto_muh_sat_muh_kod, sto_muh_satIadmuhkod,
+            sto_muh_sat_isk_kod, sto_muh_aIiskmuhkod, sto_muh_satmalmuhkod, sto_yurtdisi_satmuhk,
+            sto_ilavemasmuhkod, sto_yatirimtesmuhkod, sto_depsatmuhkod, sto_depsatmalmuhkod,
+            sto_bagortsatmuhkod, sto_bagortsatIadmuhkod, sto_bagortsatIskmuhkod, sto_satfiyfarkmuhkod,
+            sto_yurtdisisatmalmuhkod, sto_bagortsatmalmuhkod, sto_sifirbedsatmalmuhkod,
+            sto_perakende_vergi, sto_toptan_vergi, sto_raf_etiketli, sto_etiket_bas,
+            sto_otvbirimi
+          ) VALUES (
+            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
+            13, 21, '17.05d', '11300', '0',
+            '${escapedCode}', '${escapedName}', '${escapedName.substring(0, 50)}', 0, ${dovizInt},
+            '${escapedUnit}', 1,
+            '153', '153', '600', '610',
+            '611', '153', '621', '601',
+            '153', '258', '600', '621',
+            '600', '610', '611', '600',
+            '621', '621', '760',
+            ${vatPntr}, ${vatPntr}, 1, 1,
+            1
+          );
+
+          -- 2. BARKOD_TANIMLARI TABLOSUNA INSERT
+          INSERT INTO BARKOD_TANIMLARI (
+            bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user,
+            bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr
+          ) VALUES (
+            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
+            224, '${escapedBarcode}', '${escapedCode}', 1, 0, 0
+          );
+
+          -- 3. STOK_SATIS_FIYAT_LISTELERI (sfiyat_deposirano=0 ve sfiyat_odemeplan=0 zorunlu)
+          INSERT INTO STOK_SATIS_FIYAT_LISTELERI (
+            sfiyat_Guid, sfiyat_DBCno, sfiyat_create_date, sfiyat_create_user, sfiyat_lastup_date, sfiyat_lastup_user,
+            sfiyat_fileid, sfiyat_stokkod, sfiyat_listesirano, sfiyat_deposirano, sfiyat_odemeplan, sfiyat_birim_pntr,
+            sfiyat_fiyati, sfiyat_doviz, sfiyat_deg_nedeni, sfiyat_primyuzdesi
+          ) VALUES (
+            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
+            228, '${escapedCode}', 1, 0, 0, 1,
+            ${priceNum}, ${dovizInt}, 0, 0
+          );
+
+          COMMIT TRANSACTION;
+          SELECT 1 AS success, 'KAYIT BASARIYLA OLUSTURULDU' AS message;
+        END TRY
+        BEGIN CATCH
+          ROLLBACK TRANSACTION;
+          SELECT 0 AS success, ERROR_MESSAGE() AS error_message;
+        END CATCH
+      `;
+
+      const insertRes = await axios.post(API_URL, { query: insertQ }, { timeout: 15000 });
+      const resultObj = insertRes.data?.data?.[0];
+      if (!resultObj?.success) {
+        throw new Error(resultObj?.error_message || 'Mikro kayıt sırasında hata oluştu.');
+      }
+
+      // 3. Telefon yerel SQLite hafızasına anında kaydet
+      const newProductObj = {
+        barcode: barcode,
+        stock_code: stockCode,
+        name: name,
+        price: priceNum,
+        currency: newCardCurrency,
+        unit: escapedUnit,
+        name_normalized: normalizeText(name),
+        lastup_date: new Date().toLocaleDateString('tr-TR'),
+        iskonto_orani: ''
+      };
+
+      const db = dbRef.current;
+      if (db) {
+        await db.runAsync(
+          'INSERT OR REPLACE INTO products (barcode, stock_code, name, price, currency, unit, name_normalized, lastup_date, iskonto_orani) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [newProductObj.barcode, newProductObj.stock_code, newProductObj.name, newProductObj.price, newProductObj.currency, newProductObj.unit, newProductObj.name_normalized, newProductObj.lastup_date, '']
+        );
+      }
+
+      setTotalProducts(prev => prev + 1);
+      setProduct(newProductObj);
+      addRecentProduct(newProductObj);
+      setShowNewCardModal(false);
+      ToastAndroid.show(`Stok kartı açıldı: ${name}`, ToastAndroid.LONG);
+      playSound('success');
+    } catch (err: any) {
+      Alert.alert('Kayıt Hatası', err.response?.data?.error || err.message || 'Bilinmeyen hata');
+      playSound('error');
+    } finally {
+      setIsCreatingNewCard(false);
+    }
+  };
+
   // --- CARİ İŞLEMLER ---
   const handleCariSearch = async (text: string) => {
     setCariSearchQuery(text);
@@ -1375,6 +1559,236 @@ export default function App() {
     </Modal>
   );
 
+  const renderNewStockCardModal = () => (
+    <Modal
+      isVisible={showNewCardModal}
+      onBackdropPress={() => !isCreatingNewCard && setShowNewCardModal(false)}
+      style={styles.modal}
+      avoidKeyboard={true}
+    >
+      <View style={[styles.modalContent, { maxHeight: '90%', padding: 18 }]}>
+        {/* Header */}
+        <View style={styles.modalHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255, 107, 0, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="cube" size={20} color="#FF6B00" />
+            </View>
+            <View>
+              <Text style={styles.modalTitle}>Yeni Stok Kartı Aç</Text>
+              <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>Mikro ERP & Mobil Canlı Kayıt</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            disabled={isCreatingNewCard}
+            onPress={() => setShowNewCardModal(false)}
+          >
+            <Ionicons name="close-circle" size={28} color="#8a9ab5" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+          {/* BARKOD */}
+          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4, marginTop: 10 }}>
+            BARKOD NUMARASI *
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <View style={{ flex: 1, height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
+              <Ionicons name="barcode-outline" size={20} color="#FF6B00" style={{ marginRight: 8 }} />
+              <TextInput
+                style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '700' }}
+                placeholder="Örn: 8690504012345"
+                placeholderTextColor="#8a9ab5"
+                value={newCardBarcode}
+                onChangeText={(t) => {
+                  setNewCardBarcode(t);
+                  if (t.trim().length > 0 && newCardCode.startsWith('STK-')) {
+                    setNewCardCode(`STK-${t.trim().substring(0, 15)}`);
+                  }
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                const rnd = '869' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
+                setNewCardBarcode(rnd);
+                setNewCardCode(`STK-${rnd.substring(0, 15)}`);
+              }}
+              style={{ paddingHorizontal: 12, height: 46, borderRadius: 12, backgroundColor: styles.colors.secondarySoft, borderWidth: 1, borderColor: styles.colors.secondary, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ color: styles.colors.secondary, fontSize: 11, fontWeight: '800' }}>Rastgele</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* STOK KODU */}
+          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+            STOK KODU *
+          </Text>
+          <View style={{ height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border, marginBottom: 12 }}>
+            <Ionicons name="key-outline" size={18} color="#3B82F6" style={{ marginRight: 8 }} />
+            <TextInput
+              style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '700' }}
+              placeholder="Örn: STK-001 veya ABC.123"
+              placeholderTextColor="#8a9ab5"
+              value={newCardCode}
+              onChangeText={(t) => setNewCardCode(t.toLocaleUpperCase('tr-TR'))}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          {/* ÜRÜN ADI */}
+          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+            ÜRÜN ADI (TANIMI) *
+          </Text>
+          <View style={{ minHeight: 52, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border, marginBottom: 12 }}>
+            <Ionicons name="text-outline" size={18} color="#10B981" style={{ marginRight: 8 }} />
+            <TextInput
+              style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '600' }}
+              placeholder="Örn: NESCAFE GOLD 100 GR KAVANOZ"
+              placeholderTextColor="#8a9ab5"
+              value={newCardName}
+              onChangeText={(t) => setNewCardName(t.toLocaleUpperCase('tr-TR'))}
+              autoCapitalize="characters"
+              multiline={true}
+            />
+          </View>
+
+          {/* SATIŞ FİYATI & PARA BİRİMİ */}
+          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+            SATIŞ FİYATI & DÖVİZ
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <View style={{ flex: 1, height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
+              <Ionicons name="cash-outline" size={18} color="#00AE78" style={{ marginRight: 8 }} />
+              <TextInput
+                style={{ flex: 1, color: styles.colors.text, fontSize: 16, fontWeight: '900' }}
+                placeholder="0.00"
+                placeholderTextColor="#8a9ab5"
+                value={newCardPrice}
+                onChangeText={setNewCardPrice}
+                keyboardType="numeric"
+              />
+            </View>
+            {/* Currency Tabs */}
+            <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, padding: 3, borderWidth: 1, borderColor: styles.colors.border }}>
+              {(['TL', 'USD', 'EUR', 'GBP'] as const).map((curr) => (
+                <TouchableOpacity
+                  key={curr}
+                  onPress={() => setNewCardCurrency(curr)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderRadius: 9,
+                    backgroundColor: newCardCurrency === curr ? (isDark ? '#3B82F6' : '#1E40AF') : 'transparent',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ color: newCardCurrency === curr ? '#fff' : styles.colors.textMuted, fontSize: 12, fontWeight: '800' }}>
+                    {curr}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* BİRİM & KDV ORANI */}
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+            {/* Birim */}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>
+                BİRİM
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['ADET', 'KG', 'PAKET', 'KOLİ'].map((u) => (
+                  <TouchableOpacity
+                    key={u}
+                    onPress={() => setNewCardUnit(u)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: newCardUnit === u ? '#FF6B00' : styles.colors.border,
+                      backgroundColor: newCardUnit === u ? 'rgba(255, 107, 0, 0.12)' : (isDark ? '#1e293b' : '#F1F5F9')
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: newCardUnit === u ? '#FF6B00' : styles.colors.text }}>{u}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* KDV */}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>
+                KDV ORANI
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[1, 10, 20].map((vat) => (
+                  <TouchableOpacity
+                    key={vat}
+                    onPress={() => setNewCardVat(vat)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: newCardVat === vat ? '#00AE78' : styles.colors.border,
+                      backgroundColor: newCardVat === vat ? 'rgba(0, 174, 120, 0.12)' : (isDark ? '#1e293b' : '#F1F5F9')
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: newCardVat === vat ? '#00AE78' : styles.colors.text }}>%{vat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {/* ACTION BUTTONS */}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+            <TouchableOpacity
+              disabled={isCreatingNewCard}
+              onPress={() => setShowNewCardModal(false)}
+              style={{ flex: 1, height: 48, borderRadius: 14, backgroundColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ color: styles.colors.text, fontSize: 14, fontWeight: '800' }}>İptal</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={isCreatingNewCard}
+              onPress={handleCreateNewStockCard}
+              style={{
+                flex: 2,
+                height: 48,
+                borderRadius: 14,
+                backgroundColor: '#FF6B00',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 8,
+                shadowColor: '#FF6B00',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 4
+              }}
+            >
+              {isCreatingNewCard ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>MİKRO'YA KAYDET</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+
   if (appMode === 'menu') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: styles.colors.bg }}>
@@ -1671,6 +2085,37 @@ export default function App() {
                 <Text style={styles.reportActionBtnText}>İncele</Text>
                 <Ionicons name="chevron-forward" size={14} color={styles.colors.secondary} />
               </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* CARD 6 (Full Width Hero): YENİ STOK KARTI OLUŞTUR */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => !isSyncing && openNewCardModal()}
+            disabled={isSyncing}
+            style={[styles.reportHeroCard, { borderColor: '#FF6B00', borderWidth: 1.5 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              <View style={[styles.reportIconBox, { backgroundColor: '#FF6B00' }]}>
+                <Ionicons name="cube" size={24} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.reportHeroTitle}>YENİ STOK KARTI OLUŞTUR</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
+                    <Ionicons name="flash" size={12} color="#FF6B00" />
+                    <Text style={[styles.reportTrendText, { color: '#FF6B00' }]}>Canlı ERP</Text>
+                  </View>
+                </View>
+                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                  Mikro ERP ve Telefonda Anında Stok & Barkod Tanımla
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255, 107, 0, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
+              <Text style={{ color: '#FF6B00', fontSize: 13, fontWeight: '800' }}>Kart Aç</Text>
+              <Ionicons name="add-circle" size={18} color="#FF6B00" />
             </View>
           </TouchableOpacity>
 
@@ -2017,6 +2462,7 @@ export default function App() {
         </Modal>
 
         {renderDepoModal()}
+        {renderNewStockCardModal()}
       </SafeAreaView>
     );
   }
@@ -2605,17 +3051,31 @@ export default function App() {
                     {product.name === 'Ürün Bulunamadı' && (
                       <View style={{ marginTop: 10, gap: 8 }}>
                         <TouchableOpacity
-                          style={[styles.modalSubmit, { backgroundColor: '#EF4444' }]}
-                          onPress={() => setReportModalVisible(true)}
+                          style={[styles.modalSubmit, { backgroundColor: '#FF6B00', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
+                          onPress={() => {
+                            const barcode = product.barcode;
+                            setProduct(null);
+                            openNewCardModal(barcode);
+                          }}
                         >
-                          <Text style={styles.modalSubmitText}>EKSİK OLARAK BİLDİR</Text>
+                          <Ionicons name="add-circle" size={20} color="#fff" />
+                          <Text style={styles.modalSubmitText}>BU BARKOD İÇİN YENİ KART AÇ</Text>
                         </TouchableOpacity>
-                        
+
                         <TouchableOpacity
-                          style={[styles.modalSubmit, { backgroundColor: '#00AE78' }]}
+                          style={[styles.modalSubmit, { backgroundColor: '#00AE78', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
                           onPress={() => setShowBarkodIsleModal(true)}
                         >
+                          <Ionicons name="link" size={18} color="#fff" />
                           <Text style={styles.modalSubmitText}>BARKOD İŞLE (EŞLEŞTİR)</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.modalSubmit, { backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
+                          onPress={() => setReportModalVisible(true)}
+                        >
+                          <Ionicons name="alert-circle" size={18} color="#fff" />
+                          <Text style={styles.modalSubmitText}>EKSİK OLARAK BİLDİR</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -2864,6 +3324,7 @@ export default function App() {
       </Modal>
 
       {renderDepoModal()}
+      {renderNewStockCardModal()}
 
       {/* SEVK SOURCE (ÇIKIŞ) MODAL */}
       <Modal isVisible={showSevkSourceModal} onBackdropPress={() => { setShowSevkSourceModal(false); if(!sevkSourceDepo) setAppMode('menu'); }} style={styles.modal}>
