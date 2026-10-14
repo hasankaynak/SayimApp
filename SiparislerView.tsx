@@ -75,6 +75,9 @@ interface SiparislerViewProps {
   playSound: (type: 'beep' | 'success' | 'error') => void;
   onBackToMenu: () => void;
   depos?: any[];
+  deniedMikroUsers?: string;
+  allowedMikroUsers?: string;
+  canViewCosts?: boolean;
 }
 
 export default function SiparislerView({
@@ -87,7 +90,14 @@ export default function SiparislerView({
   playSound,
   onBackToMenu,
   depos = [],
+  deniedMikroUsers,
+  allowedMikroUsers,
+  canViewCosts = true,
 }: SiparislerViewProps) {
+  const safeFormatPrice = (p: number) => {
+    if (canViewCosts === false) return '***';
+    return formatPrice(p);
+  };
   // --- CAMERA & SCANNER ---
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -237,6 +247,20 @@ export default function SiparislerView({
 
       if (customDepo !== 'TUMU') {
         whereConditions += ` AND sip_depono = ${customDepo}`;
+      }
+
+      if (deniedMikroUsers && deniedMikroUsers.trim()) {
+        const cleanDenied = deniedMikroUsers.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)).join(',');
+        if (cleanDenied) {
+          whereConditions += ` AND sip_create_user NOT IN (${cleanDenied})`;
+        }
+      }
+
+      if (allowedMikroUsers && allowedMikroUsers.trim() && allowedMikroUsers.trim() !== '*') {
+        const cleanAllowed = allowedMikroUsers.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)).join(',');
+        if (cleanAllowed) {
+          whereConditions += ` AND sip_create_user IN (${cleanAllowed})`;
+        }
       }
 
       const q = `
@@ -897,7 +921,7 @@ export default function SiparislerView({
           </Text>
           {Number(item.Tutar) > 0 && (
             <Text style={[styles.tutarText, { color: theme.text }]}>
-              {formatPrice(Number(item.Tutar))} TL
+              {safeFormatPrice(Number(item.Tutar))} TL
             </Text>
           )}
         </View>
@@ -1293,7 +1317,7 @@ export default function SiparislerView({
           <View style={styles.statBox}>
             <Text style={[styles.statLabel, { color: theme.textMuted }]}>Tutar</Text>
             <Text style={[styles.statValue, { color: theme.success }]}>
-              {formatPrice(stats.totalTutar)}
+              {safeFormatPrice(stats.totalTutar)}
             </Text>
           </View>
         )}
@@ -1741,13 +1765,13 @@ export default function SiparislerView({
                     {Number(selectedOrder.BirimFiyat) > 0 && (
                       <View style={styles.detailRow}>
                         <Text style={{ fontSize: 12, color: theme.textMuted }}>Birim Fiyat:</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: theme.text }}>{formatPrice(selectedOrder.BirimFiyat)} TL</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: theme.text }}>{safeFormatPrice(selectedOrder.BirimFiyat)} TL</Text>
                       </View>
                     )}
                     {Number(selectedOrder.Tutar) > 0 && (
                       <View style={styles.detailRow}>
                         <Text style={{ fontSize: 12, color: theme.textMuted }}>Toplam Tutar:</Text>
-                        <Text style={{ fontSize: 14, fontWeight: '900', color: theme.success }}>{formatPrice(selectedOrder.Tutar)} TL</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '900', color: theme.success }}>{safeFormatPrice(selectedOrder.Tutar)} TL</Text>
                       </View>
                     )}
                   </View>
@@ -2044,7 +2068,7 @@ export default function SiparislerView({
 
                           <View style={{ alignItems: 'flex-end' }}>
                             <Text style={{ fontSize: 12, fontWeight: '800', color: theme.text }}>
-                              {formatPrice(Number(item.invoiceQty) * Number(item.BirimFiyat || 0))} TL
+                              {safeFormatPrice(Number(item.invoiceQty) * Number(item.BirimFiyat || 0))} TL
                             </Text>
                           </View>
                         </View>
@@ -2061,7 +2085,7 @@ export default function SiparislerView({
                 <View>
                   <Text style={{ fontSize: 11, color: theme.textMuted }}>Toplam Fatura Tutarı</Text>
                   <Text style={{ fontSize: 17, fontWeight: '900', color: theme.success, marginTop: 1 }}>
-                    {formatPrice(
+                    {safeFormatPrice(
                       invoicingItems
                         .filter(it => it.selected)
                         .reduce((sum, it) => sum + (Number(it.invoiceQty) * Number(it.BirimFiyat || 0)), 0)

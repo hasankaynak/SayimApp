@@ -61,6 +61,7 @@ interface AlisFaturasiViewProps {
   setFaturaCart: React.Dispatch<React.SetStateAction<FaturaItem[]>>;
   onOpenUserSelect?: () => void;
   mikroUsersList?: any[];
+  canViewCosts?: boolean;
 }
 
 export default function AlisFaturasiView({
@@ -78,8 +79,13 @@ export default function AlisFaturasiView({
   faturaCart,
   setFaturaCart,
   onOpenUserSelect,
-  mikroUsersList = []
+  mikroUsersList = [],
+  canViewCosts = true,
 }: AlisFaturasiViewProps) {
+  const safeFormatPrice = (val: number) => {
+    if (canViewCosts === false) return '***';
+    return formatPrice(val);
+  };
   const currentUserObj = mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo));
   const currentUserName = currentUserObj ? currentUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
 
@@ -1008,7 +1014,7 @@ export default function AlisFaturasiView({
                   <Text style={{ fontSize: 11, color: colors.textMuted }}>{item.stock_code} • {item.barcode}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '900', color: colors.primary }}>{formatPrice(item.price || 0)} TL</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: colors.primary }}>{safeFormatPrice(item.price || 0)} TL</Text>
                   <Text style={{ fontSize: 10, color: colors.textMuted }}>{item.unit || 'ADET'}</Text>
                 </View>
               </TouchableOpacity>
@@ -1114,10 +1120,10 @@ export default function AlisFaturasiView({
                 {/* Fiyat Bilgileri */}
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: '600' }}>
-                    {formatPrice(item.birim_fiyat)} TL x {item.miktar} (+%{item.kdv_orani} KDV)
+                    {safeFormatPrice(item.birim_fiyat)} TL x {item.miktar} (+%{item.kdv_orani} KDV)
                   </Text>
                   <Text style={{ fontSize: 14, fontWeight: '900', color: colors.primary }}>
-                    {formatPrice(item.toplam_tutar)} TL
+                    {safeFormatPrice(item.toplam_tutar)} TL
                   </Text>
                 </View>
               </View>
@@ -1150,14 +1156,14 @@ export default function AlisFaturasiView({
               {faturaCart.length} Kalem • {toplamAdet} Adet
             </Text>
             <Text style={{ fontSize: 10, color: colors.textMuted }}>
-              Ara: {formatPrice(araToplam)} TL | KDV: {formatPrice(kdvToplam)} TL
+              Ara: {safeFormatPrice(araToplam)} TL | KDV: {safeFormatPrice(kdvToplam)} TL
             </Text>
           </View>
 
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5 }}>GENEL TOPLAM</Text>
             <Text style={{ fontSize: 20, fontWeight: '900', color: colors.primary }}>
-              {formatPrice(genelToplam)} TL
+              {safeFormatPrice(genelToplam)} TL
             </Text>
           </View>
         </View>

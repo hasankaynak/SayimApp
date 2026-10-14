@@ -39,6 +39,7 @@ import ReportsView from './ReportsView';
 import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
 import FiyatDegisiklikView from './FiyatDegisiklikView';
 import SiparislerView from './SiparislerView';
+import LoginView, { AuthSessionData } from './LoginView';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -79,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.33';
-const CURRENT_VERSION_CODE = 33;
+const CURRENT_VERSION = '1.0.34';
+const CURRENT_VERSION_CODE = 34;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -256,6 +257,50 @@ export default function App() {
   const [mikroUserNo, setMikroUserNo] = useState<string>('7');
   const [showUserSelectModal, setShowUserSelectModal] = useState(false);
   const [mikroUsersList, setMikroUsersList] = useState<any[]>([]);
+
+  // AUTH SESSION & ROLES / PERMISSIONS STATE
+  const [authSession, setAuthSession] = useState<AuthSessionData | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+
+  const hasPerm = (permCode: string): boolean => {
+    if (!authSession) return false;
+    if (authSession.user.role_code === 'ADMIN') return true;
+    return authSession.permissions?.includes(permCode) ?? false;
+  };
+
+  const handleLoginSuccess = async (session: AuthSessionData) => {
+    setAuthSession(session);
+    if (session.user.mikro_user_no) {
+      setMikroUserNo(String(session.user.mikro_user_no));
+      try {
+        await AsyncStorage.setItem('mikro_user_no', String(session.user.mikro_user_no));
+      } catch (e) {}
+    }
+    ToastAndroid.show(`Giriş yapıldı: ${session.user.display_name}`, ToastAndroid.SHORT);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Oturumu Kapat',
+      'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Çıkış Yap',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem('@sayimapp_auth_session');
+            } catch (e) {}
+            setAuthSession(null);
+            setAppMode('menu');
+            setShowSettingsModal(false);
+            ToastAndroid.show('Oturum kapatıldı', ToastAndroid.SHORT);
+          }
+        }
+      ]
+    );
+  };
 
   // EVRAK ARAMA
   const [faturaSearchQuery, setFaturaSearchQuery] = useState('');
@@ -745,8 +790,26 @@ export default function App() {
       if (faturaCartStr) {
         try { setFaturaCart(JSON.parse(faturaCartStr)); } catch (e) {}
       }
+      // Oturum Kontrolü (Auth Session)
+      try {
+        const savedSession = await AsyncStorage.getItem('@sayimapp_auth_session');
+        if (savedSession) {
+          const parsedSession: AuthSessionData = JSON.parse(savedSession);
+          if (parsedSession && parsedSession.user && parsedSession.user.user_id) {
+            setAuthSession(parsedSession);
+            if (parsedSession.user.mikro_user_no) {
+              setMikroUserNo(String(parsedSession.user.mikro_user_no));
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Error reading auth session:', e);
+      } finally {
+        setIsAuthChecking(false);
+      }
+
       const savedUserNo = await AsyncStorage.getItem('mikro_user_no');
-      if (savedUserNo) setMikroUserNo(savedUserNo);
+      if (savedUserNo && !authSession) setMikroUserNo(savedUserNo);
 
       const cachedUsers = await AsyncStorage.getItem('cached_mikro_users');
       if (cachedUsers) {
@@ -2957,6 +3020,33 @@ export default function App() {
     </Modal>
   );
 
+  // 1. OTURUM KONTROLÜ (AÇILIŞ SPLASH EKRANI)
+  if (isAuthChecking) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F8F9FF', justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <Image
+          source={require('./assets/icon.png')}
+          style={{ width: 85, height: 85, borderRadius: 22, marginBottom: 20, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
+        />
+        <ActivityIndicator size="large" color="#00AE78" />
+        <Text style={{ marginTop: 16, color: isDark ? '#94A3B8' : '#64748B', fontSize: 14, fontWeight: '700' }}>
+          Oturum kontrol ediliyor...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // 2. OTURUM AÇILMAMIŞSA -> GİRİŞ EKRANI (PIN / ŞİFRE)
+  if (!authSession) {
+    return (
+      <LoginView
+        isDark={isDark}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
   if (appMode === 'menu') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: styles.colors.bg }}>
@@ -2988,7 +3078,24 @@ export default function App() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {/* Active User Badge / Switcher */}
             <TouchableOpacity
-              onPress={() => setShowUserSelectModal(true)}
+              onPress={() => {
+                Alert.alert(
+                  `${authSession?.user?.display_name || 'Kullanıcı Oturumu'}`,
+                  `Kullanıcı Adı: ${authSession?.user?.username || '-'}\nRol: ${authSession?.user?.role_name || '-'}\nMikro Kullanıcı: #${mikroUserNo} ${mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || ''}`,
+                  [
+                    { text: 'Kapat', style: 'cancel' },
+                    ...(authSession?.user?.role_code === 'ADMIN' ? [{
+                      text: 'Mikro Kullanıcı Değiştir',
+                      onPress: () => setShowUserSelectModal(true)
+                    }] : []),
+                    {
+                      text: 'Çıkış Yap',
+                      style: 'destructive',
+                      onPress: handleLogout
+                    }
+                  ]
+                );
+              }}
               activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
@@ -3000,7 +3107,7 @@ export default function App() {
                 borderRadius: 12,
                 borderWidth: 1,
                 borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
-                maxWidth: 105,
+                maxWidth: 120,
               }}
             >
               <Ionicons name="person-circle" size={16} color="#00AE78" />
@@ -3009,8 +3116,17 @@ export default function App() {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`}
+                {authSession?.user?.display_name || authSession?.user?.username || `Kullanıcı ${mikroUserNo}`}
               </Text>
+            </TouchableOpacity>
+
+            {/* Logout Quick Button */}
+            <TouchableOpacity
+              onPress={handleLogout}
+              activeOpacity={0.7}
+              style={[styles.headerIconBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2' }]}
+            >
+              <Ionicons name="log-out-outline" size={17} color="#EF4444" />
             </TouchableOpacity>
 
             {/* Compact Sync Action Button */}
@@ -3116,6 +3232,10 @@ export default function App() {
                 onChangeText={setMenuSearchInput}
                 onSubmitEditing={() => {
                   if (menuSearchInput.trim().length > 0) {
+                    if (!hasPerm('MODULE_FIYAT_GOR')) {
+                      Alert.alert('Yetkisiz Erişim', 'Fiyat Gör / Ürün Arama modülüne erişim yetkiniz bulunmamaktadır.');
+                      return;
+                    }
                     const text = menuSearchInput.trim();
                     setMenuSearchInput('');
                     setAppMode('fiyatgor');
@@ -3127,6 +3247,10 @@ export default function App() {
               <TouchableOpacity
                 style={styles.heroCameraBtn}
                 onPress={() => {
+                  if (!hasPerm('MODULE_FIYAT_GOR')) {
+                    Alert.alert('Yetkisiz Erişim', 'Fiyat Gör / Barkod Okuma modülüne erişim yetkiniz bulunmamaktadır.');
+                    return;
+                  }
                   setMenuSearchInput('');
                   setAppMode('fiyatgor');
                   setCameraActive(true);
@@ -3154,7 +3278,13 @@ export default function App() {
             {/* CARD 1: FİYAT GÖR & STOK BİLGİ */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => !isSyncing && setAppMode('fiyatgor')}
+              onPress={() => {
+                if (!hasPerm('MODULE_FIYAT_GOR')) {
+                  Alert.alert('Yetkisiz Erişim', 'Fiyat Gör modülüne yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                !isSyncing && setAppMode('fiyatgor');
+              }}
               disabled={isSyncing}
               style={styles.tactileCard}
             >
@@ -3175,7 +3305,13 @@ export default function App() {
             {/* CARD 2: DEPO SAYIM */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => { if (!isSyncing) { setAppMode('sayim'); setShowDepoModal(true); } }}
+              onPress={() => {
+                if (!hasPerm('MODULE_SAYIM')) {
+                  Alert.alert('Yetkisiz Erişim', 'Depo Sayım modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                if (!isSyncing) { setAppMode('sayim'); setShowDepoModal(true); }
+              }}
               disabled={isSyncing}
               style={styles.tactileCard}
             >
@@ -3199,7 +3335,13 @@ export default function App() {
             {/* CARD 3: DEPOLAR ARASI SEVK */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => { if (!isSyncing) { setAppMode('sevk'); setShowSevkSourceModal(true); } }}
+              onPress={() => {
+                if (!hasPerm('MODULE_SEVK')) {
+                  Alert.alert('Yetkisiz Erişim', 'Depolar Arası Sevk modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                if (!isSyncing) { setAppMode('sevk'); setShowSevkSourceModal(true); }
+              }}
               disabled={isSyncing}
               style={styles.tactileCard}
             >
@@ -3220,7 +3362,13 @@ export default function App() {
             {/* CARD 4: CARİ HESAPLAR & EKSTRE */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => { if (!isSyncing) { setAppMode('cari'); setCariSearchQuery(''); setCariResults([]); } }}
+              onPress={() => {
+                if (!hasPerm('MODULE_CARI_ISLEMLER')) {
+                  Alert.alert('Yetkisiz Erişim', 'Cari Hesaplar & Ekstre modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                if (!isSyncing) { setAppMode('cari'); setCariSearchQuery(''); setCariResults([]); }
+              }}
               disabled={isSyncing}
               style={styles.tactileCard}
             >
@@ -3240,7 +3388,13 @@ export default function App() {
           {/* CARD 5 (Full Width Hero): RAPORLAR & ANALİZ */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => !isSyncing && setAppMode('raporlar')}
+            onPress={() => {
+              if (!hasPerm('MODULE_RAPORLAR')) {
+                Alert.alert('Yetkisiz Erişim', 'Raporlar & Analiz modülüne erişim yetkiniz bulunmamaktadır.');
+                return;
+              }
+              !isSyncing && setAppMode('raporlar');
+            }}
             disabled={isSyncing}
             style={styles.reportHeroCard}
           >
@@ -3271,7 +3425,13 @@ export default function App() {
           {/* CARD 6 (Full Width Hero): YENİ STOK KARTI OLUŞTUR */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => !isSyncing && openNewCardModal()}
+            onPress={() => {
+              if (!hasPerm('ACTION_NEW_STOCK')) {
+                Alert.alert('Yetkisiz Erişim', 'Yeni Stok Kartı Oluşturma yetkiniz bulunmamaktadır.');
+                return;
+              }
+              !isSyncing && openNewCardModal();
+            }}
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#FF6B00', borderWidth: 1.5 }]}
           >
@@ -3301,7 +3461,13 @@ export default function App() {
           {/* CARD 7 (Full Width Hero): ALIŞ FATURASI (MAL KABUL) */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => !isSyncing && setAppMode('fatura')}
+            onPress={() => {
+              if (!hasPerm('MODULE_ALIS_FATURASI')) {
+                Alert.alert('Yetkisiz Erişim', 'Alış Faturası (Mal Kabul) modülüne yetkiniz bulunmamaktadır.');
+                return;
+              }
+              !isSyncing && setAppMode('fatura');
+            }}
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#10B981', borderWidth: 1.5, marginBottom: 12 }]}
           >
@@ -3333,7 +3499,13 @@ export default function App() {
           {/* CARD 8 (Full Width Hero): FİYAT DEĞİŞİKLİĞİ (FİŞ GİRİŞİ) */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => !isSyncing && setAppMode('fiyat_degisiklik')}
+            onPress={() => {
+              if (!hasPerm('ACTION_EDIT_PRICE')) {
+                Alert.alert('Yetkisiz Erişim', 'Fiyat Değişikliği modülüne yetkiniz bulunmamaktadır.');
+                return;
+              }
+              !isSyncing && setAppMode('fiyat_degisiklik');
+            }}
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#8B5CF6', borderWidth: 1.5, marginBottom: 12 }]}
           >
@@ -3363,7 +3535,13 @@ export default function App() {
           {/* CARD 9 (Full Width Hero): ALINAN SİPARİŞLER (038003) */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => !isSyncing && setAppMode('siparisler')}
+            onPress={() => {
+              if (!hasPerm('MODULE_SIPARIS_FATURA') && !hasPerm('MODULE_YENI_SIPARIS')) {
+                Alert.alert('Yetkisiz Erişim', 'Siparişler modülüne yetkiniz bulunmamaktadır.');
+                return;
+              }
+              !isSyncing && setAppMode('siparisler');
+            }}
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#0284C7', borderWidth: 1.5, marginBottom: 12 }]}
           >
@@ -3544,7 +3722,13 @@ export default function App() {
           <View style={styles.bottomNavTabsRow}>
             <TouchableOpacity
               style={styles.bottomNavTab}
-              onPress={() => { setAppMode('sayim'); setShowDepoModal(true); }}
+              onPress={() => {
+                if (!hasPerm('MODULE_SAYIM')) {
+                  Alert.alert('Yetkisiz Erişim', 'Depo Sayım modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                setAppMode('sayim'); setShowDepoModal(true);
+              }}
             >
               <Ionicons name="barcode-outline" size={22} color={styles.colors.textMuted} />
               <Text style={styles.bottomNavLabel}>Sayım</Text>
@@ -3552,7 +3736,13 @@ export default function App() {
 
             <TouchableOpacity
               style={styles.bottomNavTab}
-              onPress={() => setAppMode('fiyatgor')}
+              onPress={() => {
+                if (!hasPerm('MODULE_FIYAT_GOR')) {
+                  Alert.alert('Yetkisiz Erişim', 'Fiyat Gör / Stoklar modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                setAppMode('fiyatgor');
+              }}
             >
               <Ionicons name="cube-outline" size={22} color={styles.colors.textMuted} />
               <Text style={styles.bottomNavLabel}>Stoklar</Text>
@@ -3560,7 +3750,13 @@ export default function App() {
 
             <TouchableOpacity
               style={styles.bottomNavTab}
-              onPress={() => setAppMode('raporlar')}
+              onPress={() => {
+                if (!hasPerm('MODULE_RAPORLAR')) {
+                  Alert.alert('Yetkisiz Erişim', 'Raporlar ve Evraklar modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                setAppMode('raporlar');
+              }}
             >
               <Ionicons name="document-text-outline" size={22} color={styles.colors.textMuted} />
               <Text style={styles.bottomNavLabel}>Evraklar</Text>
@@ -3568,7 +3764,13 @@ export default function App() {
 
             <TouchableOpacity
               style={styles.bottomNavTab}
-              onPress={() => setAppMode('raporlar')}
+              onPress={() => {
+                if (!hasPerm('MODULE_RAPORLAR')) {
+                  Alert.alert('Yetkisiz Erişim', 'Raporlar modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                setAppMode('raporlar');
+              }}
             >
               <Ionicons name="stats-chart-outline" size={22} color={styles.colors.textMuted} />
               <Text style={styles.bottomNavLabel}>Rapor</Text>
@@ -3576,7 +3778,13 @@ export default function App() {
 
             <TouchableOpacity
               style={styles.bottomNavTab}
-              onPress={() => { setAppMode('sevk'); setShowSevkSourceModal(true); }}
+              onPress={() => {
+                if (!hasPerm('MODULE_SEVK')) {
+                  Alert.alert('Yetkisiz Erişim', 'Transfer modülüne erişim yetkiniz bulunmamaktadır.');
+                  return;
+                }
+                setAppMode('sevk'); setShowSevkSourceModal(true);
+              }}
             >
               <Ionicons name="swap-horizontal-outline" size={22} color={styles.colors.textMuted} />
               <Text style={styles.bottomNavLabel}>Transfer</Text>
@@ -3605,6 +3813,54 @@ export default function App() {
                 <Ionicons name="close" size={26} color={styles.colors.textMuted} />
               </TouchableOpacity>
             </View>
+
+            {/* AKTİF KULLANICI KARTI & ÇIKIŞ */}
+            <View style={{
+              backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#F0FDF4',
+              borderRadius: 14,
+              padding: 12,
+              marginTop: 6,
+              marginBottom: 10,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(0,174,120,0.25)' : '#BBF7D0'
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 6 }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#00AE78', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="person" size={20} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: styles.colors.text }} numberOfLines={1}>
+                      {authSession?.user?.display_name || 'Kullanıcı'}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <View style={{ backgroundColor: '#00AE78', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>
+                          {authSession?.user?.role_code || 'ROL'}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: styles.colors.textMuted }}>
+                        @{authSession?.user?.username}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={handleLogout}
+                  style={{
+                    backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : '#FEE2E2',
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: '#EF4444'
+                  }}
+                >
+                  <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>Çıkış Yap</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
               <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Açılışta Otomatik Senkronizasyon</Text>
               <TouchableOpacity onPress={async () => { const newVal = !autoSync; setAutoSync(newVal); await AsyncStorage.setItem('autoSync', newVal ? 'true' : 'false'); }}>
@@ -3626,15 +3882,21 @@ export default function App() {
                     {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowSettingsModal(false);
-                    setTimeout(() => setShowUserSelectModal(true), 350);
-                  }}
-                  style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>DEĞİŞTİR</Text>
-                </TouchableOpacity>
+                {authSession?.user?.role_code === 'ADMIN' ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowSettingsModal(false);
+                      setTimeout(() => setShowUserSelectModal(true), 350);
+                    }}
+                    style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>DEĞİŞTİR</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔒 Sabit</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -3798,6 +4060,7 @@ export default function App() {
           setFaturaCart={setFaturaCart}
           onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
+          canViewCosts={authSession?.restrictions?.can_view_costs ?? true}
         />
         {renderUserSelectModal()}
         {renderNewStockCardModal()}
@@ -3842,6 +4105,9 @@ export default function App() {
           playSound={playSound}
           onBackToMenu={() => setAppMode('menu')}
           depos={depos}
+          deniedMikroUsers={authSession?.restrictions?.denied_mikro_users}
+          allowedMikroUsers={authSession?.restrictions?.allowed_mikro_users}
+          canViewCosts={authSession?.restrictions?.can_view_costs ?? true}
         />
         {renderUserSelectModal()}
         {renderUpdatePromptModal()}

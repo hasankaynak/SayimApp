@@ -1,6 +1,6 @@
 {
-  "version": "1.0.33",
-  "versionCode": 33,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.33/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.33\n• YENİ STOK KARTI DETAYLI ALANLAR & MİKRO ERP ENTEGRASYONU:\n• Ana Grup Kodu (sto_anagrup_kod) ve Alt Grup Kodu (sto_altgrup_kod) seçimi eklendi.\n• Seçilen ana gruba göre alt grupların otomatik filtrelenmesi sağlandı.\n• Marka Kodu (sto_marka_kodu) ve Reyon Kodu (sto_reyon_kodu) seçimi eklendi.\n• Satıcı / Tedarikçi Cari Kodu (sto_sat_cari_kod) ve Ünvanı için anlık canlı arama ve seçim özelliği eklendi.\n• Manuel cari kodu girişi desteği eklendi.\n• Üretici Kodu (sto_uretici_kodu) ve Sektör Kodu (sto_sektor_kodu) alanları eklendi.\n• Kart açıldığında tüm bu detaylar Mikro ERP STOKLAR tablosuna otomatik olarak kaydedilir."
+  "version": "1.0.34",
+  "versionCode": 34,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.34/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.34\n• YENİ KULLANICI GİRİŞİ, ROL & YETKİ VE MİKRO KISITLAMA SİSTEMİ:\n• Çift Giriş Modu: Hızlı 4 Haneli PIN Kodu ve Kullanıcı Adı / Şifre ile güvenli oturum açma.\n• Web Admin Entegrasyonu: E-Katalog yönetim panelinden açılan kullanıcılar, roller ve izinler anında mobilde geçerli.\n• Modül Yetki Korumaları: Fiyat Gör, Sayım, Sevk, Cari Ekstre, Raporlar, Stok Kartı Açma, Fatura ve Sipariş modülleri kullanıcı rollerine göre sınırlandırıldı.\n• Mikro Kullanıcı & Veri Kısıtlamaları: Her kullanıcı yalnızca yetkili olduğu Mikro ERP kullanıcısı adına işlem yapabilir ve belirlenen filtreleri görür.\n• Fiyat & Maliyet Gizleme: Yetkisi olmayan personeller için alış/maliyet fiyatları maskelenir.\n• Kolay Profil & Oturum Yönetimi: Üst çubukta ve ayarlar menüsünde kullanıcı profili ve tek tıkla güvenli çıkış yapabilme."
 }
