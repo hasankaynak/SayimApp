@@ -445,7 +445,7 @@ export default function AlisFaturasiView({
     }
 
     const depoNo = faturaDepo?.depo_no || selectedDepo?.depo_no || '1';
-    const userNum = parseInt(mikroUserNo) || 4;
+    const userNum = parseInt(mikroUserNo, 10) || 7;
     const cleanSeri = (evrakSeri || 'ALIŞ').trim().toUpperCase().replace(/'/g, "''");
     const cleanBelgeNo = (belgeNo || '').trim().toUpperCase().replace(/'/g, "''");
     const userSira = parseInt(evrakSira) || 0;

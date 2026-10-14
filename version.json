@@ -1,6 +1,6 @@
 {
-  "version": "1.0.22",
-  "versionCode": 22,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.22/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.22\n• Yeni Modül: ALIŞ FATURASI (MAL KABUL) Giriş Sistemi Eklendi.\n• Tedarikçi (Cari) seçimi, bakiye görüntüleme, evrak seri/sıra ve belge no yönetimi.\n• Barkod okutma veya arama ile faturaya kalem ekleme, miktar/alış fiyatı/KDV oranı girişi ve anlık satır tutar hesaplama.\n• Otomatik Kart Açma Entegrasyonu: Fatura girişinde sistemde bulunamayan ürünler için anında Mikro ERP'de yeni stok kartı açma ve doğrudan faturaya ekleme yeteneği.\n• Atomik SQL Transaction ile Mikro ERP STOK_HAREKETLERI ve CARI_HESAP_HAREKETLERI tablolarına canlı entegrasyon.\n• Telefon yerel SQLite hafızasında fatura yedekleme desteği."
+  "version": "1.0.23",
+  "versionCode": 23,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.23/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.23\n• Yeni Modül: FİYAT DEĞİŞİKLİĞİ (FİŞ GİRİŞİ - Mikro Menü 031200) Eklendi.\n• Barkod okutma veya arama ile ürün seçimi, eski fiyatın canlı görüntülenmesi ve yeni fiyat girişi.\n• Hızlı yüzde butonları (+5%, +10%, +15%, +20%, +25%, vb.) ve anlık fark hesaplama.\n• Fiyat Değişiklik Fişi (031200): STOK_FIYAT_DEGISIKLIKLERI ve STOK_SATIS_FIYAT_LISTELERI tablolarına anında canlı entegrasyon.\n• SAYIM İŞLEMİ DÜZELTMESİ: Sayım aktarımları doğrudan Mikro ERP'nin 'Sayım Sonucu Fişi' (Menü 012810 - STOK_HAREKETLERI) ekranına ve El Terminali tablosuna atomik transaction ile aktarılacak şekilde güncellendi.\n• OTOMATİK KULLANICI ATAMASI: Tüm fiş ve kart işlemlerinde (Alış Faturası, Depo Sevk, Sayım Sonucu Fişi, Fiyat Değişiklik Fişi, Barkod Eşleme, Stok Kartı Açma) seçili Mikro kullanıcısı otomatik olarak create_user ve lastup_user olarak atanır."
 }

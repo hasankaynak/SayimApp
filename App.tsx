@@ -37,6 +37,7 @@ import XLSX from 'xlsx';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ReportsView from './ReportsView';
 import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
+import FiyatDegisiklikView from './FiyatDegisiklikView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -76,8 +77,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.22';
-const CURRENT_VERSION_CODE = 22;
+const CURRENT_VERSION = '1.0.23';
+const CURRENT_VERSION_CODE = 23;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -162,7 +163,7 @@ export default function App() {
   const [menuSearchInput, setMenuSearchInput] = useState('');
 
   // --- SAYIM ADDITIONS ---
-  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura'>('menu');
+  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura' | 'fiyat_degisiklik'>('menu');
   const [depos, setDepos] = useState<any[]>([]);
   const [selectedDepo, setSelectedDepo] = useState<any>(null);
   const [showDepoModal, setShowDepoModal] = useState(false);
@@ -885,8 +886,9 @@ export default function App() {
   const assignBarkodToStock = async (selectedStok: any) => {
     if (!product || !product.barcode) return;
     setIsProcessingBarkod(true);
+    const userNum = parseInt(mikroUserNo, 10) || 7;
     try {
-      const q = `INSERT INTO BARKOD_TANIMLARI (bar_Guid, bar_create_date, bar_lastup_date, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr) VALUES (NEWID(), GETDATE(), GETDATE(), '${product.barcode}', '${selectedStok.stock_code}', 1, 0, 0); SELECT 1 AS result_fix;`;
+      const q = `INSERT INTO BARKOD_TANIMLARI (bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user, bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr) VALUES (NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum}, 18, '${product.barcode}', '${selectedStok.stock_code}', 1, 0, 0); SELECT 1 AS result_fix;`;
       await axios.post(API_URL, { query: q }, { timeout: 10000 });
       
       const db = dbRef.current;
@@ -971,7 +973,7 @@ export default function App() {
       }
 
       // 2. Parametreler
-      const userNum = parseInt(mikroUserNo) || 4;
+      const userNum = parseInt(mikroUserNo, 10) || 7;
       const dovizMap: Record<string, number> = { 'TL': 0, 'USD': 1, 'EUR': 2, 'GBP': 3 };
       const dovizInt = dovizMap[newCardCurrency] || 0;
       const vatMap: Record<number, number> = { 20: 5, 10: 4, 1: 1 };
@@ -1405,12 +1407,23 @@ export default function App() {
       const sqlDateTime = `'${y}-${m}-${day} ${h}:${min}:${s}'`; 
 
       const isSevkList = cartItems[0].is_sevk;
-      const evrakSeri = isSevkList ? '1' : 'MOB';
+      const evrakSeri = isSevkList ? '1' : '';
       let targetEvrakNo = backupItem.mikro_evrak_no;
+      const userNum = parseInt(mikroUserNo, 10) || 7;
 
       if (isSevkList) {
         try {
           const seqQ = `SELECT ISNULL(MAX(sth_evrakno_sira), 0) + 1 AS NextSira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_tip = 2 AND sth_cins = 6`;
+          const seqRes = await axios.post(API_URL, { query: seqQ });
+          if (seqRes.data && seqRes.data.data && seqRes.data.data.length > 0) {
+            targetEvrakNo = seqRes.data.data[0].NextSira;
+            const db = dbRef.current;
+            if(db) await db.runAsync('UPDATE sayim_backups SET mikro_evrak_no = ? WHERE id = ?', [targetEvrakNo, backupItem.id]);
+          }
+        } catch(e) {}
+      } else {
+        try {
+          const seqQ = `SELECT ISNULL(MAX(sth_evrakno_sira), 0) + 1 AS NextSira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evraktip = 6 AND sth_cins = 3`;
           const seqRes = await axios.post(API_URL, { query: seqQ });
           if (seqRes.data && seqRes.data.data && seqRes.data.data.length > 0) {
             targetEvrakNo = seqRes.data.data[0].NextSira;
@@ -1426,18 +1439,60 @@ export default function App() {
         if(db) await db.runAsync('UPDATE sayim_backups SET mikro_evrak_no = ? WHERE id = ?', [targetEvrakNo, backupItem.id]);
       }
 
-      const depoNoForDelete = cartItems[0].depo_no;
+      const depoNoForDelete = cartItems[0].depo_no || 1;
       let sqlQueries = '';
 
       if (isSevkList) {
-        sqlQueries = `DELETE FROM STOK_HAREKETLERI WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evrakno_sira = ${targetEvrakNo} AND sth_cins = 6;\n`;
+        sqlQueries = `
+          BEGIN TRANSACTION;
+          DELETE FROM STOK_HAREKETLERI WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evrakno_sira = ${targetEvrakNo} AND sth_cins = 6;\n`;
         sqlQueries += cartItems.map((item: any, index: number) => {
-          return `INSERT INTO STOK_HAREKETLERI (sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum, sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date, sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo, sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash, sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod, sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10, sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10, sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar, sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6, sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4, sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik, sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid, sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi, sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl, sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu, sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl, sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu, sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu, sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3, sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5, sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl, sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu, sth_tevkifat_sifirlandi_fl) VALUES (NEWID(), 0, 0, 0, 16, 0, 0, 0, 0, ${parseInt(mikroUserNo) || 7}, ${sqlDateTime}, ${parseInt(mikroUserNo) || 7}, ${sqlDateTime}, '', '', '', 21, '17.05d', 12500, '', '', '', 0, '', '', 0, 0, ${sqlDateTarihYaliniz}, 2, 6, 0, 2, '${evrakSeri}', ${targetEvrakNo}, ${index}, '', ${sqlDateTarihYaliniz}, '${item.stock_code}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', 0, '', '', 0, 1, 1, 0, 1, ${item.quantity.toString().replace(',', '.')}, ${item.quantity.toString().replace(',', '.')}, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', ${item.target_depo_no}, ${item.depo_no}, ${sqlDateTarihYaliniz}, '', '', '1899-12-30', 0, 0, 0, 0, 0, 1, '', 0, '00000000-0000-0000-0000-000000000000', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '', '', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, ${sqlDateTarihYaliniz}, 0, 0, 0, '', '', 0);`;
-        }).join('\n') + '\nSELECT 1 AS result_fix;';
+          return `INSERT INTO STOK_HAREKETLERI (sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum, sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date, sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo, sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash, sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod, sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10, sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10, sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar, sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6, sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4, sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik, sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid, sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi, sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl, sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu, sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl, sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu, sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu, sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3, sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5, sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl, sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu, sth_tevkifat_sifirlandi_fl) VALUES (NEWID(), 0, 0, 0, 16, 0, 0, 0, 0, ${userNum}, ${sqlDateTime}, ${userNum}, ${sqlDateTime}, '', '', '', 21, '17.05d', 12500, '', '', '', 0, '', '', 0, 0, ${sqlDateTarihYaliniz}, 2, 6, 0, 2, '${evrakSeri}', ${targetEvrakNo}, ${index}, '', ${sqlDateTarihYaliniz}, '${item.stock_code}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', 0, '', '', 0, 1, 1, 0, 1, ${item.quantity.toString().replace(',', '.')}, ${item.quantity.toString().replace(',', '.')}, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', ${item.target_depo_no}, ${item.depo_no}, ${sqlDateTarihYaliniz}, '', '', '1899-12-30', 0, 0, 0, 0, 0, 1, '', 0, '00000000-0000-0000-0000-000000000000', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '', '', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, ${sqlDateTarihYaliniz}, 0, 0, 0, '', '', 0);`;
+        }).join('\n') + '\nCOMMIT TRANSACTION;\nSELECT 1 AS result_fix;';
       } else {
-        sqlQueries = `DELETE FROM SAYIM_SONUCLARI WHERE sym_evrakno = ${targetEvrakNo} AND sym_depono = ${depoNoForDelete};\n`;
-        sqlQueries += cartItems.map((item: any, index: number) => {
-          return `INSERT INTO SAYIM_SONUCLARI (
+        // SAYIM SONUCU FİŞİ (MIKRO MENÜ 012810 - STOK_HAREKETLERI & 071100 SAYIM_SONUCLARI)
+        sqlQueries = `
+          BEGIN TRANSACTION;
+          DECLARE @Now datetime = ${sqlDateTime};
+          DECLARE @Tarih datetime = ${sqlDateTarihYaliniz};
+          DECLARE @NextSira int = ${targetEvrakNo};
+
+          DELETE FROM STOK_HAREKETLERI WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evrakno_sira = @NextSira AND sth_evraktip = 6 AND sth_cins = 3;
+          DELETE FROM SAYIM_SONUCLARI WHERE sym_tarihi = @Tarih AND sym_depono = ${depoNoForDelete} AND sym_evrakno = @NextSira;\n`;
+
+        cartItems.forEach((item: any, index: number) => {
+          const itemMiktar = parseFloat(String(item.quantity).replace(',', '.')) || 1;
+          const sKod = (item.stock_code || '').replace(/'/g, "''");
+          const itemDepo = item.depo_no || depoNoForDelete;
+
+          // 1. STOK_HAREKETLERI (Sayım Sonucu Fişi - Menü 012810)
+          sqlQueries += `
+            INSERT INTO STOK_HAREKETLERI (
+              sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
+              sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
+              sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
+              sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
+              sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
+              sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+              sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
+              sth_fis_tarihi, sth_fis_sirano, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
+            ) VALUES (
+              NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
+              ${userNum}, @Now, ${userNum}, @Now,
+              '', '', '', 21, '17.05d', '12810',
+              '', '', '', 0, '', 0,
+              0, 0, @Tarih, 0, 3, 0, 6, '${evrakSeri}',
+              @NextSira, ${index}, '', @Tarih, '${sKod}',
+              ${itemMiktar}, ${itemMiktar}, 1, 0, 0,
+              ${itemDepo}, ${itemDepo}, @Tarih,
+              '', '', '',
+              '1899-12-30', 0, 0, 1, 50, 0, 1
+            );
+
+            -- 2. SAYIM_SONUCLARI (El Terminali Ham Sayımı - Menü 071100)
+            INSERT INTO SAYIM_SONUCLARI (
               sym_Guid, sym_DBCno, sym_SpecRECno, sym_iptal, sym_fileid, sym_hidden, sym_kilitli, sym_degisti, sym_checksum,
               sym_create_user, sym_create_date, sym_lastup_user, sym_lastup_date,
               sym_special1, sym_special2, sym_special3,
@@ -1445,16 +1500,22 @@ export default function App() {
               sym_Stokkodu, sym_reyonkodu, sym_koridorkodu, sym_rafkodu,
               sym_miktar1, sym_miktar2, sym_miktar3, sym_miktar4, sym_miktar5,
               sym_birim_pntr, sym_barkod, sym_renkno, sym_bedenno, sym_parti_kodu, sym_lot_no, sym_serino
-          ) VALUES (
+            ) VALUES (
               NEWID(), 0, 0, 0, 28, 0, 0, 0, 0,
-              ${parseInt(mikroUserNo) || 7}, ${sqlDateTime}, ${parseInt(mikroUserNo) || 7}, ${sqlDateTime},
-              'MOBIL', '${(item.description || '').replace(/'/g, "''").substring(0, 50)}', '',
-              ${sqlDateTarihYaliniz}, ${item.depo_no}, ${targetEvrakNo}, ${index + 1},
-              '${item.stock_code}', '0', '0', '0',
-              ${item.quantity.toString().replace(',', '.')}, 0, 0, 0, 0,
+              ${userNum}, @Now, ${userNum}, @Now,
+              'MOBIL', '', '',
+              @Tarih, ${itemDepo}, @NextSira, ${index + 1},
+              '${sKod}', '0', '0', '0',
+              ${itemMiktar}, 0, 0, 0, 0,
               1, '', 0, 0, '', 0, ''
-          );`;
-        }).join('\n') + '\nSELECT 1 AS result_fix;';
+            );
+          `;
+        });
+
+        sqlQueries += `
+          COMMIT TRANSACTION;
+          SELECT 1 AS result_fix;
+        `;
       }
       
       await axios.post(API_URL, { query: sqlQueries }, { timeout: 15000 });
@@ -1465,7 +1526,8 @@ export default function App() {
       // Update ui list
       setSayimBackups(prev => prev.map(p => p.id === backupItem.id ? {...p, mikro_sent: 1} : p));
 
-      ToastAndroid.show(`Mikro'ya başarıyla gönderildi! (Seri: ${evrakSeri} Sıra: ${targetEvrakNo})`, ToastAndroid.LONG);
+      const fişTipi = isSevkList ? 'Depo Transfer Fişi' : 'Sayım Sonucu Fişi (012810)';
+      ToastAndroid.show(`Mikro'ya başarıyla gönderildi! (${fişTipi} Sıra: ${targetEvrakNo})`, ToastAndroid.LONG);
     } catch (err: any) {
       mikroAktarimHataMesaji = err.response?.data?.error || err.message;
       Alert.alert("Mikro Aktarım Hatası", mikroAktarimHataMesaji);
@@ -1930,6 +1992,26 @@ export default function App() {
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity
+              onPress={() => setShowUserSelectModal(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
+                paddingHorizontal: 8,
+                paddingVertical: 5,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+              }}
+            >
+              <Ionicons name="person-circle" size={16} color="#00AE78" />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#00AE78' }}>
+                {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={() => !isSyncing && handleSync(false)}
               disabled={isSyncing}
               style={styles.headerSyncBtn}
@@ -2260,6 +2342,37 @@ export default function App() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
               <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '800' }}>Fatura Gir</Text>
               <Ionicons name="arrow-forward" size={16} color="#10B981" />
+            </View>
+          </TouchableOpacity>
+
+          {/* CARD 8 (Full Width Hero): FİYAT DEĞİŞİKLİĞİ (FİŞ GİRİŞİ) */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => !isSyncing && setAppMode('fiyat_degisiklik')}
+            disabled={isSyncing}
+            style={[styles.reportHeroCard, { borderColor: '#8B5CF6', borderWidth: 1.5, marginBottom: 12 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              <View style={[styles.reportIconBox, { backgroundColor: '#8B5CF6' }]}>
+                <Ionicons name="pricetags" size={24} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.reportHeroTitle}>FİYAT DEĞİŞİKLİĞİ</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
+                    <Ionicons name="flash" size={12} color="#8B5CF6" />
+                    <Text style={[styles.reportTrendText, { color: '#8B5CF6' }]}>Menü 031200</Text>
+                  </View>
+                </View>
+                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                  Mikro Fiyat Değişiklik Fişi ve Anında Satış Fiyatı Güncelleme
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(139, 92, 246, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
+              <Text style={{ color: '#8B5CF6', fontSize: 13, fontWeight: '800' }}>Fiyat Değiştir</Text>
+              <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
             </View>
           </TouchableOpacity>
 
@@ -2647,6 +2760,26 @@ export default function App() {
           setFaturaCart={setFaturaCart}
         />
         {renderNewStockCardModal()}
+      </SafeAreaView>
+    );
+  }
+
+  if (appMode === 'fiyat_degisiklik') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F8F9FF' }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <FiyatDegisiklikView
+          isDark={isDark}
+          isConnected={!!isConnected}
+          dbRef={dbRef}
+          API_URL={API_URL}
+          mikroUserNo={mikroUserNo}
+          formatPrice={formatPrice}
+          playSound={playSound}
+          onBackToMenu={() => setAppMode('menu')}
+          onOpenUserSelect={() => setShowUserSelectModal(true)}
+          mikroUsersList={mikroUsersList}
+        />
       </SafeAreaView>
     );
   }
