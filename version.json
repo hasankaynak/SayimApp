@@ -1,6 +1,6 @@
 {
-  "version": "1.0.23",
-  "versionCode": 23,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.23/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.23\n• Yeni Modül: FİYAT DEĞİŞİKLİĞİ (FİŞ GİRİŞİ - Mikro Menü 031200) Eklendi.\n• Barkod okutma veya arama ile ürün seçimi, eski fiyatın canlı görüntülenmesi ve yeni fiyat girişi.\n• Hızlı yüzde butonları (+5%, +10%, +15%, +20%, +25%, vb.) ve anlık fark hesaplama.\n• Fiyat Değişiklik Fişi (031200): STOK_FIYAT_DEGISIKLIKLERI ve STOK_SATIS_FIYAT_LISTELERI tablolarına anında canlı entegrasyon.\n• SAYIM İŞLEMİ DÜZELTMESİ: Sayım aktarımları doğrudan Mikro ERP'nin 'Sayım Sonucu Fişi' (Menü 012810 - STOK_HAREKETLERI) ekranına ve El Terminali tablosuna atomik transaction ile aktarılacak şekilde güncellendi.\n• OTOMATİK KULLANICI ATAMASI: Tüm fiş ve kart işlemlerinde (Alış Faturası, Depo Sevk, Sayım Sonucu Fişi, Fiyat Değişiklik Fişi, Barkod Eşleme, Stok Kartı Açma) seçili Mikro kullanıcısı otomatik olarak create_user ve lastup_user olarak atanır."
+  "version": "1.0.24",
+  "versionCode": 24,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.24/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.24\n• YENİLENMİŞ GÜNCELLEME ARAYÜZÜ: Güncelleme bildirimi modern modal tasarıma kavuşturuldu; sürüm karşılaştırması ve detaylı sürüm notları gösterimi eklendi.\n• EKRAN AÇIK TUTMA (KEEP-AWAKE): Güncelleme paketi indirilirken cihaz ekranının uykuya geçmesi / kilitlenmesi engellendi, indirme tamamlanana kadar ekran açık kalır.\n• DETAYLI İNDİRME GÖSTERGESİ: İndirme ekranında canlı yüzde, indirilen MB / toplam MB göstergesi, durum metni ve iptal etme butonu eklendi.\n• GÜVENLİ İPTAL & KAYNAK YÖNETİMİ: İndirme iptal edildiğinde veya tamamlandığında ekran kilidi otomatik olarak eski haline getirilir."
 }

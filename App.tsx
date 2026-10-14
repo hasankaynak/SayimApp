@@ -38,6 +38,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import ReportsView from './ReportsView';
 import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
 import FiyatDegisiklikView from './FiyatDegisiklikView';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -77,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.23';
-const CURRENT_VERSION_CODE = 23;
+const CURRENT_VERSION = '1.0.24';
+const CURRENT_VERSION_CODE = 24;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -156,6 +157,16 @@ export default function App() {
   const [isAppReady, setIsAppReady] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadTotalBytes, setDownloadTotalBytes] = useState(0);
+  const [downloadWrittenBytes, setDownloadWrittenBytes] = useState(0);
+  const [updateStatusText, setUpdateStatusText] = useState('İndiriliyor...');
+  const [availableUpdate, setAvailableUpdate] = useState<{
+    version: string;
+    releaseNotes: string;
+    downloadUrl: string;
+  } | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const downloadResumableRef = useRef<any>(null);
   const dbRef = useRef<any>(null);
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const laserAnim = useRef(new Animated.Value(0)).current;
@@ -394,8 +405,20 @@ export default function App() {
 
   const handleUpdateDownload = async (url: string) => {
     try {
+      setShowUpdateModal(false);
       setIsDownloading(true);
       setDownloadProgress(0);
+      setDownloadWrittenBytes(0);
+      setDownloadTotalBytes(0);
+      setUpdateStatusText('Ekran açık tutuluyor ve paket indiriliyor...');
+
+      // Ekran kapanmasını önle!
+      try {
+        await activateKeepAwakeAsync('sayimapp_update_keepawake');
+      } catch (kaErr) {
+        console.log('Keep awake activation error:', kaErr);
+      }
+
       const fileUri = (FileSystem as any).documentDirectory + 'SayimApp.apk';
 
       try {
@@ -408,24 +431,38 @@ export default function App() {
         {},
         (progress) => {
           if (progress.totalBytesExpectedToWrite > 0) {
+            setDownloadWrittenBytes(progress.totalBytesWritten);
+            setDownloadTotalBytes(progress.totalBytesExpectedToWrite);
             setDownloadProgress(progress.totalBytesWritten / progress.totalBytesExpectedToWrite);
+            setUpdateStatusText('Güncelleme paketi indiriliyor...');
           }
         }
       );
+      downloadResumableRef.current = downloadResumable;
+
       const result = await downloadResumable.downloadAsync();
       if (result && result.uri) {
-        setIsDownloading(false);
+        setUpdateStatusText('İndirme tamamlandı! Android kurulumu başlatılıyor...');
         const contentUri = await FileSystem.getContentUriAsync(result.uri);
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
           data: contentUri,
           flags: 268435457,
           type: 'application/vnd.android.package-archive',
         });
+        setTimeout(async () => {
+          setIsDownloading(false);
+          try {
+            await deactivateKeepAwake('sayimapp_update_keepawake');
+          } catch (e) {}
+        }, 1500);
       } else {
         throw new Error('İndirme dosyası alınamadı.');
       }
     } catch (error: any) {
       setIsDownloading(false);
+      try {
+        await deactivateKeepAwake('sayimapp_update_keepawake');
+      } catch (e) {}
       Alert.alert(
         'Yükleme Başlatılamadı',
         `Güncelleme indirildi ancak kurulum başlatılamadı:\n${error.message || error}\n\nLütfen ayarlardan 'Bilinmeyen uygulamaları yükle' iznini kontrol edin.`
@@ -499,14 +536,12 @@ export default function App() {
       }
 
       if (updateFound && downloadUrl) {
-        Alert.alert(
-          '🚀 Güncelleme Mevcut!',
-          `Yeni versiyon: ${newVersionStr}\n\n${releaseNotes}`,
-          [
-            { text: 'Daha Sonra', style: 'cancel' },
-            { text: 'Şimdi Güncelle', onPress: () => handleUpdateDownload(downloadUrl) }
-          ]
-        );
+        setAvailableUpdate({
+          version: newVersionStr,
+          releaseNotes: releaseNotes,
+          downloadUrl: downloadUrl,
+        });
+        setShowUpdateModal(true);
       } else if (!silent) {
         Alert.alert('Uygulama Güncel', `Mevcut versiyonunuz (${CURRENT_VERSION}) en güncel sürümdür.`);
       }
@@ -1560,15 +1595,127 @@ export default function App() {
   }
 
   if (isDownloading) {
+    const writtenMB = (downloadWrittenBytes / (1024 * 1024)).toFixed(1);
+    const totalMB = (downloadTotalBytes / (1024 * 1024)).toFixed(1);
+    const pct = Math.round(downloadProgress * 100);
+
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { backgroundColor: isDark ? '#0B1C30' : '#F4F6FB', paddingHorizontal: 24 }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Ionicons name="cloud-download-outline" size={80} color={isDark ? "#3B82F6" : "#1E40AF"} />
-        <Text style={{ color: isDark ? '#fff' : '#1e293b', marginTop: 20, fontSize: 18, fontWeight: 'bold' }}>Güncelleme İndiriliyor...</Text>
-        <Text style={{ color: '#ff6b00', marginTop: 10, fontSize: 24, fontWeight: 'bold' }}>%{(downloadProgress * 100).toFixed(0)}</Text>
-        <View style={{ width: '70%', height: 6, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: 3, marginTop: 20, overflow: 'hidden' }}>
-          <View style={{ width: `${downloadProgress * 100}%`, height: '100%', backgroundColor: '#ff6b00' }} />
+
+        {/* GLOWING ICON BOX */}
+        <View style={{
+          width: 96,
+          height: 96,
+          borderRadius: 48,
+          backgroundColor: isDark ? 'rgba(255,107,0,0.15)' : 'rgba(255,107,0,0.1)',
+          borderWidth: 2,
+          borderColor: '#FF6B00',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: 18,
+        }}>
+          <Ionicons name="cloud-download" size={48} color="#FF6B00" />
         </View>
+
+        <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#fff' : '#0F172A', textAlign: 'center' }}>
+          GÜNCELLEME İNDİRİLİYOR
+        </Text>
+
+        <Text style={{ fontSize: 13, color: isDark ? '#8A9AB5' : '#64748B', marginTop: 4, textAlign: 'center' }}>
+          {updateStatusText}
+        </Text>
+
+        {/* PROGRESS CARD */}
+        <View style={{
+          width: '100%',
+          backgroundColor: isDark ? '#14273E' : '#FFFFFF',
+          borderRadius: 20,
+          padding: 20,
+          marginTop: 22,
+          borderWidth: 1,
+          borderColor: isDark ? '#223854' : '#E2E8F0',
+          alignItems: 'center',
+        }}>
+          {/* BIG PERCENTAGE */}
+          <Text style={{ fontSize: 38, fontWeight: '900', color: '#FF6B00' }}>
+            %{pct}
+          </Text>
+
+          {/* PROGRESS BAR */}
+          <View style={{
+            width: '100%',
+            height: 12,
+            backgroundColor: isDark ? '#1C334D' : '#E2E8F0',
+            borderRadius: 6,
+            marginTop: 12,
+            overflow: 'hidden',
+          }}>
+            <View style={{
+              width: `${pct}%`,
+              height: '100%',
+              backgroundColor: '#FF6B00',
+              borderRadius: 6,
+            }} />
+          </View>
+
+          {/* MB STATS */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
+              İndirilen: {downloadTotalBytes > 0 ? `${writtenMB} MB` : 'Hesaplanıyor...'}
+            </Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
+              Toplam: {downloadTotalBytes > 0 ? `${totalMB} MB` : ''}
+            </Text>
+          </View>
+        </View>
+
+        {/* KEEP AWAKE NOTICE PILL */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          borderRadius: 25,
+          marginTop: 20,
+          borderWidth: 1,
+          borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+        }}>
+          <Ionicons name="sunny" size={18} color="#00AE78" />
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#00AE78' }}>
+            Ekran Kilidi Devre Dışı • Güncelleme süresince açık
+          </Text>
+        </View>
+
+        {/* CANCEL BUTTON */}
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              if (downloadResumableRef.current) {
+                await downloadResumableRef.current.cancelAsync();
+              }
+            } catch(e) {}
+            setIsDownloading(false);
+            try {
+              await deactivateKeepAwake('sayimapp_update_keepawake');
+            } catch(e) {}
+          }}
+          style={{
+            marginTop: 22,
+            paddingVertical: 10,
+            paddingHorizontal: 20,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
+            backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
+          }}
+        >
+          <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 13 }}>
+            İndirmeyi İptal Et
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -1958,6 +2105,142 @@ export default function App() {
             </TouchableOpacity>
           </View>
         </ScrollView>
+      </View>
+    </Modal>
+  );
+
+  const renderUpdatePromptModal = () => (
+    <Modal
+      isVisible={showUpdateModal}
+      onBackdropPress={() => setShowUpdateModal(false)}
+      style={styles.modal}
+      avoidKeyboard={true}
+    >
+      <View style={[styles.modalContent, { maxHeight: '82%' }]}>
+        <View style={styles.modalHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              backgroundColor: 'rgba(255,107,0,0.15)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+              <Ionicons name="rocket" size={22} color="#FF6B00" />
+            </View>
+            <View>
+              <Text style={styles.modalTitle}>Yeni Sürüm Hazır!</Text>
+              <Text style={{ fontSize: 12, color: styles.colors.textMuted }}>Sayım & Stok Mobil Güncellemesi</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={() => setShowUpdateModal(false)}>
+            <Ionicons name="close-circle" size={26} color={styles.colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* VERSION COMPARISON BADGE */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          backgroundColor: isDark ? '#1C334D' : '#F1F5F9',
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderRadius: 14,
+          marginVertical: 12,
+        }}>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '700' }}>MEVCUT</Text>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: styles.colors.text }}>v{CURRENT_VERSION}</Text>
+          </View>
+
+          <Ionicons name="arrow-forward" size={20} color="#FF6B00" />
+
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 11, color: '#00AE78', fontWeight: '700' }}>YENİ SÜRÜM</Text>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#00AE78' }}>
+              {availableUpdate?.version ? (availableUpdate.version.startsWith('v') ? availableUpdate.version : `v${availableUpdate.version}`) : 'Yeni'}
+            </Text>
+          </View>
+        </View>
+
+        {/* RELEASE NOTES */}
+        <Text style={{ fontSize: 13, fontWeight: '800', color: styles.colors.text, marginBottom: 6 }}>
+          Neler Yeni? / Değişiklik Notları:
+        </Text>
+        <ScrollView style={{
+          maxHeight: 180,
+          backgroundColor: isDark ? '#102236' : '#F8FAFC',
+          borderRadius: 12,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: styles.colors.border,
+        }}>
+          <Text style={{ color: styles.colors.text, fontSize: 13, lineHeight: 20 }}>
+            {availableUpdate?.releaseNotes || 'Performans iyileştirmeleri ve hata düzeltmeleri yapıldı.'}
+          </Text>
+        </ScrollView>
+
+        {/* KEEP AWAKE NOTICE */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 10,
+          marginTop: 12,
+          borderWidth: 1,
+          borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+        }}>
+          <Ionicons name="sunny" size={16} color="#00AE78" />
+          <Text style={{ fontSize: 12, color: '#00AE78', fontWeight: '700', flex: 1 }}>
+            İndirme sırasında ekranınız otomatik olarak açık tutulacaktır.
+          </Text>
+        </View>
+
+        {/* ACTION BUTTONS */}
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity
+            onPress={() => setShowUpdateModal(false)}
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: styles.colors.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: styles.colors.textMuted, fontWeight: '700', fontSize: 14 }}>Daha Sonra</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (availableUpdate?.downloadUrl) {
+                handleUpdateDownload(availableUpdate.downloadUrl);
+              }
+            }}
+            style={{
+              flex: 2,
+              backgroundColor: '#FF6B00',
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 8,
+            }}
+          >
+            <Ionicons name="cloud-download" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Şimdi Güncelle</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
@@ -2720,6 +3003,7 @@ export default function App() {
 
         {renderDepoModal()}
         {renderNewStockCardModal()}
+        {renderUpdatePromptModal()}
       </SafeAreaView>
     );
   }
@@ -2736,6 +3020,7 @@ export default function App() {
           onBackToMenu={() => setAppMode('menu')}
           formatPrice={formatPrice}
         />
+        {renderUpdatePromptModal()}
       </SafeAreaView>
     );
   }
@@ -2760,6 +3045,7 @@ export default function App() {
           setFaturaCart={setFaturaCart}
         />
         {renderNewStockCardModal()}
+        {renderUpdatePromptModal()}
       </SafeAreaView>
     );
   }
@@ -2780,6 +3066,7 @@ export default function App() {
           onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
         />
+        {renderUpdatePromptModal()}
       </SafeAreaView>
     );
   }
@@ -3626,6 +3913,7 @@ export default function App() {
 
       {renderDepoModal()}
       {renderNewStockCardModal()}
+      {renderUpdatePromptModal()}
 
       {/* SEVK SOURCE (ÇIKIŞ) MODAL */}
       <Modal isVisible={showSevkSourceModal} onBackdropPress={() => { setShowSevkSourceModal(false); if(!sevkSourceDepo) setAppMode('menu'); }} style={styles.modal}>
