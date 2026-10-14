@@ -1,6 +1,6 @@
 {
-  "version": "1.0.24",
-  "versionCode": 24,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.24/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.24\n• YENİLENMİŞ GÜNCELLEME ARAYÜZÜ: Güncelleme bildirimi modern modal tasarıma kavuşturuldu; sürüm karşılaştırması ve detaylı sürüm notları gösterimi eklendi.\n• EKRAN AÇIK TUTMA (KEEP-AWAKE): Güncelleme paketi indirilirken cihaz ekranının uykuya geçmesi / kilitlenmesi engellendi, indirme tamamlanana kadar ekran açık kalır.\n• DETAYLI İNDİRME GÖSTERGESİ: İndirme ekranında canlı yüzde, indirilen MB / toplam MB göstergesi, durum metni ve iptal etme butonu eklendi.\n• GÜVENLİ İPTAL & KAYNAK YÖNETİMİ: İndirme iptal edildiğinde veya tamamlandığında ekran kilidi otomatik olarak eski haline getirilir."
+  "version": "1.0.25",
+  "versionCode": 25,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.25/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.25\n• SAYIM TELEGRAM GÖNDERİMİ KALDIRILDI: Sayım bitirme işleminde verilerin Telegram'a iletilmesi tamamen kaldırıldı.\n• SAYIM SONUCU FİŞİ DOĞRUDAN AKTARIM: Sayım sepeti tamamlandığında (Bitir ve Kaydet) doğrudan Mikro ERP 'Sayım Sonucu Fişi' (Menü 012810 - STOK_HAREKETLERI & 071100 SAYIM_SONUCLARI) olarak canlı aktarma veya telefona yedekleme seçeneği sunuldu.\n• AYARLAR LİSTESİ AKTAR BUTONU: Son Sayım Yedekleri listesine doğrudan Mikro'ya tek tıkla aktarma butonu (AKTAR / TEKRAR AKTAR) eklendi.\n• HAREKET TİPİ DÜZELTMESİ: Mikro sayım sonucu fiş girişi sth_tip=1 (giriş) olarak optimize edildi."
 }

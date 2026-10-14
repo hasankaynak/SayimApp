@@ -78,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.24';
-const CURRENT_VERSION_CODE = 24;
+const CURRENT_VERSION = '1.0.25';
+const CURRENT_VERSION_CODE = 25;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -1340,96 +1340,12 @@ export default function App() {
       if (wasScannedByCamera) { setCameraActive(true); setWasScannedByCamera(false); }
     }
   };
-  const generateAndSendExcel = async () => {
-    if (activeCart.length === 0) return;
-    try {
-      const isSevk = appMode === 'sevk';
-      
-      const proceedToSave = async () => {
-        const db = dbRef.current;
-        if (db) {
-          const cartDataStr = JSON.stringify(activeCart);
-          const bDate = new Date().toLocaleString('tr-TR');
-          
-          if (editingBackupId) {
-             await db.runAsync('UPDATE sayim_backups SET backup_date = ?, item_count = ?, cart_data = ?, mikro_sent = 0 WHERE id = ?', 
-               [bDate, activeCart.length, cartDataStr, editingBackupId]);
-          } else {
-             const newEvrakNo = isSevk ? Math.floor(Math.random() * 90000) + 10000 : Math.floor(Math.random() * 900) + 100;
-             await db.runAsync('INSERT INTO sayim_backups (backup_date, item_count, cart_data, mikro_evrak_no, mikro_sent) VALUES (?, ?, ?, ?, ?)', 
-               [bDate, activeCart.length, cartDataStr, newEvrakNo, 0]);
-          }
-          
-          const backups: any[] = await db.getAllAsync('SELECT id FROM sayim_backups ORDER BY id DESC');
-          if (backups.length > 5) {
-             const idsToDelete = backups.slice(5).map(b => b.id);
-             await db.runAsync(`DELETE FROM sayim_backups WHERE id IN (${idsToDelete.join(',')})`);
-          }
-        }
-        
-        Alert.alert("Başarılı", isSevk ? "Sevk sepeti yerel olarak kaydedildi. Ayarlardan aktarabilirsiniz." : "Sayım verileri Telegram'a iletildi.", [{ text: "Uygulamaya Dön", onPress: () => { 
-            saveCartToStorage([]); setIsShowingCart(false); setEditingBackupId(null); setEditingEvrakNo(null); setAppMode('menu'); 
-        } }]);
-      };
-
-      if (!isSevk) {
-        const wb = XLSX.utils.book_new();
-        const excelData = activeCart.map((item, index) => ({ 
-          'Sıra': index + 1, 
-          'Barkod': item.barcode, 
-          'Stok Kodu': item.stock_code, 
-          'Ürün Adı': item.name, 
-          'Depo No': item.depo_no, 
-          'Depo Adı': item.depo_adi, 
-          'Sayım Adedi': item.quantity, 
-          'Açıklama / Not': item.description || '',
-          'Sayan Kişi': userName, 
-          'Tarih': new Date(item.added_at).toLocaleString('tr-TR') 
-        }));
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        XLSX.utils.book_append_sheet(wb, ws, "Sayım");
-        const wbout = XLSX.write(wb, { type: 'base64', bookType: "xlsx" });
-        const dateStr = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
-        const depoNameSafe = selectedDepo ? selectedDepo.depo_adi.replace(/[^a-z0-9ğüşıöçĞÜŞİÖÇ]/gi, '_') : 'Depo';
-        const fileName = `${depoNameSafe}-${dateStr}_Sayim.xlsx`;
-        const uri = (FileSystem as any).documentDirectory + fileName;
-        await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
-
-        const form = new FormData();
-        form.append('chat_id', TELEGRAM_CHAT_ID);
-        form.append('document', {
-          uri: uri,
-          name: fileName,
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        } as any);
-
-        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'multipart/form-data' },
-          body: form
-        });
-
-        const resJson = await res.json();
-        
-        if (resJson.ok) {
-          await proceedToSave();
-        } else {
-          Alert.alert("Hata", "Dosya Telegram'a iletilemedi: " + (resJson.description || 'Bilinmeyen Hata'));
-        }
-      } else {
-        await proceedToSave();
-      }
-    } catch (e: any) {
-      Alert.alert("Hata", "İşlem kaydedilemedi: " + e.message);
-    }
-  };
-
-  const sendBackupToMikro = async (backupItem: any) => {
+  const sendBackupToMikro = async (backupItem: any): Promise<boolean> => {
     let mikroAktarimHataMesaji = '';
     try {
-      if (!backupItem.cart_data) return;
+      if (!backupItem.cart_data) return false;
       const cartItems = JSON.parse(backupItem.cart_data);
-      if (cartItems.length === 0) return;
+      if (cartItems.length === 0) return false;
 
       const d = new Date();
       const y = d.getFullYear();
@@ -1518,7 +1434,7 @@ export default function App() {
               ${userNum}, @Now, ${userNum}, @Now,
               '', '', '', 21, '17.05d', '12810',
               '', '', '', 0, '', 0,
-              0, 0, @Tarih, 0, 3, 0, 6, '${evrakSeri}',
+              0, 0, @Tarih, 1, 3, 0, 6, '${evrakSeri}',
               @NextSira, ${index}, '', @Tarih, '${sKod}',
               ${itemMiktar}, ${itemMiktar}, 1, 0, 0,
               ${itemDepo}, ${itemDepo}, @Tarih,
@@ -1553,19 +1469,112 @@ export default function App() {
         `;
       }
       
-      await axios.post(API_URL, { query: sqlQueries }, { timeout: 15000 });
+      await axios.post(API_URL, { query: sqlQueries }, { timeout: 20000 });
       
       const db = dbRef.current;
-      if(db) await db.runAsync('UPDATE sayim_backups SET mikro_sent = 1 WHERE id = ?', [backupItem.id]);
+      if(db && backupItem.id) await db.runAsync('UPDATE sayim_backups SET mikro_sent = 1 WHERE id = ?', [backupItem.id]);
       
       // Update ui list
       setSayimBackups(prev => prev.map(p => p.id === backupItem.id ? {...p, mikro_sent: 1} : p));
 
       const fişTipi = isSevkList ? 'Depo Transfer Fişi' : 'Sayım Sonucu Fişi (012810)';
       ToastAndroid.show(`Mikro'ya başarıyla gönderildi! (${fişTipi} Sıra: ${targetEvrakNo})`, ToastAndroid.LONG);
+      return true;
     } catch (err: any) {
       mikroAktarimHataMesaji = err.response?.data?.error || err.message;
       Alert.alert("Mikro Aktarım Hatası", mikroAktarimHataMesaji);
+      return false;
+    }
+  };
+
+  const generateAndSendExcel = async () => {
+    if (activeCart.length === 0) return;
+    try {
+      const isSevk = appMode === 'sevk';
+      const fisTipi = isSevk ? 'Depolar Arası Sevk Fişi' : 'Sayım Sonucu Fişi (012810)';
+
+      const saveBackupToDb = async (): Promise<{ id: number; cart_data: string; mikro_evrak_no: number } | null> => {
+        const db = dbRef.current;
+        if (!db) return null;
+        const cartDataStr = JSON.stringify(activeCart);
+        const bDate = new Date().toLocaleString('tr-TR');
+        let currentEvrakNo = editingEvrakNo;
+        let recordId = editingBackupId;
+
+        if (editingBackupId) {
+          await db.runAsync(
+            'UPDATE sayim_backups SET backup_date = ?, item_count = ?, cart_data = ?, mikro_sent = 0 WHERE id = ?',
+            [bDate, activeCart.length, cartDataStr, editingBackupId]
+          );
+        } else {
+          currentEvrakNo = isSevk ? Math.floor(Math.random() * 90000) + 10000 : Math.floor(Math.random() * 900) + 100;
+          const runRes: any = await db.runAsync(
+            'INSERT INTO sayim_backups (backup_date, item_count, cart_data, mikro_evrak_no, mikro_sent) VALUES (?, ?, ?, ?, ?)',
+            [bDate, activeCart.length, cartDataStr, currentEvrakNo, 0]
+          );
+          recordId = runRes?.lastInsertRowId;
+        }
+
+        const backups: any[] = await db.getAllAsync('SELECT id FROM sayim_backups ORDER BY id DESC');
+        if (backups.length > 20) {
+          const idsToDelete = backups.slice(20).map(b => b.id);
+          await db.runAsync(`DELETE FROM sayim_backups WHERE id IN (${idsToDelete.join(',')})`);
+        }
+
+        const updatedBackups: any[] = await db.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC LIMIT 20');
+        if (updatedBackups) setSayimBackups(updatedBackups);
+
+        return {
+          id: recordId || 0,
+          cart_data: cartDataStr,
+          mikro_evrak_no: currentEvrakNo || 0
+        };
+      };
+
+      const finishAndClear = () => {
+        saveCartToStorage([]);
+        setIsShowingCart(false);
+        setEditingBackupId(null);
+        setEditingEvrakNo(null);
+        setAppMode('menu');
+      };
+
+      if (isConnected) {
+        Alert.alert(
+          "İşlemi Tamamla",
+          `${fisTipi} olarak ${activeCart.length} kalem ürün kaydedilecek. Mikro ERP'ye aktarmak istiyor musunuz?`,
+          [
+            { text: "İptal", style: "cancel" },
+            {
+              text: "Yalnızca Telefona Kaydet",
+              onPress: async () => {
+                await saveBackupToDb();
+                finishAndClear();
+                ToastAndroid.show("Yerel yedeklere kaydedildi. Ayarlar menüsünden aktarabilirsiniz.", ToastAndroid.LONG);
+              }
+            },
+            {
+              text: "Mikro'ya Aktar",
+              onPress: async () => {
+                const backupObj = await saveBackupToDb();
+                if (backupObj) {
+                  await sendBackupToMikro(backupObj);
+                }
+                finishAndClear();
+              }
+            }
+          ]
+        );
+      } else {
+        await saveBackupToDb();
+        Alert.alert(
+          "Yerel Olarak Kaydedildi",
+          `İnternet bağlantısı olmadığı için ${fisTipi} cihazınıza kaydedildi. Bağlantı sağlandığında Ayarlar menüsünden Mikro'ya aktarabilirsiniz.`,
+          [{ text: "Tamam", onPress: finishAndClear }]
+        );
+      }
+    } catch (e: any) {
+      Alert.alert("Hata", "İşlem kaydedilemedi: " + e.message);
     }
   };
   // -------------------------
@@ -2931,40 +2940,75 @@ export default function App() {
                       })()}</Text>
                       {item.mikro_sent === 1 && <Text style={{ color: '#00AE78', fontSize: 10, marginTop: 1, fontWeight: 'bold' }}>✓ Mikro'ya Gönderildi</Text>}
                     </View>
-                    <TouchableOpacity onPress={() => {
-                        Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
-                          { text: 'İptal', style: 'cancel' },
-                          { text: 'Düzenle', onPress: () => {
-                              try {
-                                const parsedCart = JSON.parse(item.cart_data);
-                                saveCartToStorage(parsedCart);
-                                setEditingBackupId(item.id);
-                                setEditingEvrakNo(item.mikro_evrak_no);
-                                
-                                if (parsedCart.length > 0) {
-                                  const firstItem = parsedCart[0];
-                                  if (firstItem.is_sevk) {
-                                    setAppMode('sevk');
-                                    setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                    setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
-                                  } else {
-                                    setAppMode('sayim');
-                                    setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                  }
-                                }
-
-                                setShowSettingsModal(false);
-                                setIsShowingCart(true);
-                                ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
-                              } catch (e) {
-                                Alert.alert('Hata', 'Yedek okunamadı.');
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          Alert.alert(
+                            "Mikro ERP'ye Aktar",
+                            `${item.backup_date} tarihli fiş (${item.item_count} ürün) Mikro ERP'ye aktarılacaktır. Onaylıyor musunuz?`,
+                            [
+                              { text: 'İptal', style: 'cancel' },
+                              {
+                                text: 'Aktar',
+                                onPress: () => sendBackupToMikro(item)
                               }
-                            } 
-                          }
-                        ]);
-                    }} style={{ backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, padding: 8, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' }}>
-                      <Text style={{ color: styles.colors.text, fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
-                    </TouchableOpacity>
+                            ]
+                          );
+                        }}
+                        style={{
+                          backgroundColor: item.mikro_sent === 1 ? (isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2') : (isDark ? 'rgba(255,107,0,0.15)' : '#FFF3EB'),
+                          borderWidth: 1,
+                          borderColor: item.mikro_sent === 1 ? '#00AE78' : '#FF6B00',
+                          padding: 8,
+                          paddingHorizontal: 10,
+                          borderRadius: 10,
+                          justifyContent: 'center',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <Ionicons name={item.mikro_sent === 1 ? "checkmark-circle" : "cloud-upload-outline"} size={13} color={item.mikro_sent === 1 ? "#00AE78" : "#FF6B00"} />
+                        <Text style={{ color: item.mikro_sent === 1 ? "#00AE78" : "#FF6B00", fontSize: 11, fontWeight: 'bold' }}>
+                          {item.mikro_sent === 1 ? "TEKRAR AKTAR" : "AKTAR"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => {
+                          Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
+                            { text: 'İptal', style: 'cancel' },
+                            { text: 'Düzenle', onPress: () => {
+                                try {
+                                  const parsedCart = JSON.parse(item.cart_data);
+                                  saveCartToStorage(parsedCart);
+                                  setEditingBackupId(item.id);
+                                  setEditingEvrakNo(item.mikro_evrak_no);
+                                  
+                                  if (parsedCart.length > 0) {
+                                    const firstItem = parsedCart[0];
+                                    if (firstItem.is_sevk) {
+                                      setAppMode('sevk');
+                                      setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
+                                      setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
+                                    } else {
+                                      setAppMode('sayim');
+                                      setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
+                                    }
+                                  }
+
+                                  setShowSettingsModal(false);
+                                  setIsShowingCart(true);
+                                  ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
+                                } catch (e) {
+                                  Alert.alert('Hata', 'Yedek okunamadı.');
+                                }
+                              } 
+                            }
+                          ]);
+                      }} style={{ backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, padding: 8, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' }}>
+                        <Text style={{ color: styles.colors.text, fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )} />
               )}
