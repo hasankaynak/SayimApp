@@ -1,6 +1,6 @@
 {
-  "version": "1.0.31",
-  "versionCode": 31,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.31/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.31\n• ALINAN SİPARİŞLER (038003) ÜRÜN & SİPARİŞ AÇIKLAMALARI:\n• Mikro ERP'deki 'AÇIKLAMA 1' ve 'AÇIKLAMA 2' (renk, ebat, sipariş notları) her sipariş kartında görünür hale getirildi.\n• Müşteri Bazlı ve Toplama Listesi görünümlerinde ürün açıklamaları satır bazında entegre edildi.\n• Sipariş Detay penceresinde Açıklama 1 ve Açıklama 2 alanları eklendi.\n• Excel (.xlsx) dışa aktarımına Açıklama 1 ve Açıklama 2 sütunları dahil edildi."
+  "version": "1.0.32",
+  "versionCode": 32,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.32/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.32\n• ALINAN SİPARİŞLER (038003) FATURALAŞTIRMA (061190) MODÜLÜ:\n• Müşteri Bazlı sipariş listesinde '🧾 Faturalaştır' butonu eklendi.\n• Fatura seri harfini manuel girebilme (örn: SF, KA, F) ve 'Sayacı Getir' ile Mikro ERP'deki en güncel sayaç sıra numarasını otomatik çekme.\n• Çıkış deposunu (depo seçimi) manuel olarak seçebilme.\n• Faturalaştırılacak ürün kalemlerini seçebilme ve sevk edilecek adetleri düzenleyebilme.\n• Faturayı onaylayarak Mikro ERP'ye Toptan Satış Faturası (STOK_HAREKETLERI ve CARI_HESAP_HAREKETLERI) olarak kaydetme ve SIPARISLER tablosunu güncelleme/kapatma."
 }

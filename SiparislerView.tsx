@@ -22,6 +22,7 @@ import axios from 'axios';
 import XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -48,6 +49,20 @@ export interface SiparisItem {
   KapaliFl: boolean;
   BirimFiyat: number;
   Tutar: number;
+  sipGuid?: string;
+  EvrakSeri?: string;
+  EvrakSira?: number;
+  SatirNo?: number;
+  Iskonto1?: number;
+  Iskonto2?: number;
+  VergiPntr?: number;
+  Vergi?: number;
+  SaticiKod?: string;
+}
+
+export interface InvoicingItemState extends SiparisItem {
+  selected: boolean;
+  invoiceQty: number;
 }
 
 interface SiparislerViewProps {
@@ -111,9 +126,20 @@ export default function SiparislerView({
   const [selectedDepoNo, setSelectedDepoNo] = useState<number | 'TUMU'>('TUMU');
   const [somList, setSomList] = useState<string[]>([]);
   const [bolgeList, setBolgeList] = useState<string[]>([]);
+  const [depoList, setDepoList] = useState<Array<{ dep_no: number; dep_adi: string }>>([]);
 
   // Detay Modalı
   const [selectedOrder, setSelectedOrder] = useState<SiparisItem | null>(null);
+
+  // --- FATURALAŞTIRMA (INVOICING) STATE ---
+  const [invoicingModalVisible, setInvoicingModalVisible] = useState(false);
+  const [invoicingTargetCari, setInvoicingTargetCari] = useState<{ cariKod: string; cariIsmi: string } | null>(null);
+  const [invoicingItems, setInvoicingItems] = useState<InvoicingItemState[]>([]);
+  const [invoiceSeri, setInvoiceSeri] = useState('SF');
+  const [invoiceSira, setInvoiceSira] = useState<number>(0);
+  const [invoiceDepoNo, setInvoiceDepoNo] = useState<number>(1);
+  const [isFetchingCounter, setIsFetchingCounter] = useState(false);
+  const [isSubmittingInvoice, setIsSubmittingInvoice] = useState(false);
 
   // --- THEME COLORS ---
   const theme = useMemo(() => ({
@@ -147,10 +173,12 @@ export default function SiparislerView({
     try {
       const qSom = `SELECT DISTINCT ISNULL(NULLIF(sip_stok_sormerk, ''), ISNULL(NULLIF(sip_cari_sormerk, ''), ISNULL(sip_satici_kod, ''))) as Sormerk FROM SIPARISLER WITH (NOLOCK) WHERE sip_tip = 0 AND ISNULL(sip_stok_sormerk, '') <> '' ORDER BY Sormerk`;
       const qBolge = `SELECT DISTINCT cari_bolge_kodu as Bolge FROM CARI_HESAPLAR WITH (NOLOCK) WHERE ISNULL(cari_bolge_kodu, '') <> '' ORDER BY Bolge`;
+      const qDepo = `SELECT dep_no, dep_adi FROM DEPOLAR WITH (NOLOCK) ORDER BY dep_no`;
 
-      const [resSom, resBolge] = await Promise.all([
+      const [resSom, resBolge, resDepo] = await Promise.all([
         axios.post(API_URL, { query: qSom }, { timeout: 8000 }),
         axios.post(API_URL, { query: qBolge }, { timeout: 8000 }),
+        axios.post(API_URL, { query: qDepo }, { timeout: 8000 }),
       ]);
 
       if (resSom.data?.data) {
@@ -160,6 +188,9 @@ export default function SiparislerView({
       if (resBolge.data?.data) {
         const list = resBolge.data.data.map((r: any) => String(r.Bolge).trim()).filter(Boolean);
         setBolgeList(list);
+      }
+      if (resDepo.data?.data && Array.isArray(resDepo.data.data)) {
+        setDepoList(resDepo.data.data);
       }
     } catch (e) {
       console.log('Error fetching filter options:', e);
@@ -210,6 +241,10 @@ export default function SiparislerView({
 
       const q = `
         SELECT 
+          CAST(sip_Guid AS VARCHAR(40)) as sipGuid,
+          ISNULL(sip_evrakno_seri, '') as EvrakSeri,
+          ISNULL(sip_evrakno_sira, 0) as EvrakSira,
+          ISNULL(sip_satirno, 0) as SatirNo,
           CONVERT(varchar, sip_teslim_tarih, 104) as TeslimTarihi,
           CONVERT(varchar, sip_tarih, 104) as SiparisTarihi,
           ISNULL(sip_evrakno_seri, '') + '-' + CAST(sip_evrakno_sira AS VARCHAR) as EvrakNo,
@@ -227,6 +262,11 @@ export default function SiparislerView({
           ISNULL(sip_aciklama2, '') as Aciklama2,
           RTRIM(LTRIM(ISNULL(sip_aciklama, '') + CASE WHEN ISNULL(sip_aciklama2, '') <> '' THEN ' ' + sip_aciklama2 ELSE '' END)) as Aciklama,
           ISNULL(NULLIF(sip_stok_sormerk, ''), ISNULL(NULLIF(sip_cari_sormerk, ''), ISNULL(sip_satici_kod, ''))) as SormerkKod,
+          ISNULL(sip_satici_kod, '') as SaticiKod,
+          ISNULL(sip_iskonto_1, 0) as Iskonto1,
+          ISNULL(sip_iskonto_2, 0) as Iskonto2,
+          ISNULL(sip_vergi_pntr, 0) as VergiPntr,
+          ISNULL(sip_vergi, 0) as Vergi,
           ISNULL(d.dep_adi, 'Depo ' + CAST(sip_depono AS VARCHAR)) as DepoAdi,
           ISNULL(sip_depono, 0) as DepoNo,
           sip_kapat_fl as KapaliFl,
@@ -458,6 +498,296 @@ export default function SiparislerView({
     } catch (e) {}
   };
 
+  // =========================================================================
+  // --- FATURALAŞTIRMA (INVOICING) HANDLERS ---
+  // =========================================================================
+
+  // Sayaç / Son Fatura Numarasını Sorgula
+  const fetchNextInvoiceNo = async (seri: string) => {
+    const cleanSeri = (seri || '').trim();
+    if (!cleanSeri) return;
+    setIsFetchingCounter(true);
+    try {
+      const q = `
+        SELECT ISNULL(MAX(sira), 0) + 1 AS NextSira FROM (
+          SELECT MAX(sth_evrakno_sira) AS sira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_evrakno_seri = '${cleanSeri.replace(/'/g, "''")}' AND sth_evraktip = 4
+          UNION ALL
+          SELECT MAX(cha_evrakno_sira) AS sira FROM CARI_HESAP_HAREKETLERI WITH (NOLOCK) WHERE cha_evrakno_seri = '${cleanSeri.replace(/'/g, "''")}' AND cha_evrak_tip = 63
+        ) t
+      `;
+      const res = await axios.post(API_URL, { query: q }, { timeout: 8000 });
+      if (res.data?.success && res.data.data?.[0]?.NextSira) {
+        setInvoiceSira(Number(res.data.data[0].NextSira));
+      }
+    } catch (e) {
+      console.log('Error fetching next invoice no:', e);
+    } finally {
+      setIsFetchingCounter(false);
+    }
+  };
+
+  // Müşteri Bazlı Faturalaştırma Modalı Aç
+  const handleOpenInvoicingModalForCari = async (group: typeof groupedByCari[0]) => {
+    const pendingItems = group.items.filter(it => Number(it.KalanMiktar) > 0);
+    if (pendingItems.length === 0) {
+      Alert.alert('Bilgi', 'Bu müşterinin bekleyen/açık sipariş kalemi bulunmuyor.');
+      return;
+    }
+
+    setInvoicingTargetCari({ cariKod: group.cariKod, cariIsmi: group.cariIsmi });
+    setInvoicingItems(
+      pendingItems.map(it => ({
+        ...it,
+        selected: true,
+        invoiceQty: Number(it.KalanMiktar),
+      }))
+    );
+
+    // Çıkış deposu varsayılanı
+    const defaultDepo = pendingItems[0]?.DepoNo || (depos && depos[0]?.dep_no) || 1;
+    setInvoiceDepoNo(defaultDepo);
+
+    // Kaydedilmiş son seri harfi
+    try {
+      const savedSeri = await AsyncStorage.getItem('sayimapp_last_invoice_seri');
+      const seriToUse = savedSeri || invoiceSeri || 'SF';
+      setInvoiceSeri(seriToUse);
+      fetchNextInvoiceNo(seriToUse);
+    } catch (e) {
+      fetchNextInvoiceNo(invoiceSeri || 'SF');
+    }
+
+    setInvoicingModalVisible(true);
+  };
+
+  // Tekil Sipariş Kalemi İçin Faturalaştırma Modalı Aç
+  const handleOpenInvoicingModalForSingleItem = async (item: SiparisItem) => {
+    if (Number(item.KalanMiktar) <= 0) {
+      Alert.alert('Bilgi', 'Bu sipariş kalemi zaten tamamen teslim edilmiş veya kapatılmış.');
+      return;
+    }
+
+    setInvoicingTargetCari({ cariKod: item.CariKod, cariIsmi: item.CariIsmi });
+    setInvoicingItems([
+      {
+        ...item,
+        selected: true,
+        invoiceQty: Number(item.KalanMiktar),
+      },
+    ]);
+
+    setInvoiceDepoNo(item.DepoNo || (depos && depos[0]?.dep_no) || 1);
+
+    try {
+      const savedSeri = await AsyncStorage.getItem('sayimapp_last_invoice_seri');
+      const seriToUse = savedSeri || invoiceSeri || 'SF';
+      setInvoiceSeri(seriToUse);
+      fetchNextInvoiceNo(seriToUse);
+    } catch (e) {
+      fetchNextInvoiceNo(invoiceSeri || 'SF');
+    }
+
+    if (selectedOrder) setSelectedOrder(null);
+    setInvoicingModalVisible(true);
+  };
+
+  // Fatura Kalemi Miktarını Değiştir
+  const handleUpdateInvoiceItemQty = (index: number, newQtyStr: string) => {
+    setInvoicingItems(prev => {
+      const copy = [...prev];
+      const it = copy[index];
+      if (!it) return prev;
+      const cleanVal = newQtyStr.replace(',', '.').replace(/[^0-9.]/g, '');
+      const numVal = parseFloat(cleanVal) || 0;
+      const maxQty = Number(it.KalanMiktar) || 1;
+      copy[index] = {
+        ...it,
+        invoiceQty: Math.max(0, Math.min(numVal, maxQty)),
+      };
+      return copy;
+    });
+  };
+
+  // Fatura Kalemi Seçimini Değiştir
+  const handleToggleInvoiceItemSelect = (index: number) => {
+    setInvoicingItems(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], selected: !copy[index].selected };
+      }
+      return copy;
+    });
+  };
+
+  // Tüm Kalemleri Seç / Kaldır
+  const handleToggleSelectAllInvoiceItems = () => {
+    const allSelected = invoicingItems.every(it => it.selected);
+    setInvoicingItems(prev => prev.map(it => ({ ...it, selected: !allSelected })));
+  };
+
+  // Mikro ERP'ye Faturayı Kaydet
+  const handleExecuteInvoice = async () => {
+    const selectedItems = invoicingItems.filter(it => it.selected && Number(it.invoiceQty) > 0);
+    if (selectedItems.length === 0) {
+      Alert.alert('Eksik Seçim', 'Lütfen faturalaştırılacak en az bir ürün kalemi seçin.');
+      return;
+    }
+    if (!invoiceSeri.trim()) {
+      Alert.alert('Eksik Bilgi', 'Lütfen fatura seri harfini giriniz (örn: SF).');
+      return;
+    }
+    if (!invoiceSira || invoiceSira <= 0) {
+      Alert.alert('Eksik Bilgi', 'Geçerli bir fatura sayaç numarası alınamadı. Lütfen sayacı yenileyin.');
+      return;
+    }
+
+    const cleanSeri = invoiceSeri.toUpperCase().trim();
+    const sira = invoiceSira;
+
+    Alert.alert(
+      'Fatura Onayı',
+      `${invoicingTargetCari?.cariIsmi} carisine ${cleanSeri}-${sira} nolu Toptan Satış Faturası kesilecek ve ${selectedItems.length} sipariş kalemi güncellenecektir.\n\nOnaylıyor musunuz?`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Evet, Faturayı Kes',
+          onPress: async () => {
+            setIsSubmittingInvoice(true);
+            try {
+              await AsyncStorage.setItem('sayimapp_last_invoice_seri', cleanSeri);
+
+              const userNum = parseInt(mikroUserNo, 10) || 1;
+              const cariKod = (invoicingTargetCari?.cariKod || '').replace(/'/g, "''");
+              const depoNo = invoiceDepoNo;
+
+              // Toplam tutarlar
+              let totalBrut = 0;
+              let totalIskonto = 0;
+              let totalKdv = 0;
+              let totalNet = 0;
+
+              selectedItems.forEach(it => {
+                const qty = Number(it.invoiceQty);
+                const bFiyat = Number(it.BirimFiyat) || 0;
+                const brut = qty * bFiyat;
+                const iskOran = Number(it.SiparisMiktar) > 0 ? (Number(it.Iskonto1) / (Number(it.SiparisMiktar) * bFiyat || 1)) : 0;
+                const isk = brut * iskOran;
+                const netSatir = brut - isk;
+                const kdvPntr = Number(it.VergiPntr) || 4;
+                const kdvRate = kdvPntr === 5 ? 0.20 : 0.16;
+                const kdv = netSatir * kdvRate;
+
+                totalBrut += brut;
+                totalIskonto += isk;
+                totalKdv += kdv;
+                totalNet += (netSatir + kdv);
+              });
+
+              const todayStr = new Date().toISOString().split('T')[0];
+
+              let sql = `
+                BEGIN TRANSACTION;
+                DECLARE @Now datetime = GETDATE();
+                DECLARE @Tarih datetime = '${todayStr}';
+                DECLARE @FatGuid UNIQUEIDENTIFIER = NEWID();
+
+                -- 1. CARI HESAP HAREKETI (Fatura - cha_evrak_tip = 63, cha_cinsi = 6)
+                INSERT INTO CARI_HESAP_HAREKETLERI (
+                  cha_Guid, cha_DBCno, cha_SpecRecNo, cha_iptal, cha_fileid, cha_hidden, cha_kilitli, cha_degisti, cha_CheckSum,
+                  cha_create_user, cha_create_date, cha_lastup_user, cha_lastup_date,
+                  cha_special1, cha_special2, cha_special3, cha_MainProgramNo, cha_VersionNo, cha_MenuNo,
+                  cha_firmano, cha_subeno, cha_evrak_tip, cha_evrakno_seri, cha_evrakno_sira, cha_satir_no,
+                  cha_tarihi, cha_tip, cha_cinsi, cha_normal_Iade, cha_tpoz, cha_ticaret_turu, cha_belge_no, cha_belge_tarih,
+                  cha_aciklama, cha_satici_kodu, cha_cari_cins, cha_kod, cha_ciro_cari_kodu, cha_d_cins, cha_d_kur, cha_altd_kur,
+                  cha_grupno, cha_srmrkkodu, cha_meblag, cha_aratoplam, cha_vade,
+                  cha_ft_iskonto1, cha_ft_iskonto2, cha_kdv_toplam
+                ) VALUES (
+                  @FatGuid, 0, 0, 0, 51, 0, 0, 0, 0,
+                  ${userNum}, @Now, ${userNum}, @Now,
+                  'MOBIL', '', '', 21, '17.05d', '61190',
+                  0, 0, 63, '${cleanSeri.replace(/'/g, "''")}', ${sira}, 0,
+                  @Tarih, 0, 6, 0, 0, 0, '', @Tarih,
+                  'Mobil Sipariş Faturalaştırma', '${(selectedItems[0]?.SaticiKod || '').replace(/'/g, "''")}', 0, '${cariKod}', '${cariKod}', 0, 1, 49.25,
+                  0, '${(selectedItems[0]?.SormerkKod || '').replace(/'/g, "''")}', ${totalNet.toFixed(2)}, ${totalBrut.toFixed(2)}, 0,
+                  ${totalIskonto.toFixed(2)}, 0, ${totalKdv.toFixed(2)}
+                );
+              `;
+
+              selectedItems.forEach((it, idx) => {
+                const qty = Number(it.invoiceQty);
+                const bFiyat = Number(it.BirimFiyat) || 0;
+                const brut = qty * bFiyat;
+                const sKod = (it.StokKodu || '').replace(/'/g, "''");
+                const sipGuidStr = it.sipGuid || '';
+
+                sql += `
+                  -- 2. STOK HAREKETI (Satır ${idx + 1} - sth_evraktip = 4, sth_tip = 1 Çıkış)
+                  INSERT INTO STOK_HAREKETLERI (
+                    sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
+                    sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
+                    sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
+                    sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip,
+                    sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+                    sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+                    sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
+                    sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_cari_kodu, sth_plasiyer_kodu,
+                    sth_sip_uid, sth_fat_uid, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
+                  ) VALUES (
+                    NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
+                    ${userNum}, @Now, ${userNum}, @Now,
+                    'MOBIL', '', '', 21, '17.05d', '61190',
+                    0, 0, @Tarih, 1, 0, 0, 4,
+                    '${cleanSeri.replace(/'/g, "''")}', ${sira}, ${idx}, '', @Tarih, '${sKod}',
+                    ${qty}, ${qty}, 1, ${bFiyat.toFixed(4)}, ${brut.toFixed(2)},
+                    ${depoNo}, ${depoNo}, @Tarih,
+                    '${(it.SormerkKod || '').replace(/'/g, "''")}', '${(it.SormerkKod || '').replace(/'/g, "''")}', '${cariKod}', '${(it.SaticiKod || '').replace(/'/g, "''")}',
+                    ${sipGuidStr ? `'${sipGuidStr}'` : '00000000-0000-0000-0000-000000000000'}, @FatGuid, 0, 1, 49.25, 0, 1
+                  );
+                `;
+
+                if (sipGuidStr) {
+                  sql += `
+                    -- 3. SIPARIS TESLIMAT GUNCELLEMESI
+                    UPDATE SIPARISLER 
+                    SET sip_teslim_miktar = ISNULL(sip_teslim_miktar, 0) + ${qty},
+                        sip_kapat_fl = CASE WHEN ISNULL(sip_miktar, 0) <= (ISNULL(sip_teslim_miktar, 0) + ${qty}) THEN 1 ELSE 0 END,
+                        sip_lastup_user = ${userNum},
+                        sip_lastup_date = @Now
+                    WHERE sip_Guid = '${sipGuidStr}';
+                  `;
+                }
+              });
+
+              sql += `
+                COMMIT TRANSACTION;
+                SELECT 1 AS success_result;
+              `;
+
+              const res = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+              if (res.data?.success) {
+                playSound('success');
+                setInvoicingModalVisible(false);
+                Alert.alert(
+                  'Fatura Oluşturuldu! 🎉',
+                  `${cleanSeri}-${sira} nolu Toptan Satış Faturası Mikro ERP sistemine başarıyla kaydedildi ve sipariş teslim miktarları güncellendi.`
+                );
+                fetchOrders();
+              } else {
+                playSound('error');
+                Alert.alert('Hata', 'Fatura kaydedilirken hata oluştu:\n' + (res.data?.error || JSON.stringify(res.data)));
+              }
+            } catch (err: any) {
+              playSound('error');
+              Alert.alert('İşlem Başarısız', 'Fatura oluşturulurken hata oluştu:\n' + (err.response?.data?.error || err.message));
+            } finally {
+              setIsSubmittingInvoice(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // --- RENDER ORDER ITEM (SATIR BAZLI) ---
   const renderOrderItem = ({ item }: { item: SiparisItem }) => {
     const isPending = Number(item.KalanMiktar) > 0;
@@ -601,6 +931,16 @@ export default function SiparislerView({
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {item.totalKalan > 0 && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => handleOpenInvoicingModalForCari(item)}
+                style={[styles.invoiceCariBtn, { backgroundColor: '#10B981' }]}
+              >
+                <Ionicons name="receipt" size={13} color="#fff" />
+                <Text style={styles.invoiceCariBtnText}>Faturalaştır</Text>
+              </TouchableOpacity>
+            )}
             <View style={{ alignItems: 'flex-end' }}>
               <View style={[styles.groupQtyBadge, { backgroundColor: theme.primaryLight }]}>
                 <Text style={[styles.groupQtyBadgeText, { color: theme.primary }]}>
@@ -1413,13 +1753,25 @@ export default function SiparislerView({
                   </View>
                 </ScrollView>
 
-                {/* Close Button */}
-                <TouchableOpacity
-                  onPress={() => setSelectedOrder(null)}
-                  style={[styles.modalCloseBtn, { backgroundColor: theme.primary }]}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Tamam</Text>
-                </TouchableOpacity>
+                {/* Action Buttons: Kapat & Faturalaştır */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedOrder(null)}
+                    style={[styles.modalCloseBtn, { flex: 1, backgroundColor: theme.cardAlt, borderWidth: 1, borderColor: theme.cardBorder }]}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Kapat</Text>
+                  </TouchableOpacity>
+
+                  {Number(selectedOrder.KalanMiktar) > 0 && (
+                    <TouchableOpacity
+                      onPress={() => handleOpenInvoicingModalForSingleItem(selectedOrder)}
+                      style={[styles.modalCloseBtn, { flex: 2, backgroundColor: '#10B981', flexDirection: 'row', gap: 6 }]}
+                    >
+                      <Ionicons name="receipt" size={16} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Faturalaştır</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </>
             )}
           </View>
@@ -1466,6 +1818,298 @@ export default function SiparislerView({
             >
               <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
+          </View>
+        </View>
+      </RNModal>
+
+      {/* ========================================================================= */}
+      {/* 9. FATURALAŞTIRMA (INVOICING) FULL MODAL                                 */}
+      {/* ========================================================================= */}
+      <RNModal
+        visible={invoicingModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          if (!isSubmittingInvoice) setInvoicingModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.invoiceModalCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="receipt" size={20} color="#10B981" />
+                  <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1}>
+                    Satış Faturası Kes
+                  </Text>
+                  <View style={[styles.menuNoBadge, { backgroundColor: theme.primaryLight }]}>
+                    <Text style={[styles.menuNoText, { color: theme.primary }]}>061190</Text>
+                  </View>
+                </View>
+                <Text style={[styles.invoiceTargetCariText, { color: theme.primary }]} numberOfLines={1}>
+                  {invoicingTargetCari?.cariIsmi} ({invoicingTargetCari?.cariKod})
+                </Text>
+              </View>
+              <TouchableOpacity
+                disabled={isSubmittingInvoice}
+                onPress={() => setInvoicingModalVisible(false)}
+              >
+                <Ionicons name="close-circle" size={26} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+              {/* SERİ, SIRA (SAYAÇ), DEPO SEÇİMİ PANELİ */}
+              <View style={[styles.invoiceConfigCard, { backgroundColor: theme.cardAlt, borderColor: theme.cardBorder }]}>
+                {/* Seri Harfi ve Sayaç Sıra No */}
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fatura Seri</Text>
+                    <TextInput
+                      style={[styles.fieldInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.cardBorder }]}
+                      value={invoiceSeri}
+                      onChangeText={(txt) => {
+                        const up = txt.toUpperCase();
+                        setInvoiceSeri(up);
+                        fetchNextInvoiceNo(up);
+                      }}
+                      autoCapitalize="characters"
+                      placeholder="Seri (SF)"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1.5 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Sayaç Sıra No</Text>
+                      <TouchableOpacity
+                        onPress={() => fetchNextInvoiceNo(invoiceSeri)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+                      >
+                        {isFetchingCounter ? (
+                          <ActivityIndicator size="small" color={theme.primary} />
+                        ) : (
+                          <>
+                            <Ionicons name="refresh" size={12} color={theme.primary} />
+                            <Text style={{ fontSize: 10.5, color: theme.primary, fontWeight: '700' }}>Sayacı Getir</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput
+                      style={[styles.fieldInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.cardBorder, fontWeight: '800' }]}
+                      value={invoiceSira ? String(invoiceSira) : ''}
+                      onChangeText={(txt) => {
+                        const clean = txt.replace(/[^0-9]/g, '');
+                        setInvoiceSira(parseInt(clean, 10) || 0);
+                      }}
+                      keyboardType="numeric"
+                      placeholder="Sıra No"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  </View>
+                </View>
+
+                {/* Çıkış Deposu Seçimi */}
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>
+                    Çıkış Deposu (Malların Düşeceği Depo)
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {(depoList.length > 0 ? depoList : (depos && depos.length > 0 ? depos : [{ dep_no: 1, dep_adi: 'Merkez' }])).map((d: any) => {
+                        const isSel = invoiceDepoNo === d.dep_no;
+                        return (
+                          <TouchableOpacity
+                            key={d.dep_no}
+                            onPress={() => setInvoiceDepoNo(d.dep_no)}
+                            style={[
+                              styles.depoSelectChip,
+                              isSel
+                                ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                                : { backgroundColor: theme.card, borderColor: theme.cardBorder },
+                            ]}
+                          >
+                            <Ionicons
+                              name="business-outline"
+                              size={12}
+                              color={isSel ? '#fff' : theme.textMuted}
+                            />
+                            <Text style={[styles.depoSelectChipText, { color: isSel ? '#fff' : theme.text }]}>
+                              {d.dep_no} - {d.dep_adi}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+
+              {/* ÜRÜN KALEMLERİ LİSTESİ */}
+              <View style={{ marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: theme.text }}>
+                    Faturalaştırılacak Ürünler ({invoicingItems.filter(it => it.selected).length}/{invoicingItems.length})
+                  </Text>
+                  <TouchableOpacity onPress={handleToggleSelectAllInvoiceItems}>
+                    <Text style={{ fontSize: 11, color: theme.primary, fontWeight: '700' }}>
+                      {invoicingItems.every(it => it.selected) ? 'Seçimi Kaldır' : 'Tümünü Seç'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {invoicingItems.map((item, idx) => {
+                  return (
+                    <View
+                      key={`${item.StokKodu}_${idx}`}
+                      style={[
+                        styles.invoiceItemCard,
+                        {
+                          backgroundColor: item.selected ? (isDark ? '#1E293B' : '#FFFFFF') : (isDark ? '#16202E' : '#F8FAFC'),
+                          borderColor: item.selected ? theme.primary : theme.cardBorder,
+                          opacity: item.selected ? 1 : 0.6,
+                        },
+                      ]}
+                    >
+                      {/* Checkbox and Stock info */}
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => handleToggleInvoiceItemSelect(idx)}
+                          style={{ marginTop: 2 }}
+                        >
+                          <Ionicons
+                            name={item.selected ? 'checkbox' : 'square-outline'}
+                            size={20}
+                            color={item.selected ? theme.primary : theme.textMuted}
+                          />
+                        </TouchableOpacity>
+
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.subItemCode, { color: theme.primary }]}>{item.StokKodu}</Text>
+                            <Text style={{ fontSize: 10, color: theme.textMuted }}>Kalan: {item.KalanMiktar} {item.Birim}</Text>
+                          </View>
+                          <Text style={[styles.subItemName, { color: theme.text }]} numberOfLines={2}>
+                            {item.StokIsmi}
+                          </Text>
+
+                          {Boolean(item.Aciklama) && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                              <Ionicons name="chatbox-ellipses-outline" size={11} color="#8B5CF6" />
+                              <Text style={{ fontSize: 10.5, color: isDark ? '#C4B5FD' : '#7C3AED', fontWeight: '700' }} numberOfLines={1}>
+                                {item.Aciklama}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Quantity Stepper & Price Calculation */}
+                      {item.selected && (
+                        <View style={[styles.invoiceItemQtyRow, { borderTopColor: theme.cardBorder }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textMuted }}>Fatura Adedi:</Text>
+                            <TouchableOpacity
+                              onPress={() => {
+                                const current = Number(item.invoiceQty) || 0;
+                                if (current > 1) handleUpdateInvoiceItemQty(idx, String(current - 1));
+                              }}
+                              style={[styles.stepperBtn, { backgroundColor: theme.cardAlt }]}
+                            >
+                              <Ionicons name="remove" size={14} color={theme.text} />
+                            </TouchableOpacity>
+
+                            <TextInput
+                              style={[styles.stepperInput, { backgroundColor: theme.cardAlt, color: theme.text, borderColor: theme.cardBorder }]}
+                              value={String(item.invoiceQty)}
+                              onChangeText={(val) => handleUpdateInvoiceItemQty(idx, val)}
+                              keyboardType="numeric"
+                              selectTextOnFocus
+                            />
+
+                            <TouchableOpacity
+                              onPress={() => {
+                                const current = Number(item.invoiceQty) || 0;
+                                const max = Number(item.KalanMiktar) || 1;
+                                if (current < max) handleUpdateInvoiceItemQty(idx, String(current + 1));
+                              }}
+                              style={[styles.stepperBtn, { backgroundColor: theme.cardAlt }]}
+                            >
+                              <Ionicons name="add" size={14} color={theme.text} />
+                            </TouchableOpacity>
+                            <Text style={{ fontSize: 11, color: theme.textMuted }}>{item.Birim}</Text>
+                          </View>
+
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: theme.text }}>
+                              {formatPrice(Number(item.invoiceQty) * Number(item.BirimFiyat || 0))} TL
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* MODAL FOOTER: TOPLAMLAR & FATURAYI ONAYLA BUTONU */}
+            <View style={[styles.invoiceModalFooter, { borderTopColor: theme.cardBorder }]}>
+              <View style={styles.invoiceFooterTotals}>
+                <View>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>Toplam Fatura Tutarı</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '900', color: theme.success, marginTop: 1 }}>
+                    {formatPrice(
+                      invoicingItems
+                        .filter(it => it.selected)
+                        .reduce((sum, it) => sum + (Number(it.invoiceQty) * Number(it.BirimFiyat || 0)), 0)
+                    )} TL
+                  </Text>
+                </View>
+
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: theme.textMuted }}>Seçili Miktar</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: theme.text }}>
+                    {invoicingItems
+                      .filter(it => it.selected)
+                      .reduce((sum, it) => sum + Number(it.invoiceQty), 0)}{' '}
+                    ADET
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <TouchableOpacity
+                  disabled={isSubmittingInvoice}
+                  onPress={() => setInvoicingModalVisible(false)}
+                  style={[styles.invoiceCancelBtn, { borderColor: theme.cardBorder }]}
+                >
+                  <Text style={{ color: theme.textMuted, fontWeight: '700', fontSize: 13 }}>Vazgeç</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  disabled={isSubmittingInvoice}
+                  onPress={handleExecuteInvoice}
+                  style={[
+                    styles.invoiceSubmitBtn,
+                    { backgroundColor: '#10B981', opacity: isSubmittingInvoice ? 0.7 : 1 },
+                  ]}
+                >
+                  {isSubmittingInvoice ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-done-circle" size={18} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
+                        Faturayı Kes ve Onayla
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </RNModal>
@@ -2033,5 +2677,133 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Invoicing Button on Group Card
+  invoiceCariBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  invoiceCariBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  // Invoicing Modal
+  invoiceModalCard: {
+    width: '94%',
+    maxHeight: '88%',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  },
+  invoiceTargetCariText: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  invoiceConfigCard: {
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  fieldLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  fieldInput: {
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  depoSelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  depoSelectChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  invoiceItemCard: {
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  invoiceItemQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+  },
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperInput: {
+    width: 48,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    paddingVertical: 0,
+  },
+  invoiceModalFooter: {
+    borderTopWidth: 1,
+    paddingTop: 10,
+    marginTop: 8,
+  },
+  invoiceFooterTotals: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  invoiceCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invoiceSubmitBtn: {
+    flex: 2.2,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
 });
