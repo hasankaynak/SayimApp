@@ -38,6 +38,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import ReportsView from './ReportsView';
 import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
 import FiyatDegisiklikView from './FiyatDegisiklikView';
+import SiparislerView from './SiparislerView';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -78,8 +79,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.29';
-const CURRENT_VERSION_CODE = 29;
+const CURRENT_VERSION = '1.0.30';
+const CURRENT_VERSION_CODE = 30;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -174,7 +175,7 @@ export default function App() {
   const [menuSearchInput, setMenuSearchInput] = useState('');
 
   // --- SAYIM ADDITIONS ---
-  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura' | 'fiyat_degisiklik'>('menu');
+  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura' | 'fiyat_degisiklik' | 'siparisler'>('menu');
   const [depos, setDepos] = useState<any[]>([]);
   const [selectedDepo, setSelectedDepo] = useState<any>(null);
   const [showDepoModal, setShowDepoModal] = useState(false);
@@ -2764,6 +2765,36 @@ export default function App() {
             </View>
           </TouchableOpacity>
 
+          {/* CARD 9 (Full Width Hero): ALINAN SİPARİŞLER (038003) */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => !isSyncing && setAppMode('siparisler')}
+            disabled={isSyncing}
+            style={[styles.reportHeroCard, { borderColor: '#0284C7', borderWidth: 1.5, marginBottom: 12 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
+              <View style={[styles.reportIconBox, { backgroundColor: '#0284C7' }]}>
+                <Ionicons name="cart" size={24} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.reportHeroTitle} numberOfLines={1}>ALINAN SİPARİŞLER</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
+                    <Ionicons name="flash" size={11} color="#0284C7" />
+                    <Text style={[styles.reportTrendText, { color: '#0284C7' }]}>Menü 038003</Text>
+                  </View>
+                </View>
+                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
+                  Alınan Sipariş Hareketleri Yönetimi, Sevkiyat & Toplama
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(2, 132, 199, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#0284C7" />
+            </View>
+          </TouchableOpacity>
+
           {/* RECENT SCANS SHELF (Son İşlem Yapılan Kalemler) */}
           <View style={styles.recentShelfCard}>
             <View style={styles.recentShelfHeader}>
@@ -3195,6 +3226,27 @@ export default function App() {
           onBackToMenu={() => setAppMode('menu')}
           onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
+        />
+        {renderUserSelectModal()}
+        {renderUpdatePromptModal()}
+      </SafeAreaView>
+    );
+  }
+
+  if (appMode === 'siparisler') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F8F9FF' }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <SiparislerView
+          isDark={isDark}
+          isConnected={!!isConnected}
+          dbRef={dbRef}
+          API_URL={API_URL}
+          mikroUserNo={mikroUserNo}
+          formatPrice={formatPrice}
+          playSound={playSound}
+          onBackToMenu={() => setAppMode('menu')}
+          depos={depos}
         />
         {renderUserSelectModal()}
         {renderUpdatePromptModal()}

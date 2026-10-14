@@ -1,6 +1,6 @@
 {
-  "version": "1.0.29",
-  "versionCode": 29,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.29/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.29\n• ÜST BAŞLIK VE TÜM KARTLAR SIFIR ÇAKIŞMA: Header bar metinleri dar ekranlarda da tam sığacak şekilde optimize edildi.\n• TÜM KARTLARDA ŞIK SQUIRCLE YÖNLENDİRİCİ: Raporlar dahil tüm operasyonel kartlar kompakt ve modern yönlendirici butonlara kavuşturuldu, yazılar arasındaki tüm çakışma ve örtüşmeler tamamen giderildi."
+  "version": "1.0.30",
+  "versionCode": 30,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.30/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.30\n• YENİ MODÜL: ALINAN SİPARİŞ HAREKETLERİ YÖNETİMİ (038003): Mikro ERP'deki 038003 menüsü birebir mobile entegre edildi.\n• ÇOKLU GÖRÜNÜM MODLARI: 1) Sipariş Satırları Listesi, 2) Müşteri (Cari) Bazlı Gruplama, 3) Depo Konsolide Ürün Toplama Listesi (Picking List).\n• GELİŞMİŞ FİLTRELEME & CANLI KPI: Teslim Tarihi / Sipariş Tarihi, Açık / Kapalı / Tümü, Sorumluluk Merkezi (SOM), Bölge, Depo ve Cari filtreleri.\n• BARKOD TARAMA & DIŞA AKTARMA: Kamera ile siparişli ürün barkodu arama ve Excel/WhatsApp ile paylaşma desteği."
 }
