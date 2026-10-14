@@ -59,6 +59,8 @@ interface AlisFaturasiViewProps {
   openNewCardModal: (prefilledBarcode?: string, forFatura?: boolean) => void;
   faturaCart: FaturaItem[];
   setFaturaCart: React.Dispatch<React.SetStateAction<FaturaItem[]>>;
+  onOpenUserSelect?: () => void;
+  mikroUsersList?: any[];
 }
 
 export default function AlisFaturasiView({
@@ -74,8 +76,13 @@ export default function AlisFaturasiView({
   onBackToMenu,
   openNewCardModal,
   faturaCart,
-  setFaturaCart
+  setFaturaCart,
+  onOpenUserSelect,
+  mikroUsersList = []
 }: AlisFaturasiViewProps) {
+  const currentUserObj = mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo));
+  const currentUserName = currentUserObj ? currentUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
+
   // Evrak Header State
   const [faturaCari, setFaturaCari] = useState<FaturaCari | null>(null);
   const [evrakSeri, setEvrakSeri] = useState('ALIŞ');
@@ -458,7 +465,8 @@ export default function AlisFaturasiView({
       `Seri / Sıra: ${cleanSeri}-${userSira > 0 ? userSira : 'OTOMATİK'}\n` +
       `Giriş Deposu: ${faturaDepo?.depo_adi || 'Merkez'}\n` +
       `Kalem Sayısı: ${faturaCart.length} kalem (${toplamAdet} adet)\n` +
-      `Genel Toplam: ${formatPrice(genelToplam)} TL\n\n` +
+      `Genel Toplam: ${formatPrice(genelToplam)} TL\n` +
+      `Kayıt Yapan Kullanıcı: ${currentUserName} (ID: ${userNum})\n\n` +
       `Fatura Mikro ERP'ye kaydedilsin mi?`,
       [
         { text: 'Vazgeç', style: 'cancel' },
@@ -578,6 +586,7 @@ export default function AlisFaturasiView({
                 `Alış Faturası Mikro ERP'ye başarıyla kaydedildi.\n\n` +
                 `Evrak: ${cleanSeri}-${savedSiraNumber}\n` +
                 `Tedarikçi: ${faturaCari.cari_unvan1}\n` +
+                `Kayıt Yapan: ${currentUserName} (ID: ${userNum})\n` +
                 `Toplam: ${formatPrice(genelToplam)} TL`,
                 [
                   { text: 'Yeni Fatura Gir', onPress: () => {} },
@@ -656,6 +665,26 @@ export default function AlisFaturasiView({
               <Ionicons name="trash-outline" size={18} color={colors.danger} />
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            onPress={onOpenUserSelect}
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+              borderRadius: 10,
+              backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
+              borderWidth: 1,
+              borderColor: '#00AE78',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            <Ionicons name="person-circle-outline" size={16} color="#00AE78" />
+            <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800' }}>
+              {currentUserName} ({mikroUserNo})
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => {

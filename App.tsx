@@ -78,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.25';
-const CURRENT_VERSION_CODE = 25;
+const CURRENT_VERSION = '1.0.26';
+const CURRENT_VERSION_CODE = 26;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -360,9 +360,10 @@ export default function App() {
 
     setIsUpdatingName(true);
     try {
+      const userNum = parseInt(mikroUserNo, 10) || 7;
       const escapedName = trimmed.replace(/'/g, "''");
       const escapedCode = product.stock_code.replace(/'/g, "''");
-      const q = `UPDATE STOKLAR SET sto_isim = '${escapedName}', sto_lastup_date = GETDATE() WHERE sto_kod = '${escapedCode}'; SELECT 1 AS result_fix;`;
+      const q = `UPDATE STOKLAR SET sto_isim = '${escapedName}', sto_lastup_date = GETDATE(), sto_lastup_user = ${userNum} WHERE sto_kod = '${escapedCode}'; SELECT 1 AS result_fix;`;
       
       const response = await axios.post(API_URL, { query: q }, { timeout: 15000 });
       if (!response.data?.success && response.data?.error) {
@@ -385,8 +386,11 @@ export default function App() {
         return updated;
       });
 
+      const activeUserObj = mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo));
+      const activeUserName = activeUserObj ? activeUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
+
       setEditNameModalVisible(false);
-      Alert.alert('Başarılı', 'Ürün ismi Mikro ve telefonda güncellendi.');
+      Alert.alert('Başarılı', `Ürün ismi Mikro ve telefonda güncellendi.\n\nGüncelleyen Kullanıcı: ${activeUserName} (ID: ${userNum})`);
     } catch (err: any) {
       Alert.alert('Güncelleme Hatası', err.response?.data?.error || err.message || 'İsim güncellenemedi.');
     } finally {
@@ -720,6 +724,11 @@ export default function App() {
       const savedUserNo = await AsyncStorage.getItem('mikro_user_no');
       if (savedUserNo) setMikroUserNo(savedUserNo);
 
+      const cachedUsers = await AsyncStorage.getItem('cached_mikro_users');
+      if (cachedUsers) {
+        try { setMikroUsersList(JSON.parse(cachedUsers)); } catch (e) {}
+      }
+
       try {
         const backups: any[] = await db.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC LIMIT 20');
         if (backups) setSayimBackups(backups);
@@ -733,10 +742,11 @@ export default function App() {
       try {
         const uQ = `SELECT KULLANICI_NO, KULLANICI_ADI FROM KULLANICILAR_VIEW WITH (NOLOCK) ORDER BY KULLANICI_NO ASC`;
         const resU = await axios.post(API_URL, { query: uQ }, { timeout: 10000 });
-        if(resU.data && resU.data.data) {
+        if (resU.data && resU.data.data) {
           setMikroUsersList(resU.data.data);
+          await AsyncStorage.setItem('cached_mikro_users', JSON.stringify(resU.data.data));
         }
-      } catch(e) {}
+      } catch (e) {}
     }
     initDB();
   }, []);
@@ -1858,6 +1868,34 @@ export default function App() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+          {/* AKTİF KULLANICI BİLGİSİ */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
+            paddingHorizontal: 12,
+            paddingVertical: 9,
+            borderRadius: 12,
+            marginTop: 10,
+            marginBottom: 4,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0'
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <Ionicons name="person-circle" size={18} color="#00AE78" />
+              <Text style={{ fontSize: 12, color: styles.colors.text, fontWeight: '700' }} numberOfLines={1}>
+                Kayıt Yapan: <Text style={{ color: '#00AE78', fontWeight: '900' }}>{mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})</Text>
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowUserSelectModal(true)}
+              style={{ backgroundColor: '#00AE78', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>DEĞİŞTİR</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* BARKOD */}
           <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4, marginTop: 10 }}>
             BARKOD NUMARASI *
@@ -2250,6 +2288,75 @@ export default function App() {
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Şimdi Güncelle</Text>
           </TouchableOpacity>
         </View>
+      </View>
+    </Modal>
+  );
+
+  const renderUserSelectModal = () => (
+    <Modal
+      isVisible={showUserSelectModal}
+      onBackdropPress={() => setShowUserSelectModal(false)}
+      style={styles.modal}
+      avoidKeyboard={true}
+    >
+      <View style={[styles.modalContent, { maxHeight: '75%' }]}>
+        <View style={styles.modalHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0,174,120,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="person" size={20} color="#00AE78" />
+            </View>
+            <View>
+              <Text style={styles.modalTitle}>Aktif Mikro Kullanıcısı</Text>
+              <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>
+                Fiş, fatura ve kart işlemlerinde kaydedilir
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={() => setShowUserSelectModal(false)}>
+            <Ionicons name="close-circle" size={28} color="#8a9ab5" />
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={mikroUsersList.length > 0 ? mikroUsersList : Array.from({ length: 30 }, (_, i) => ({ KULLANICI_NO: i + 1, KULLANICI_ADI: `Kullanıcı ${i + 1}` }))}
+          keyExtractor={item => String(item.KULLANICI_NO)}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            const isSelected = String(mikroUserNo) === String(item.KULLANICI_NO);
+            return (
+              <TouchableOpacity
+                onPress={async () => {
+                  const uid = item.KULLANICI_NO.toString();
+                  setMikroUserNo(uid);
+                  await AsyncStorage.setItem('mikro_user_no', uid);
+                  setShowUserSelectModal(false);
+                  ToastAndroid.show(`Aktif Kullanıcı: ${item.KULLANICI_ADI} (No: ${uid}) seçildi`, ToastAndroid.SHORT);
+                }}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginVertical: 3,
+                  backgroundColor: isSelected ? (isDark ? 'rgba(0,174,120,0.2)' : '#E6F7F2') : 'transparent',
+                  borderWidth: isSelected ? 1.5 : 1,
+                  borderColor: isSelected ? '#00AE78' : styles.colors.borderLight,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: isSelected ? '#00AE78' : (isDark ? '#1e293b' : '#E2E8F0'), alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: isSelected ? '#fff' : styles.colors.textMuted, fontSize: 12, fontWeight: '800' }}>{item.KULLANICI_NO}</Text>
+                  </View>
+                  <Text style={{ color: isSelected ? (isDark ? '#34D399' : '#00AE78') : styles.colors.text, fontSize: 15, fontWeight: isSelected ? '800' : '600' }}>
+                    {item.KULLANICI_ADI}
+                  </Text>
+                </View>
+                {isSelected && <Ionicons name="checkmark-circle" size={22} color="#00AE78" />}
+              </TouchableOpacity>
+            );
+          }}
+        />
       </View>
     </Modal>
   );
@@ -2896,11 +3003,24 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
-              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Mikro Kullanıcı Numarası</Text>
-              <TouchableOpacity onPress={() => { setShowSettingsModal(false); setTimeout(() => setShowUserSelectModal(true), 400); }} style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}>
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ayarla: {mikroUserNo}</Text>
-              </TouchableOpacity>
+            <View style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Mikro Kullanıcı Numarası</Text>
+                  <Text style={{ color: '#00AE78', fontSize: 13, fontWeight: '700', marginTop: 3 }}>
+                    {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSettingsModal(false);
+                    setTimeout(() => setShowUserSelectModal(true), 350);
+                  }}
+                  style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>DEĞİŞTİR</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
@@ -3017,34 +3137,7 @@ export default function App() {
           </View>
         </Modal>
 
-        {/* USER SELECT (KULLANICI SEÇİM) MODAL */}
-        <Modal isVisible={showUserSelectModal} onBackdropPress={() => setShowUserSelectModal(false)} style={styles.modal} avoidKeyboard={true}>
-          <View style={[styles.modalContent, { maxHeight: '70%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Aktif Kullanıcı Seçimi</Text>
-              <TouchableOpacity onPress={() => setShowUserSelectModal(false)}>
-                <Ionicons name="close-circle" size={30} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={mikroUsersList.length > 0 ? mikroUsersList : Array.from({ length: 30 }, (_, i) => ({ KULLANICI_NO: i + 1, KULLANICI_ADI: `Kullanıcı ${i + 1}` }))}
-              keyExtractor={item => String(item.KULLANICI_NO)}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity onPress={async () => {
-                  const uid = item.KULLANICI_NO.toString();
-                  setMikroUserNo(uid);
-                  await AsyncStorage.setItem('mikro_user_no', uid);
-                  setShowUserSelectModal(false);
-                }} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '700' }}>{item.KULLANICI_ADI} (ID: {item.KULLANICI_NO})</Text>
-                  {mikroUserNo === item.KULLANICI_NO.toString() && <Ionicons name="checkmark-circle" size={22} color="#00AE78" />}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </Modal>
-
+        {renderUserSelectModal()}
         {renderDepoModal()}
         {renderNewStockCardModal()}
         {renderUpdatePromptModal()}
@@ -3064,6 +3157,7 @@ export default function App() {
           onBackToMenu={() => setAppMode('menu')}
           formatPrice={formatPrice}
         />
+        {renderUserSelectModal()}
         {renderUpdatePromptModal()}
       </SafeAreaView>
     );
@@ -3087,7 +3181,10 @@ export default function App() {
           openNewCardModal={openNewCardModal}
           faturaCart={faturaCart}
           setFaturaCart={setFaturaCart}
+          onOpenUserSelect={() => setShowUserSelectModal(true)}
+          mikroUsersList={mikroUsersList}
         />
+        {renderUserSelectModal()}
         {renderNewStockCardModal()}
         {renderUpdatePromptModal()}
       </SafeAreaView>
@@ -3110,6 +3207,7 @@ export default function App() {
           onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
         />
+        {renderUserSelectModal()}
         {renderUpdatePromptModal()}
       </SafeAreaView>
     );
@@ -3955,6 +4053,7 @@ export default function App() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {renderUserSelectModal()}
       {renderDepoModal()}
       {renderNewStockCardModal()}
       {renderUpdatePromptModal()}
@@ -4351,6 +4450,9 @@ export default function App() {
             <View style={{ marginBottom: 15, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', padding: 12, borderRadius: 14 }}>
               <Text style={{ color: '#8a9ab5', fontSize: 12, fontWeight: '700' }}>STOK KODU: <Text style={{ color: isDark ? '#fff' : '#000' }}>{product?.stock_code}</Text></Text>
               {!!product?.barcode && <Text style={{ color: '#8a9ab5', fontSize: 12, fontWeight: '700', marginTop: 4 }}>BARKOD: <Text style={{ color: isDark ? '#fff' : '#000' }}>{product?.barcode}</Text></Text>}
+              <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800', marginTop: 6 }}>
+                GÜNCELLEYEN KULLANICI: {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})
+              </Text>
             </View>
 
             <TextInput

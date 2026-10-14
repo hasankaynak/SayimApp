@@ -1,6 +1,6 @@
 {
-  "version": "1.0.25",
-  "versionCode": 25,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.25/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.25\n• SAYIM TELEGRAM GÖNDERİMİ KALDIRILDI: Sayım bitirme işleminde verilerin Telegram'a iletilmesi tamamen kaldırıldı.\n• SAYIM SONUCU FİŞİ DOĞRUDAN AKTARIM: Sayım sepeti tamamlandığında (Bitir ve Kaydet) doğrudan Mikro ERP 'Sayım Sonucu Fişi' (Menü 012810 - STOK_HAREKETLERI & 071100 SAYIM_SONUCLARI) olarak canlı aktarma veya telefona yedekleme seçeneği sunuldu.\n• AYARLAR LİSTESİ AKTAR BUTONU: Son Sayım Yedekleri listesine doğrudan Mikro'ya tek tıkla aktarma butonu (AKTAR / TEKRAR AKTAR) eklendi.\n• HAREKET TİPİ DÜZELTMESİ: Mikro sayım sonucu fiş girişi sth_tip=1 (giriş) olarak optimize edildi."
+  "version": "1.0.26",
+  "versionCode": 26,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.26/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.26\n• MİKRO KULLANICI ATAMA DÜZELTMESİ: Ayarlar ve başlıklarda seçilen Mikro ERP kullanıcısı; Yeni Kart Açma, Kart İsim Güncelleme, Barkod Eşleştirme, Fiyat Değişikliği Fişi ve Alış Faturası modüllerinde create_user ve lastup_user olarak kaydedilir.\n• KART GÜNCELLEME KULLANICI DÜZELTMESİ: Ürün adı düzenleme sırasında Mikro sto_lastup_user alanının güncellenmemesi (sabit eski/1 numaralı kullanıcı kalması) giderildi.\n• GLOBAL KULLANICI SEÇİM MODALI: Kullanıcı seçim modalı tüm sayfalara (Ana Menü, Fiyat Değişikliği, Alış Faturası, Depo Sayım ve Raporlar) entegre edildi.\n• KULLANICI LİSTESİ ÇEVRİMDIŞI ÖNBELLEĞİ: Mikro kullanıcı listesi yerel hafızaya kaydedilerek internetsiz veya geç bağlantıda kullanıcı bilgilerinin anında görünmesi sağlandı.\n• FORM VE ONAY PANELLERİNDE KULLANICI GÖSTERİMİ: Yeni Kart Açma ve İsim Güncelleme pencerelerinde işlemi yapacak aktif kullanıcı adı ve ID bilgisi eklendi."
 }
