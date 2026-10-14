@@ -78,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.28';
-const CURRENT_VERSION_CODE = 28;
+const CURRENT_VERSION = '1.0.29';
+const CURRENT_VERSION_CODE = 29;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -2374,17 +2374,17 @@ export default function App() {
               style={{ width: 35, height: 35, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.menuHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
-                MD TİCARET - SAYIM & STOK
+              <Text style={styles.menuHeaderTitle} numberOfLines={1}>
+                MD TİCARET
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
                 <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)' }]}>
                   <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444' }]} />
                   <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444' }]}>
-                    Mikro ERP: {isConnected ? 'Çevrimiçi' : 'Çevrimdışı'}
+                    {isConnected ? 'Mikro Çevrimiçi' : 'Çevrimdışı'}
                   </Text>
                 </View>
-                <Text style={styles.menuHeaderSubText} numberOfLines={1}>• Sayım Paneli</Text>
+                <Text style={styles.menuHeaderSubText} numberOfLines={1}>• Stok & Sayım</Text>
               </View>
             </View>
           </View>
@@ -2666,19 +2666,9 @@ export default function App() {
               </View>
             </View>
 
-            {/* Sparkline & Explore Action */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <View style={styles.sparklineContainer}>
-                <View style={[styles.sparklineBar, { height: 10, opacity: 0.4 }]} />
-                <View style={[styles.sparklineBar, { height: 14, opacity: 0.5 }]} />
-                <View style={[styles.sparklineBar, { height: 22, opacity: 0.7 }]} />
-                <View style={[styles.sparklineBar, { height: 18, opacity: 0.6 }]} />
-                <View style={[styles.sparklineBar, { height: 26, opacity: 0.85 }]} />
-                <View style={[styles.sparklineBar, { height: 30, backgroundColor: '#FF6B00', opacity: 1 }]} />
-              </View>
-              <View style={styles.reportActionBtn}>
-                <Ionicons name="chevron-forward" size={16} color={styles.colors.secondary} />
-              </View>
+            {/* Explore Action Button */}
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 81, 213, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#0051D5" />
             </View>
           </TouchableOpacity>
 
