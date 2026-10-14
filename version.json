@@ -1,6 +1,6 @@
 {
-  "version": "1.0.21",
-  "versionCode": 21,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.21/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.21\n• Hızlı Stok Kartı Açma Modülü Eklendi: Sayım ve FiyatGör esnasında bulunamayan barkodlar için doğrudan ekrandan 15 saniyede Mikro ERP ve telefon hafızasına yeni stok kartı açma yeteneği entegre edildi.\n• Ana menü panosuna 'Yeni Stok Kartı Oluştur' kartı eklendi.\n• Stok kodu ve barkod çakışma önleyici (pre-flight check) ve güvenli SQL Transaction mekanizması kuruldu.\n• Tüm sayım, transfer, depo seçimi ve iskonto özellikleri eksiksiz korundu."
+  "version": "1.0.22",
+  "versionCode": 22,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.22/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.22\n• Yeni Modül: ALIŞ FATURASI (MAL KABUL) Giriş Sistemi Eklendi.\n• Tedarikçi (Cari) seçimi, bakiye görüntüleme, evrak seri/sıra ve belge no yönetimi.\n• Barkod okutma veya arama ile faturaya kalem ekleme, miktar/alış fiyatı/KDV oranı girişi ve anlık satır tutar hesaplama.\n• Otomatik Kart Açma Entegrasyonu: Fatura girişinde sistemde bulunamayan ürünler için anında Mikro ERP'de yeni stok kartı açma ve doğrudan faturaya ekleme yeteneği.\n• Atomik SQL Transaction ile Mikro ERP STOK_HAREKETLERI ve CARI_HESAP_HAREKETLERI tablolarına canlı entegrasyon.\n• Telefon yerel SQLite hafızasında fatura yedekleme desteği."
 }

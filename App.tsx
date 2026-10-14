@@ -36,6 +36,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import XLSX from 'xlsx';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ReportsView from './ReportsView';
+import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -75,8 +76,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.21';
-const CURRENT_VERSION_CODE = 21;
+const CURRENT_VERSION = '1.0.22';
+const CURRENT_VERSION_CODE = 22;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -161,7 +162,7 @@ export default function App() {
   const [menuSearchInput, setMenuSearchInput] = useState('');
 
   // --- SAYIM ADDITIONS ---
-  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar'>('menu');
+  const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura'>('menu');
   const [depos, setDepos] = useState<any[]>([]);
   const [selectedDepo, setSelectedDepo] = useState<any>(null);
   const [showDepoModal, setShowDepoModal] = useState(false);
@@ -186,10 +187,16 @@ export default function App() {
   const [newCardCode, setNewCardCode] = useState('');
   const [newCardName, setNewCardName] = useState('');
   const [newCardPrice, setNewCardPrice] = useState('');
+  const [newCardAlisPrice, setNewCardAlisPrice] = useState('');
+  const [newCardFaturaQty, setNewCardFaturaQty] = useState('1');
+  const [isNewCardForFatura, setIsNewCardForFatura] = useState(false);
   const [newCardCurrency, setNewCardCurrency] = useState<'TL' | 'USD' | 'EUR' | 'GBP'>('TL');
   const [newCardVat, setNewCardVat] = useState<number>(20);
   const [newCardUnit, setNewCardUnit] = useState<string>('ADET');
   const [isCreatingNewCard, setIsCreatingNewCard] = useState(false);
+
+  // ALIŞ FATURASI SEPET STATE
+  const [faturaCart, setFaturaCart] = useState<FaturaItem[]>([]);
 
   const [beepSound, setBeepSound] = useState<Audio.Sound | null>(null);
 
@@ -651,6 +658,9 @@ export default function App() {
         CREATE TABLE IF NOT EXISTS sayim_backups (
           id INTEGER PRIMARY KEY AUTOINCREMENT, backup_date TEXT NOT NULL, item_count INTEGER, cart_data TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS fatura_backups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, backup_date TEXT NOT NULL, cari_kod TEXT, cari_unvan TEXT, evrak_seri TEXT, evrak_sira INTEGER, belge_no TEXT, depo_no TEXT, item_count INTEGER, ara_toplam REAL, kdv_toplam REAL, genel_toplam REAL, cart_data TEXT NOT NULL, mikro_sent INTEGER DEFAULT 0
+        );
       `);
       try { await db.execAsync(`ALTER TABLE products ADD COLUMN lastup_date TEXT;`); } catch (e) {}
       try { await db.execAsync(`ALTER TABLE products ADD COLUMN iskonto_orani TEXT;`); } catch (e) {}
@@ -667,6 +677,10 @@ export default function App() {
       }
       const cartStr = await AsyncStorage.getItem('sayim_cart');
       if (cartStr) setActiveCart(JSON.parse(cartStr));
+      const faturaCartStr = await AsyncStorage.getItem('fatura_cart');
+      if (faturaCartStr) {
+        try { setFaturaCart(JSON.parse(faturaCartStr)); } catch (e) {}
+      }
       const savedUserNo = await AsyncStorage.getItem('mikro_user_no');
       if (savedUserNo) setMikroUserNo(savedUserNo);
 
@@ -893,7 +907,7 @@ export default function App() {
   };
 
   // --- YENİ STOK KARTI METODLARI ---
-  const openNewCardModal = (prefilledBarcode: string = '') => {
+  const openNewCardModal = (prefilledBarcode: string = '', forFatura: boolean = false) => {
     const cleanBarcode = (prefilledBarcode || '').trim();
     setNewCardBarcode(cleanBarcode);
     if (cleanBarcode.length > 0) {
@@ -903,9 +917,12 @@ export default function App() {
     }
     setNewCardName('');
     setNewCardPrice('');
+    setNewCardAlisPrice('');
+    setNewCardFaturaQty('1');
     setNewCardCurrency('TL');
     setNewCardVat(20);
     setNewCardUnit('ADET');
+    setIsNewCardForFatura(forFatura);
     setShowNewCardModal(true);
   };
 
@@ -957,7 +974,7 @@ export default function App() {
       const userNum = parseInt(mikroUserNo) || 4;
       const dovizMap: Record<string, number> = { 'TL': 0, 'USD': 1, 'EUR': 2, 'GBP': 3 };
       const dovizInt = dovizMap[newCardCurrency] || 0;
-      const vatMap: Record<number, number> = { 20: 5, 10: 3, 1: 1 };
+      const vatMap: Record<number, number> = { 20: 5, 10: 4, 1: 1 };
       const vatPntr = vatMap[newCardVat] || 5;
 
       const escapedCode = stockCode.replace(/'/g, "''");
@@ -1052,10 +1069,44 @@ export default function App() {
       }
 
       setTotalProducts(prev => prev + 1);
-      setProduct(newProductObj);
-      addRecentProduct(newProductObj);
+
+      // EĞER ALIŞ FATURASI İÇİN AÇILDIYSA DOĞRUDAN FATURAYA EKLE
+      if (isNewCardForFatura) {
+        const alisPriceNum = parseFloat(newCardAlisPrice.replace(',', '.')) || priceNum || 0;
+        const qtyNum = parseFloat(newCardFaturaQty.replace(',', '.')) || 1;
+        const tutar = Math.round(qtyNum * alisPriceNum * 100) / 100;
+        const kdvTutari = Math.round(tutar * (newCardVat / 100) * 100) / 100;
+        const toplamTutar = Math.round((tutar + kdvTutari) * 100) / 100;
+
+        const newFaturaLine: FaturaItem = {
+          id: Date.now().toString(),
+          barcode: barcode,
+          stock_code: stockCode,
+          name: name,
+          unit: escapedUnit,
+          miktar: qtyNum,
+          birim_fiyat: alisPriceNum,
+          kdv_orani: newCardVat,
+          kdv_pntr: vatPntr,
+          tutar: tutar,
+          kdv_tutari: kdvTutari,
+          toplam_tutar: toplamTutar
+        };
+
+        setFaturaCart(prev => {
+          const updated = [newFaturaLine, ...prev];
+          AsyncStorage.setItem('fatura_cart', JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+
+        ToastAndroid.show(`Stok kartı açıldı ve faturaya eklendi!`, ToastAndroid.LONG);
+      } else {
+        setProduct(newProductObj);
+        addRecentProduct(newProductObj);
+        ToastAndroid.show(`Stok kartı açıldı: ${name}`, ToastAndroid.LONG);
+      }
+
       setShowNewCardModal(false);
-      ToastAndroid.show(`Stok kartı açıldı: ${name}`, ToastAndroid.LONG);
       playSound('success');
     } catch (err: any) {
       Alert.alert('Kayıt Hatası', err.response?.data?.error || err.message || 'Bilinmeyen hata');
@@ -1570,12 +1621,14 @@ export default function App() {
         {/* Header */}
         <View style={styles.modalHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255, 107, 0, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="cube" size={20} color="#FF6B00" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: isNewCardForFatura ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 107, 0, 0.15)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={isNewCardForFatura ? "receipt" : "cube"} size={20} color={isNewCardForFatura ? "#10B981" : "#FF6B00"} />
             </View>
             <View>
-              <Text style={styles.modalTitle}>Yeni Stok Kartı Aç</Text>
-              <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>Mikro ERP & Mobil Canlı Kayıt</Text>
+              <Text style={styles.modalTitle}>{isNewCardForFatura ? 'Yeni Kart Aç & Faturaya Ekle' : 'Yeni Stok Kartı Aç'}</Text>
+              <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>
+                {isNewCardForFatura ? 'Mikro ERP & Alış Faturası Canlı Kayıt' : 'Mikro ERP & Mobil Canlı Kayıt'}
+              </Text>
             </View>
           </View>
           <TouchableOpacity
@@ -1593,7 +1646,7 @@ export default function App() {
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <View style={{ flex: 1, height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
-              <Ionicons name="barcode-outline" size={20} color="#FF6B00" style={{ marginRight: 8 }} />
+              <Ionicons name="barcode-outline" size={20} color={isNewCardForFatura ? "#10B981" : "#FF6B00"} style={{ marginRight: 8 }} />
               <TextInput
                 style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '700' }}
                 placeholder="Örn: 8690504012345"
@@ -1653,9 +1706,65 @@ export default function App() {
             />
           </View>
 
+          {/* ALIŞ FATURASI GİRİŞ BİLGİLERİ (Sadece Fatura Modunda Aktif) */}
+          {isNewCardForFatura && (
+            <View style={{
+              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+              borderRadius: 14,
+              padding: 12,
+              marginBottom: 12,
+              borderWidth: 1.5,
+              borderColor: '#10B981'
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Ionicons name="receipt" size={16} color="#10B981" />
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#10B981' }}>
+                  ALIŞ FATURASI GİRİŞ BİLGİLERİ
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {/* Fatura Giriş Miktarı */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: styles.colors.textMuted, marginBottom: 4 }}>
+                    GİRİŞ MİKTARI *
+                  </Text>
+                  <View style={{ height: 42, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
+                    <TextInput
+                      style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '800', textAlign: 'center' }}
+                      value={newCardFaturaQty}
+                      onChangeText={setNewCardFaturaQty}
+                      keyboardType="numeric"
+                      placeholder="1"
+                      placeholderTextColor="#8a9ab5"
+                    />
+                  </View>
+                </View>
+
+                {/* Fatura Alış Fiyatı */}
+                <View style={{ flex: 1.4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: styles.colors.textMuted, marginBottom: 4 }}>
+                    ALIŞ BİRİM FİYATI *
+                  </Text>
+                  <View style={{ height: 42, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
+                    <TextInput
+                      style={{ flex: 1, color: styles.colors.text, fontSize: 14, fontWeight: '800' }}
+                      value={newCardAlisPrice}
+                      onChangeText={setNewCardAlisPrice}
+                      keyboardType="numeric"
+                      placeholder="0.00"
+                      placeholderTextColor="#8a9ab5"
+                    />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: styles.colors.textMuted }}>TL</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* SATIŞ FİYATI & PARA BİRİMİ */}
           <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
-            SATIŞ FİYATI & DÖVİZ
+            SATIŞ FİYATI & DÖVİZ {isNewCardForFatura ? '(Opsiyonel)' : ''}
           </Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
             <View style={{ flex: 1, height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border }}>
@@ -1762,12 +1871,12 @@ export default function App() {
                 flex: 2,
                 height: 48,
                 borderRadius: 14,
-                backgroundColor: '#FF6B00',
+                backgroundColor: isNewCardForFatura ? '#10B981' : '#FF6B00',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexDirection: 'row',
                 gap: 8,
-                shadowColor: '#FF6B00',
+                shadowColor: isNewCardForFatura ? '#10B981' : '#FF6B00',
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 8,
@@ -1778,8 +1887,10 @@ export default function App() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>MİKRO'YA KAYDET</Text>
+                  <Ionicons name={isNewCardForFatura ? "cart" : "checkmark-circle"} size={20} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>
+                    {isNewCardForFatura ? 'KAYDET VE FATURAYA EKLE' : 'MİKRO ERP\'YE KAYDET'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -2116,6 +2227,39 @@ export default function App() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255, 107, 0, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
               <Text style={{ color: '#FF6B00', fontSize: 13, fontWeight: '800' }}>Kart Aç</Text>
               <Ionicons name="add-circle" size={18} color="#FF6B00" />
+            </View>
+          </TouchableOpacity>
+
+          {/* CARD 7 (Full Width Hero): ALIŞ FATURASI (MAL KABUL) */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => !isSyncing && setAppMode('fatura')}
+            disabled={isSyncing}
+            style={[styles.reportHeroCard, { borderColor: '#10B981', borderWidth: 1.5, marginBottom: 12 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              <View style={[styles.reportIconBox, { backgroundColor: '#10B981' }]}>
+                <Ionicons name="receipt" size={24} color="#fff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.reportHeroTitle}>ALIŞ FATURASI (MAL KABUL)</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                    <Ionicons name="shield-checkmark" size={12} color="#10B981" />
+                    <Text style={[styles.reportTrendText, { color: '#10B981' }]}>
+                      {faturaCart.length > 0 ? `${faturaCart.length} Kalem Açık` : 'Mal Kabul'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                  Tedarikçi Alış Faturası Girişi, Barkod Okuma ve Hızlı Kart Açma
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
+              <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '800' }}>Fatura Gir</Text>
+              <Ionicons name="arrow-forward" size={16} color="#10B981" />
             </View>
           </TouchableOpacity>
 
@@ -2479,6 +2623,30 @@ export default function App() {
           onBackToMenu={() => setAppMode('menu')}
           formatPrice={formatPrice}
         />
+      </SafeAreaView>
+    );
+  }
+
+  if (appMode === 'fatura') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F8F9FF' }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <AlisFaturasiView
+          isDark={isDark}
+          isConnected={!!isConnected}
+          dbRef={dbRef}
+          API_URL={API_URL}
+          mikroUserNo={mikroUserNo}
+          depos={depos}
+          selectedDepo={selectedDepo}
+          formatPrice={formatPrice}
+          playSound={playSound}
+          onBackToMenu={() => setAppMode('menu')}
+          openNewCardModal={openNewCardModal}
+          faturaCart={faturaCart}
+          setFaturaCart={setFaturaCart}
+        />
+        {renderNewStockCardModal()}
       </SafeAreaView>
     );
   }
