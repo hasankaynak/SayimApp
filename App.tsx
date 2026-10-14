@@ -78,8 +78,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.27';
-const CURRENT_VERSION_CODE = 27;
+const CURRENT_VERSION = '1.0.28';
+const CURRENT_VERSION_CODE = 28;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -2368,59 +2368,68 @@ export default function App() {
 
         {/* TOP FIXED APP BAR */}
         <View style={styles.menuHeaderBar}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1, minWidth: 0, marginRight: 8 }}>
             <Image
               source={require('./assets/icon.png')}
-              style={{ width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
+              style={{ width: 35, height: 35, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.menuHeaderTitle} numberOfLines={1}>
+              <Text style={styles.menuHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
                 MD TİCARET - SAYIM & STOK
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
                 <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)' }]}>
                   <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444' }]} />
                   <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444' }]}>
                     Mikro ERP: {isConnected ? 'Çevrimiçi' : 'Çevrimdışı'}
                   </Text>
                 </View>
-                <Text style={styles.menuHeaderSubText}>• Sayım Paneli</Text>
+                <Text style={styles.menuHeaderSubText} numberOfLines={1}>• Sayım Paneli</Text>
               </View>
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {/* Active User Badge / Switcher */}
             <TouchableOpacity
               onPress={() => setShowUserSelectModal(true)}
+              activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 4,
                 backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
                 paddingHorizontal: 8,
-                paddingVertical: 5,
-                borderRadius: 14,
+                paddingVertical: 6,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+                maxWidth: 105,
               }}
             >
               <Ionicons name="person-circle" size={16} color="#00AE78" />
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#00AE78' }}>
+              <Text
+                style={{ fontSize: 11, fontWeight: '800', color: '#00AE78' }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`}
               </Text>
             </TouchableOpacity>
 
+            {/* Compact Sync Action Button */}
             <TouchableOpacity
               onPress={() => !isSyncing && handleSync(false)}
               disabled={isSyncing}
-              style={styles.headerSyncBtn}
+              activeOpacity={0.7}
+              style={styles.headerIconBtn}
             >
               <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}>
-                <Ionicons name="sync" size={16} color={styles.colors.secondary} />
+                <Ionicons name="sync" size={17} color={styles.colors.secondary} />
               </Animated.View>
-              <Text style={styles.headerSyncText}>Son Senk: {lastSyncTime}</Text>
             </TouchableOpacity>
 
+            {/* Settings Cog Button */}
             <TouchableOpacity
               onPress={async () => {
                 if (dbRef.current) {
@@ -2429,16 +2438,10 @@ export default function App() {
                 }
                 setShowSettingsModal(true);
               }}
+              activeOpacity={0.7}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="settings-outline" size={19} color={styles.colors.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowUserSelectModal(true)}
-              style={styles.headerUserBtn}
-            >
-              <Ionicons name="person" size={16} color="#fff" />
+              <Ionicons name="settings-outline" size={18} color={styles.colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -2645,26 +2648,26 @@ export default function App() {
             disabled={isSyncing}
             style={styles.reportHeroCard}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
               <View style={styles.reportIconBox}>
                 <Ionicons name="stats-chart" size={24} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.reportHeroTitle}>RAPORLAR & ANALİZ</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.reportHeroTitle} numberOfLines={1}>RAPORLAR & ANALİZ</Text>
                   <View style={styles.reportTrendBadge}>
-                    <Ionicons name="trending-up" size={12} color="#00AE78" />
+                    <Ionicons name="trending-up" size={11} color="#00AE78" />
                     <Text style={styles.reportTrendText}>+12.4%</Text>
                   </View>
                 </View>
-                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
                   Geliş Tarihli Satış Hızı, Faturalar, Şube Dağılımı
                 </Text>
               </View>
             </View>
 
-            {/* Sparkline & Explore Pill */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Sparkline & Explore Action */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <View style={styles.sparklineContainer}>
                 <View style={[styles.sparklineBar, { height: 10, opacity: 0.4 }]} />
                 <View style={[styles.sparklineBar, { height: 14, opacity: 0.5 }]} />
@@ -2674,8 +2677,7 @@ export default function App() {
                 <View style={[styles.sparklineBar, { height: 30, backgroundColor: '#FF6B00', opacity: 1 }]} />
               </View>
               <View style={styles.reportActionBtn}>
-                <Text style={styles.reportActionBtnText}>İncele</Text>
-                <Ionicons name="chevron-forward" size={14} color={styles.colors.secondary} />
+                <Ionicons name="chevron-forward" size={16} color={styles.colors.secondary} />
               </View>
             </View>
           </TouchableOpacity>
@@ -2687,27 +2689,26 @@ export default function App() {
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#FF6B00', borderWidth: 1.5 }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
               <View style={[styles.reportIconBox, { backgroundColor: '#FF6B00' }]}>
                 <Ionicons name="cube" size={24} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.reportHeroTitle}>YENİ STOK KARTI OLUŞTUR</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.reportHeroTitle} numberOfLines={1}>YENİ STOK KARTI OLUŞTUR</Text>
                   <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
-                    <Ionicons name="flash" size={12} color="#FF6B00" />
+                    <Ionicons name="flash" size={11} color="#FF6B00" />
                     <Text style={[styles.reportTrendText, { color: '#FF6B00' }]}>Canlı ERP</Text>
                   </View>
                 </View>
-                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
                   Mikro ERP ve Telefonda Anında Stok & Barkod Tanımla
                 </Text>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255, 107, 0, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
-              <Text style={{ color: '#FF6B00', fontSize: 13, fontWeight: '800' }}>Kart Aç</Text>
-              <Ionicons name="add-circle" size={18} color="#FF6B00" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255, 107, 0, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#FF6B00" />
             </View>
           </TouchableOpacity>
 
@@ -2718,29 +2719,28 @@ export default function App() {
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#10B981', borderWidth: 1.5, marginBottom: 12 }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
               <View style={[styles.reportIconBox, { backgroundColor: '#10B981' }]}>
                 <Ionicons name="receipt" size={24} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.reportHeroTitle}>ALIŞ FATURASI (MAL KABUL)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.reportHeroTitle} numberOfLines={1}>ALIŞ FATURASI (MAL KABUL)</Text>
                   <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Ionicons name="shield-checkmark" size={12} color="#10B981" />
+                    <Ionicons name="shield-checkmark" size={11} color="#10B981" />
                     <Text style={[styles.reportTrendText, { color: '#10B981' }]}>
                       {faturaCart.length > 0 ? `${faturaCart.length} Kalem Açık` : 'Mal Kabul'}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
                   Tedarikçi Alış Faturası Girişi, Barkod Okuma ve Hızlı Kart Açma
                 </Text>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
-              <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '800' }}>Fatura Gir</Text>
-              <Ionicons name="arrow-forward" size={16} color="#10B981" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(16, 185, 129, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#10B981" />
             </View>
           </TouchableOpacity>
 
@@ -2751,27 +2751,26 @@ export default function App() {
             disabled={isSyncing}
             style={[styles.reportHeroCard, { borderColor: '#8B5CF6', borderWidth: 1.5, marginBottom: 12 }]}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
               <View style={[styles.reportIconBox, { backgroundColor: '#8B5CF6' }]}>
                 <Ionicons name="pricetags" size={24} color="#fff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.reportHeroTitle}>FİYAT DEĞİŞİKLİĞİ</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.reportHeroTitle} numberOfLines={1}>FİYAT DEĞİŞİKLİĞİ</Text>
                   <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
-                    <Ionicons name="flash" size={12} color="#8B5CF6" />
+                    <Ionicons name="flash" size={11} color="#8B5CF6" />
                     <Text style={[styles.reportTrendText, { color: '#8B5CF6' }]}>Menü 031200</Text>
                   </View>
                 </View>
-                <Text style={styles.reportHeroSub} numberOfLines={1}>
+                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
                   Mikro Fiyat Değişiklik Fişi ve Anında Satış Fiyatı Güncelleme
                 </Text>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(139, 92, 246, 0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
-              <Text style={{ color: '#8B5CF6', fontSize: 13, fontWeight: '800' }}>Fiyat Değiştir</Text>
-              <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(139, 92, 246, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />
             </View>
           </TouchableOpacity>
 
@@ -2970,7 +2969,7 @@ export default function App() {
 
           {/* System Version & Update Strip */}
           <View style={styles.bottomSystemStrip}>
-            <Text style={styles.bottomSystemText}>MD Ticaret Mobil Sistemleri • v{CURRENT_VERSION}</Text>
+            <Text style={styles.bottomSystemText}>MD Ticaret • v{CURRENT_VERSION} • Son Senk: {lastSyncTime}</Text>
             <TouchableOpacity
               style={styles.bottomUpdateBtn}
               onPress={() => checkForUpdates(false)}
@@ -4699,7 +4698,7 @@ const getStyles = (isDark: boolean) => {
     },
     menuHeaderTitle: {
       color: colors.text,
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '800',
       letterSpacing: -0.2
     },
@@ -5059,18 +5058,12 @@ const getStyles = (isDark: boolean) => {
       borderTopRightRadius: 2
     },
     reportActionBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardLow,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
+      width: 32,
+      height: 32,
       borderRadius: 10,
-      gap: 3
-    },
-    reportActionBtnText: {
-      color: colors.secondary,
-      fontSize: 11,
-      fontWeight: '700'
+      backgroundColor: colors.cardLow,
+      alignItems: 'center',
+      justifyContent: 'center'
     },
 
     // RECENT SHELF

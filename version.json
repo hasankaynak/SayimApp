@@ -1,6 +1,6 @@
 {
-  "version": "1.0.27",
-  "versionCode": 27,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.27/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.27\n• DEPO SAYIM FİŞİ (012800) ENTEGRASYONU: Sayım sonuçlarının Mikro ERP'de 012810 yerine doğrudan 012800 (Depo Sayım Fişi) menüsüne düşmesi sağlandı (sth_MenuNo = '12800').\n• SAYIM MENÜ ETİKETLERİ: Mobil arayüzdeki fiş bilgilendirme ve diyalog etiketleri 'Depo Sayım Fişi (012800)' olarak güncellendi."
+  "version": "1.0.28",
+  "versionCode": 28,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.28/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.28\n• ARAYÜZ VE HİZALAMA İYİLEŞTİRMELERİ: Üst başlık çubuğundaki (Header) kullanıcı ve buton çakışmaları düzeltildi; senkronizasyon ve ayarlar butonları sadeleştirildi.\n• MENÜ KARTLARI DÜZELTİLDİ: Yeni Stok Kartı, Alış Faturası ve Fiyat Değişikliği modül kartlarında rozet ve butonların üst üste binme hatası giderildi, modern yönlendirici butonlara geçildi.\n• SİSTEM BİLGİ ŞERİDİ: Son senkronizasyon saati alt bilgi çubuğuna taşındı."
 }
