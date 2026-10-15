@@ -1,6 +1,6 @@
 {
-  "version": "1.0.47",
-  "versionCode": 47,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.47/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.47\n• Son İncelenen Ürünler Temizleme Desteği:\n  - Sayım ve Fiyat Gör ekranlarında 'Son İncelenen Ürünler' başlığına onay uyarılı 'Temizle' butonu eklendi.\n  - Her ürün satırının yanına tekil kaldırma butonu eklenerek listenin kolayca yönetilmesi sağlandı.\n  - Liste temizleme ve silme işlemleri yerel depolama (AsyncStorage) ile anında senkronize edildi."
+  "version": "1.0.48",
+  "versionCode": 48,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.48/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.48\n• Depolar Arası Sevk / Transfer Fişi (012500) Entegrasyonu:\n  - Mikro ERP standartlarına tam uyumlu Depolar Arası Sevk Fişi (012500) entegre edildi.\n  - Çıkış Deposu ⇄ Giriş Deposu çift seçim kartı ve anlık yön değiştirme (Swap) özelliği eklendi.\n  - Mikro canlı veritabanından seriye ('1', 'RG', '2', 'SM') göre otomatik sonraki sayaç ve evrak sıra no çekme sağlandı.\n  - Çıkış deposu anlık ürün stoğu gösterimi ve eksiye düşme güvenlik kontrolü eklendi.\n  - Mikro ERP birim fiyat ve satır tutarı otomatik hesaplama entegre edildi.\n  - Şubeler Arası Transfer, Mağaza Sevkiyatı vb. hızlı açıklama çipleri ve matbu belge no desteği eklendi.\n  - Geçmiş Fişler ekranında Sevk, Çıkış, Giriş ve Virman filtreleme butonları eklendi."
 }

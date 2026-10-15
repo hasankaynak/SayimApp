@@ -41,7 +41,7 @@ import ReportsView from './ReportsView';
 import AlisFaturasiView, { FaturaItem } from './AlisFaturasiView';
 import FiyatDegisiklikView from './FiyatDegisiklikView';
 import SiparislerView from './SiparislerView';
-import DepoFisleriView from './DepoFisleriView';
+import DepoFisleriView, { FisType } from './DepoFisleriView';
 import LoginView, { AuthSessionData } from './LoginView';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
@@ -83,8 +83,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.47';
-const CURRENT_VERSION_CODE = 47;
+const CURRENT_VERSION = '1.0.48';
+const CURRENT_VERSION_CODE = 48;
 
 const STOKLAR_COLS = [
   'sto_Guid','sto_DBCno','sto_SpecRECno','sto_iptal','sto_fileid','sto_hidden','sto_kilitli','sto_degisti','sto_checksum','sto_create_user','sto_create_date','sto_lastup_user','sto_lastup_date','sto_special1','sto_special2','sto_special3','sto_MainProgramNo','sto_VersionNo','sto_MenuNo','sto_MikroSpecial1','sto_MikroSpecial2','sto_MikroSpecial3','sto_ExternalProgramType','sto_ExternalProgramId','sto_Hash','sto_kod','sto_isim','sto_kisa_ismi','sto_yabanci_isim','sto_sat_cari_kod','sto_cins','sto_doviz_cinsi','sto_detay_takip','sto_birim1_ad','sto_birim1_katsayi','sto_birim1_agirlik','sto_birim1_en','sto_birim1_boy','sto_birim1_yukseklik','sto_birim1_dara','sto_birim2_ad','sto_birim2_katsayi','sto_birim2_agirlik','sto_birim2_en','sto_birim2_boy','sto_birim2_yukseklik','sto_birim2_dara','sto_birim3_ad','sto_birim3_katsayi','sto_birim3_agirlik','sto_birim3_en','sto_birim3_boy','sto_birim3_yukseklik','sto_birim3_dara','sto_birim4_ad','sto_birim4_katsayi','sto_birim4_agirlik','sto_birim4_en','sto_birim4_boy','sto_birim4_yukseklik','sto_birim4_dara','sto_muh_kod','sto_muh_Iade_kod','sto_muh_sat_muh_kod','sto_muh_satIadmuhkod','sto_muh_sat_isk_kod','sto_muh_aIiskmuhkod','sto_muh_satmalmuhkod','sto_yurtdisi_satmuhk','sto_ilavemasmuhkod','sto_yatirimtesmuhkod','sto_depsatmuhkod','sto_depsatmalmuhkod','sto_bagortsatmuhkod','sto_bagortsatIadmuhkod','sto_bagortsatIskmuhkod','sto_satfiyfarkmuhkod','sto_yurtdisisatmalmuhkod','sto_bagortsatmalmuhkod','sto_sifirbedsatmalmuhkod','sto_ihrackayitlisatismuhkod','sto_ihrackayitlisatismaliyetimuhkod','sto_karorani','sto_min_stok','sto_siparis_stok','sto_max_stok','sto_ver_sip_birim','sto_al_sip_birim','sto_siparis_sure','sto_perakende_vergi','sto_toptan_vergi','sto_yer_kod','sto_elk_etk_tipi','sto_raf_etiketli','sto_etiket_bas','sto_satis_dursun','sto_siparis_dursun','sto_malkabul_dursun','sto_malkabul_gun1','sto_malkabul_gun2','sto_malkabul_gun3','sto_malkabul_gun4','sto_malkabul_gun5','sto_malkabul_gun6','sto_malkabul_gun7','sto_siparis_gun1','sto_siparis_gun2','sto_siparis_gun3','sto_siparis_gun4','sto_siparis_gun5','sto_siparis_gun6','sto_siparis_gun7','sto_iskon_yapilamaz','sto_tasfiyede','sto_alt_grup_no','sto_kategori_kodu','sto_urun_sorkod','sto_altgrup_kod','sto_anagrup_kod','sto_uretici_kodu','sto_sektor_kodu','sto_reyon_kodu','sto_muhgrup_kodu','sto_ambalaj_kodu','sto_marka_kodu','sto_model_kodu','sto_sezon_kodu','sto_hammadde_kodu','sto_prim_kodu','sto_kalkon_kodu','sto_paket_kodu','sto_pozisyonbayrak_kodu','sto_mkod_artik','sto_kasa_tarti_fl','sto_miktarondalikli_fl','sto_pasif_fl','sto_eksiyedusebilir_fl','sto_GtipNo','sto_puan','sto_komisyon_hzmkodu','sto_komisyon_orani','sto_otvuygulama','sto_otvtutar','sto_otvliste','sto_otvbirimi','sto_prim_orani','sto_garanti_sure','sto_garanti_sure_tipi','sto_iplik_Ne_no','sto_standartmaliyet','sto_kanban_kasa_miktari','sto_oivuygulama','sto_zraporu_stoku_fl','sto_maxiskonto_orani','sto_detay_takibinde_depo_kontrolu_fl','sto_tamamlayici_kodu','sto_oto_barkod_acma_sekli','sto_oto_barkod_kod_yapisi','sto_KasaIskontoOrani','sto_KasaIskontoTutari','sto_gelirpayi','sto_oivtutar','sto_oivturu','sto_giderkodu','sto_oivvergipntr','sto_Tevkifat_turu','sto_SKT_fl','sto_terazi_SKT','sto_RafOmru','sto_KasadaTaksitlenebilir_fl','sto_ufrsfark_kod','sto_iade_ufrsfark_kod','sto_yurticisat_ufrsfark_kod','sto_satiade_ufrsfark_kod','sto_satisk_ufrsfark_kod','sto_alisk_ufrsfark_kod','sto_satmal_ufrsfark_kod','sto_yurtdisisat_ufrsfark_kod','sto_ilavemas_ufrsfark_kod','sto_yatirimtes_ufrsfark_kod','sto_depsat_ufrsfark_kod','sto_depsatmal_ufrsfark_kod','sto_bagortsat_ufrsfark_kod','sto_bagortsatiade_ufrsfark_kod','sto_bagortsatisk_ufrsfark_kod','sto_satfiyfark_ufrsfark_kod','sto_yurtdisisatmal_ufrsfark_kod','sto_bagortsatmal_ufrsfark_kod','sto_sifirbedsatmal_ufrsfark_kod','sto_uretimmaliyet_ufrsfark_kod','sto_uretimkapasite_ufrsfark_kod','sto_degerdusuklugu_ufrs_kod','sto_halrusumyudesi','sto_webe_gonderilecek_fl','sto_min_stok_belirleme_gun','sto_sip_stok_belirleme_gun','sto_max_stok_belirleme_gun','sto_sev_bel_opr_degerlendime_fl','sto_otv_tevkifat_turu','sto_kay_plan_degerlendir','sto_CRM_sistemine_aktar_fl','sto_yerli_yabanci','sto_mensei','sto_oto_parti_lot_kod_fl','sto_efat_sinif_kodu','sto_efat_sinif_listesi','sto_efat_sinif_versiyonu','sto_utssisteminegonderilsin_fl','sto_posetbeyannamekonusu_fl','sto_STT_oncesi_kaldirma','sto_toplam_rafomru','sto_fiyat_kasada_belirlenir_fl','sto_franchise_siparis_dursun','sto_GEKAP','sto_GEKAP_birim','sto_resim_url','sto_GEKAP_depozitoonaykodu','sto_cabuk_bozulabilen_urun_fl','sto_satin_alma_talep_birim','sto_bagimsiz_miktar_takip_fl','sto_varyant_detayli_fl1','sto_varyant_detayli_fl2','sto_varyant_detayli_fl3','sto_varyant_detayli_fl4','sto_varyant_detayli_fl5','sto_varyant_kod_arr1','sto_varyant_kod_arr2','sto_varyant_kod_arr3','sto_varyant_kod_arr4','sto_varyant_kod_arr5','sto_urun_niteligi','sto_kuresel_urun_numarasi','sto_yerlilikorani','sto_karsi_program_kodu','sto_lotnoyapartikodugonder_fl'
@@ -201,6 +201,7 @@ export default function App() {
 
   // --- SAYIM ADDITIONS ---
   const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura' | 'fiyat_degisiklik' | 'siparisler' | 'depo_fisleri'>('menu');
+  const [depoFisleriInitialTab, setDepoFisleriInitialTab] = useState<FisType>('sevk');
   const [reportsInitialTab, setReportsInitialTab] = useState<'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som'>('stok_analiz');
   const [depos, setDepos] = useState<any[]>([]);
   const [selectedDepo, setSelectedDepo] = useState<any>(null);
@@ -3833,7 +3834,10 @@ export default function App() {
                   Alert.alert('Yetkisiz Erişim', 'Depolar Arası Sevk modülüne erişim yetkiniz bulunmamaktadır.');
                   return;
                 }
-                if (!isSyncing) { setAppMode('sevk'); setShowSevkSourceModal(true); }
+                if (!isSyncing) {
+                  setDepoFisleriInitialTab('sevk');
+                  setAppMode('depo_fisleri');
+                }
               }}
               disabled={isSyncing}
               style={styles.tactileCard}
@@ -3843,12 +3847,12 @@ export default function App() {
                   <Ionicons name="swap-horizontal" size={22} color="#00AE78" />
                 </View>
                 <View style={[styles.tagPill, { backgroundColor: 'rgba(0, 174, 120, 0.12)' }]}>
-                  <Text style={[styles.tagPillText, { color: '#00AE78' }]}>Transfer Fişi</Text>
+                  <Text style={[styles.tagPillText, { color: '#00AE78' }]}>Transfer 012500</Text>
                 </View>
               </View>
               <View style={{ marginTop: 12 }}>
                 <Text style={styles.tactileCardTitle}>DEPOLAR ARASI SEVK</Text>
-                <Text style={styles.tactileCardSub} numberOfLines={1}>Depo Nakil ve Transfer Fişi Takibi</Text>
+                <Text style={styles.tactileCardSub} numberOfLines={1}>Depolar Arası Sevk / Transfer Fişi (012500)</Text>
               </View>
             </TouchableOpacity>
 
@@ -4062,11 +4066,14 @@ export default function App() {
             </View>
           </TouchableOpacity>
 
-          {/* CARD 10 (Full Width Hero): STOK & DEPO FİŞLERİ (012160 / 012250 / 012810) */}
+          {/* CARD 10 (Full Width Hero): STOK & DEPO FİŞLERİ (012500 / 012160 / 012250 / 012810) */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => {
-              !isSyncing && setAppMode('depo_fisleri');
+              if (!isSyncing) {
+                setDepoFisleriInitialTab('cikis');
+                setAppMode('depo_fisleri');
+              }
             }}
             disabled={isSyncing}
             style={styles.reportHeroCard}
@@ -4080,11 +4087,11 @@ export default function App() {
                   <Text style={styles.reportHeroTitle} numberOfLines={1}>STOK & DEPO FİŞLERİ</Text>
                   <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
                     <Ionicons name="flash" size={11} color="#EF4444" />
-                    <Text style={[styles.reportTrendText, { color: '#EF4444' }]}>012160 • 012250 • 012810</Text>
+                    <Text style={[styles.reportTrendText, { color: '#EF4444' }]}>012500 • 012160 • 012250 • 012810</Text>
                   </View>
                 </View>
                 <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
-                  Sayım Çıkışı, Sayım Girişi ve Stok Virman Fişi Yönetimi
+                  Sevk, Sayım Çıkışı, Sayım Girişi ve Stok Virman Fişi Yönetimi
                 </Text>
               </View>
             </View>
@@ -4557,6 +4564,7 @@ export default function App() {
           selectedDepo={selectedDepo}
           formatPrice={formatPrice}
           playSound={playSound}
+          initialTab={depoFisleriInitialTab}
           onBackToMenu={() => setAppMode('menu')}
           mikroUsersList={mikroUsersList}
         />

@@ -21,7 +21,7 @@ import axios from 'axios';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export type FisType = 'cikis' | 'giris' | 'virman' | 'gecmis';
+export type FisType = 'sevk' | 'cikis' | 'giris' | 'virman' | 'gecmis';
 
 interface DepoFisleriViewProps {
   isDark: boolean;
@@ -36,6 +36,7 @@ interface DepoFisleriViewProps {
   onBackToMenu: () => void;
   onOpenUserSelect?: () => void;
   mikroUsersList?: any[];
+  initialTab?: FisType;
 }
 
 export interface FisCartItem {
@@ -45,6 +46,7 @@ export interface FisCartItem {
   name: string;
   unit: string;
   miktar: number;
+  price?: number;
   current_stok?: number;
   description?: string;
 }
@@ -81,17 +83,30 @@ export default function DepoFisleriView({
   onBackToMenu,
   onOpenUserSelect,
   mikroUsersList = [],
+  initialTab,
 }: DepoFisleriViewProps) {
-  // Aktif Sekme (012160 Çıkış, 012250 Giriş, 012810 Virman, Geçmiş)
-  const [activeTab, setActiveTab] = useState<FisType>('cikis');
+  // Aktif Sekme (012500 Sevk, 012160 Çıkış, 012250 Giriş, 012810 Virman, Geçmiş)
+  const [activeTab, setActiveTab] = useState<FisType>(initialTab || 'sevk');
 
-  // Depo Seçimi
+  // Depo Seçimi (Tekil Depo - Çıkış, Giriş, Virman için)
   const [activeDepo, setActiveDepo] = useState<any>(selectedDepo || (depos && depos[0]) || { depo_no: 1, depo_adi: 'Merkez Depo' });
+
+  // Sevk için İki Depo (Çıkış Deposu & Giriş/Hedef Deposu)
+  const [sevkSourceDepo, setSevkSourceDepo] = useState<any>(selectedDepo || (depos && depos[0]) || { depo_no: 1, depo_adi: 'Merkez Depo' });
+  const [sevkTargetDepo, setSevkTargetDepo] = useState<any>(
+    (depos && depos.find((d: any) => d.depo_no !== (selectedDepo?.depo_no || 1))) ||
+    (depos && depos[1]) ||
+    { depo_no: 2, depo_adi: 'Taşkınköy Mağaza' }
+  );
+  const [selectingDepoField, setSelectingDepoField] = useState<'active' | 'source' | 'target' | 'sevkSource' | 'sevkTarget' | null>(null);
+  const [matbuBelgeNo, setMatbuBelgeNo] = useState('');
+  const [gecmisFilter, setGecmisFilter] = useState<'TÜMÜ' | '012500 SEVK' | '012160 ÇIKIŞ' | '012250 GİRİŞ' | '012810 VİRMAN'>('TÜMÜ');
+
   const [showDepoModal, setShowDepoModal] = useState(false);
   const [depoSearch, setDepoSearch] = useState('');
 
   // Evrak Başlık Bilgileri
-  const [evrakSeri, setEvrakSeri] = useState('RG');
+  const [evrakSeri, setEvrakSeri] = useState('1');
   const [evrakSira, setEvrakSira] = useState('');
   const [evrakTarih, setEvrakTarih] = useState(() => new Date().toISOString().split('T')[0]);
   const [genelAciklama, setGenelAciklama] = useState('');
@@ -102,7 +117,7 @@ export default function DepoFisleriView({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
 
-  // Ürün Arama & Ekleme State (Çıkış & Giriş için)
+  // Ürün Arama & Ekleme State (Sevk, Çıkış & Giriş için)
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -110,7 +125,7 @@ export default function DepoFisleriView({
   const [inputMiktar, setInputMiktar] = useState('1');
   const [itemAciklama, setItemAciklama] = useState('');
 
-  // Sepet / Kalem Listesi (Çıkış & Giriş)
+  // Sepet / Kalem Listesi (Sevk, Çıkış & Giriş)
   const [cartItems, setCartItems] = useState<FisCartItem[]>([]);
 
   // Virman State (Kaynak & Hedef)
@@ -132,12 +147,29 @@ export default function DepoFisleriView({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Kullanıcı adı
-  const currentUserObj = mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo));
+  const currentUserObj = (mikroUsersList || []).find((u: any) => String(u.KULLANICI_NO) === String(mikroUserNo));
   const currentUserName = currentUserObj ? currentUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
+
+  // Sevk Depolarını Swap Yap
+  const handleSwapDepolar = () => {
+    const temp = sevkSourceDepo;
+    setSevkSourceDepo(sevkTargetDepo);
+    setSevkTargetDepo(temp);
+    if (selectedProduct) {
+      fetchProductDepoStok(selectedProduct.stock_code, sevkTargetDepo?.depo_no || 1).then(stok => {
+        setSelectedProduct((prev: any) => prev ? { ...prev, current_stok: stok } : null);
+      });
+    }
+    playSound('beep');
+    ToastAndroid.show('Çıkış ve Giriş depoları yer değiştirildi.', ToastAndroid.SHORT);
+  };
 
   // Sekme değiştiğinde sayaç no ve seriyi ayarla
   useEffect(() => {
-    if (activeTab === 'cikis') {
+    if (activeTab === 'sevk') {
+      setEvrakSeri('1');
+      fetchNextSira(12500, '1');
+    } else if (activeTab === 'cikis') {
       setEvrakSeri('RG');
       fetchNextSira(12160, 'RG');
     } else if (activeTab === 'giris') {
@@ -254,7 +286,7 @@ export default function DepoFisleriView({
 
   // Bulunan ürünü seçme
   const handleSelectFoundProduct = async (item: any) => {
-    const currentDepoNo = activeDepo?.depo_no || 1;
+    const currentDepoNo = activeTab === 'sevk' ? (sevkSourceDepo?.depo_no || 1) : (activeDepo?.depo_no || 1);
     const stokQty = await fetchProductDepoStok(item.stock_code, currentDepoNo);
     const enriched = { ...item, current_stok: stokQty };
 
@@ -282,7 +314,7 @@ export default function DepoFisleriView({
     handleSearchProduct(data);
   };
 
-  // Çıkış veya Giriş sepetine kalem ekle
+  // Sevk, Çıkış veya Giriş sepetine kalem ekle
   const handleAddCartItem = () => {
     if (!selectedProduct) {
       Alert.alert('Ürün Seçilmedi', 'Lütfen önce barkod okutun veya ürün arayın.');
@@ -294,10 +326,12 @@ export default function DepoFisleriView({
       return;
     }
 
-    if (activeTab === 'cikis' && selectedProduct.current_stok !== undefined && miktarNum > selectedProduct.current_stok) {
+    if ((activeTab === 'cikis' || activeTab === 'sevk') && selectedProduct.current_stok !== undefined && miktarNum > selectedProduct.current_stok) {
+      const depoAdi = activeTab === 'sevk' ? (sevkSourceDepo?.depo_adi || sevkSourceDepo?.depo_no) : (activeDepo?.depo_adi || activeDepo?.depo_no);
+      const islemAdi = activeTab === 'sevk' ? 'sevk' : 'çıkış';
       Alert.alert(
         'Depo Stok Uyarısı',
-        `Seçili depoda (${activeDepo?.depo_adi || activeDepo?.depo_no}) mevcut stok: ${selectedProduct.current_stok} ${selectedProduct.unit || 'ADET'}.\n\nGirilen çıkış miktarı (${miktarNum}) mevcut stoktan fazladır. Devam etmek istiyor musunuz?`,
+        `Seçili çıkış deposunda (${depoAdi}) mevcut stok: ${selectedProduct.current_stok} ${selectedProduct.unit || 'ADET'}.\n\nGirilen ${islemAdi} miktarı (${miktarNum}) mevcut stoktan fazladır. Devam etmek istiyor musunuz?`,
         [
           { text: 'Vazgeç', style: 'cancel' },
           {
@@ -329,6 +363,7 @@ export default function DepoFisleriView({
           name: selectedProduct.name,
           unit: selectedProduct.unit || 'ADET',
           miktar: miktarNum,
+          price: selectedProduct.price || 0,
           current_stok: selectedProduct.current_stok,
           description: itemAciklama,
         },
@@ -394,6 +429,111 @@ export default function DepoFisleriView({
     const userNum = parseInt(mikroUserNo, 10) || 7;
     const targetSeri = evrakSeri.trim();
     const cleanTarih = evrakTarih.replace(/-/g, ''); // YYYYMMDD
+
+    // 0. Depolar Arası Sevk Fişi (012500)
+    if (activeTab === 'sevk') {
+      if (cartItems.length === 0) {
+        Alert.alert('Fiş Boş', 'Lütfen transfer edilecek en az bir ürün ekleyin.');
+        return;
+      }
+      if (sevkSourceDepo?.depo_no === sevkTargetDepo?.depo_no) {
+        Alert.alert('Depo Hatası', 'Çıkış deposu ile Giriş deposu aynı olamaz! Lütfen farklı iki depo seçin.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const menuNo = 12500;
+        const targetSeri = (evrakSeri || '1').trim();
+        const seqQ = `SELECT ISNULL(MAX(sth_evrakno_sira), 0) + 1 AS NextSira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_MenuNo = ${menuNo} AND sth_evrakno_seri = '${targetSeri.replace(/'/g, "''")}'`;
+        const seqRes = await axios.post(API_URL, { query: seqQ });
+        const finalSira = seqRes.data?.data?.[0]?.NextSira || parseInt(evrakSira, 10) || 1;
+
+        let sql = `
+          BEGIN TRANSACTION;
+          DECLARE @Now datetime = GETDATE();
+          DECLARE @Tarih datetime = '${cleanTarih}';
+          DECLARE @SiraNo int = ${finalSira};
+
+          DELETE FROM STOK_HAREKETLERI 
+          WHERE sth_MenuNo = '12500' 
+            AND sth_evrakno_seri = '${targetSeri.replace(/'/g, "''")}' 
+            AND sth_evrakno_sira = @SiraNo 
+            AND sth_tip = 2 AND sth_cins = 6;\n`;
+
+        cartItems.forEach((item, index) => {
+          const sKod = item.stock_code.replace(/'/g, "''");
+          const miktar = item.miktar;
+          const birimFiyat = item.price || 0;
+          const tutar = birimFiyat * miktar;
+          const aciklama = (item.description || genelAciklama || 'Depolar Arası Sevk Fişi').replace(/'/g, "''");
+          const bNo = (matbuBelgeNo || '').trim().replace(/'/g, "''");
+
+          sql += `
+            INSERT INTO STOK_HAREKETLERI (
+              sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
+              sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
+              sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
+              sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
+              sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
+              sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+              sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+              sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+              sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+              sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
+              sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
+              sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_aciklama
+            ) VALUES (
+              NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
+              ${userNum}, @Now, ${userNum}, @Now,
+              '', '', '', 21, '17.05d', '12500',
+              '', '', '', 0, '', 0,
+              0, 0, @Tarih, 2, 6, 0, 2, '${targetSeri.replace(/'/g, "''")}',
+              @SiraNo, ${index}, '${bNo}', @Tarih, '${sKod}',
+              0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, '', 0, '', '',
+              0, 1, 1, 0, 1,
+              ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+              ${sevkTargetDepo?.depo_no || 2}, ${sevkSourceDepo?.depo_no || 1}, @Tarih,
+              '', '', '',
+              '1899-12-30', 0, 0,
+              ${tutar}, 0, 0, 1, '${aciklama}'
+            );
+          `;
+        });
+
+        sql += `
+          COMMIT TRANSACTION;
+          SELECT 1 AS success, @SiraNo AS CreatedSira;
+        `;
+
+        const saveRes = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+        if (saveRes.data?.data) {
+          playSound('success');
+          Alert.alert(
+            'İşlem Başarılı',
+            `Mikro ERP'de Depolar Arası Sevk Fişi (012500) başarıyla oluşturuldu!\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nÇıkış Deposu: ${sevkSourceDepo?.depo_adi}\nGiriş Deposu: ${sevkTargetDepo?.depo_adi}\nToplam Kalem: ${cartItems.length}`,
+            [{ text: 'Tamam' }]
+          );
+          setCartItems([]);
+          setGenelAciklama('');
+          setMatbuBelgeNo('');
+          fetchNextSira(menuNo, targetSeri);
+        } else {
+          throw new Error(saveRes.data?.error || 'Kayıt yanıtı doğrulanamadı.');
+        }
+      } catch (err: any) {
+        playSound('error');
+        Alert.alert('Mikro Kayıt Hatası', err.response?.data?.error || err.message || 'Bilinmeyen bir hata oluştu.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     // 1. Sayım Çıkışı (012160) veya Sayım Girişi (012250)
     if (activeTab === 'cikis' || activeTab === 'giris') {
@@ -606,18 +746,20 @@ export default function DepoFisleriView({
     setIsLoadingRecent(true);
     try {
       const q = `
-        SELECT TOP 25
+        SELECT TOP 40
           sth_evrakno_seri as Seri,
           sth_evrakno_sira as Sira,
           CONVERT(varchar, sth_tarih, 23) as Tarih,
           sth_MenuNo as MenuNo,
           COUNT(*) as KalemSayisi,
           SUM(sth_miktar) as ToplamMiktar,
-          MAX(sth_cikis_depo_no) as DepoNo,
-          ISNULL((SELECT depo_adi FROM DEPOLAR WHERE depo_no = MAX(sth_cikis_depo_no)), 'Depo ' + CAST(MAX(sth_cikis_depo_no) as varchar)) as DepoAdi,
+          MAX(sth_cikis_depo_no) as CikisDepoNo,
+          MAX(sth_giris_depo_no) as GirisDepoNo,
+          ISNULL((SELECT depo_adi FROM DEPOLAR WHERE depo_no = MAX(sth_cikis_depo_no)), 'Depo ' + CAST(MAX(sth_cikis_depo_no) as varchar)) as CikisDepoAdi,
+          ISNULL((SELECT depo_adi FROM DEPOLAR WHERE depo_no = MAX(sth_giris_depo_no)), 'Depo ' + CAST(MAX(sth_giris_depo_no) as varchar)) as GirisDepoAdi,
           MAX(sth_aciklama) as Aciklama
         FROM STOK_HAREKETLERI WITH (NOLOCK)
-        WHERE sth_MenuNo IN (12160, 12250, 12810, '12160', '12250', '12810')
+        WHERE sth_MenuNo IN (12500, 12160, 12250, 12810, '12500', '12160', '12250', '12810')
         GROUP BY sth_evrakno_seri, sth_evrakno_sira, sth_tarih, sth_MenuNo
         ORDER BY Tarih DESC, Sira DESC;
       `;
@@ -652,7 +794,12 @@ export default function DepoFisleriView({
       const res = await axios.post(API_URL, { query: q }, { timeout: 10000 });
       if (res.data?.data) {
         setSelectedEvrakDetail(res.data.data);
-        setDetailEvrakTitle(`${item.MenuNo === '12160' ? 'Sayım Çıkışı' : item.MenuNo === '12250' ? 'Sayım Girişi' : 'Stok Virman'} (${item.Seri ? item.Seri + '-' : ''}${item.Sira})`);
+        const titlePrefix = 
+          String(item.MenuNo) === '12500' ? 'Depolar Arası Sevk'
+          : String(item.MenuNo) === '12160' ? 'Sayım Çıkışı'
+          : String(item.MenuNo) === '12250' ? 'Sayım Girişi'
+          : 'Stok Virman';
+        setDetailEvrakTitle(`${titlePrefix} (${item.Seri ? item.Seri + '-' : ''}${item.Sira})`);
         setShowEvrakDetailModal(true);
       }
     } catch (e) {
@@ -668,6 +815,7 @@ export default function DepoFisleriView({
     border: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
     text: isDark ? '#F1F5F9' : '#0F172A',
     textMuted: isDark ? '#8A9AB5' : '#64748B',
+    sevkColor: '#00AE78',
     cikisColor: '#EF4444',
     girisColor: '#10B981',
     virmanColor: '#3B82F6',
@@ -687,119 +835,150 @@ export default function DepoFisleriView({
             <Text style={[styles.topBarTitle, { color: themeColors.text }]}>STOK & DEPO FİŞLERİ</Text>
           </View>
           <Text style={[styles.topBarSub, { color: themeColors.textMuted }]}>
-            {activeTab === 'cikis' ? 'Sayım Çıkışı Depo Fişi (012160)'
+            {activeTab === 'sevk' ? 'Depolar Arası Sevk / Transfer Fişi (012500)'
+             : activeTab === 'cikis' ? 'Sayım Çıkışı Depo Fişi (012160)'
              : activeTab === 'giris' ? 'Sayım Girişi Depo Fişi (012250)'
              : activeTab === 'virman' ? 'Stok Virman Fişi (012810)'
              : 'Mikro Canlı Evrak Geçmişi'}
           </Text>
         </View>
 
-        {/* Depo Seçim Rozeti */}
-        <TouchableOpacity
-          style={[styles.depoPill, { backgroundColor: themeColors.cardLow, borderColor: themeColors.border }]}
-          onPress={() => setShowDepoModal(true)}
-        >
-          <Ionicons name="business" size={14} color="#FF6B00" />
-          <Text style={[styles.depoPillText, { color: themeColors.text }]} numberOfLines={1}>
-            {activeDepo?.depo_adi || `Depo ${activeDepo?.depo_no || 1}`}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color={themeColors.textMuted} />
-        </TouchableOpacity>
+        {/* Depo Seçim Rozeti (Sevk harici sekmelerde aktif depoyu gösterir) */}
+        {activeTab !== 'sevk' && (
+          <TouchableOpacity
+            style={[styles.depoPill, { backgroundColor: themeColors.cardLow, borderColor: themeColors.border }]}
+            onPress={() => {
+              setSelectingDepoField(null);
+              setShowDepoModal(true);
+            }}
+          >
+            <Ionicons name="business" size={14} color="#FF6B00" />
+            <Text style={[styles.depoPillText, { color: themeColors.text }]} numberOfLines={1}>
+              {activeDepo?.depo_adi || `Depo ${activeDepo?.depo_no || 1}`}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={themeColors.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* 2. SEGMENTED TABS (012160 Çıkış / 012250 Giriş / 012810 Virman / Geçmiş) */}
-      <View style={[styles.tabBar, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'cikis' && [styles.activeTabItem, { borderBottomColor: themeColors.cikisColor }],
-          ]}
-          onPress={() => setActiveTab('cikis')}
-        >
-          <Ionicons
-            name="log-out-outline"
-            size={18}
-            color={activeTab === 'cikis' ? themeColors.cikisColor : themeColors.textMuted}
-          />
-          <Text
+      {/* 2. SEGMENTED TABS (012500 Sevk / 012160 Çıkış / 012250 Giriş / 012810 Virman / Geçmiş) */}
+      <View style={[styles.tabBarWrapper, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContainer}>
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.textMuted },
-              activeTab === 'cikis' && styles.activeTabText,
+              styles.tabItem,
+              activeTab === 'sevk' && [styles.activeTabItem, { borderBottomColor: themeColors.sevkColor }],
             ]}
+            onPress={() => setActiveTab('sevk')}
           >
-            Sayım Çıkışı (012160)
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="paper-plane-outline"
+              size={17}
+              color={activeTab === 'sevk' ? themeColors.sevkColor : themeColors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'sevk' ? themeColors.sevkColor : themeColors.textMuted },
+                activeTab === 'sevk' && styles.activeTabText,
+              ]}
+            >
+              Sevk Fişi (012500)
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'giris' && [styles.activeTabItem, { borderBottomColor: themeColors.girisColor }],
-          ]}
-          onPress={() => setActiveTab('giris')}
-        >
-          <Ionicons
-            name="log-in-outline"
-            size={18}
-            color={activeTab === 'giris' ? themeColors.girisColor : themeColors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: activeTab === 'giris' ? themeColors.girisColor : themeColors.textMuted },
-              activeTab === 'giris' && styles.activeTabText,
+              styles.tabItem,
+              activeTab === 'cikis' && [styles.activeTabItem, { borderBottomColor: themeColors.cikisColor }],
             ]}
+            onPress={() => setActiveTab('cikis')}
           >
-            Sayım Girişi (012250)
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="log-out-outline"
+              size={17}
+              color={activeTab === 'cikis' ? themeColors.cikisColor : themeColors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.textMuted },
+                activeTab === 'cikis' && styles.activeTabText,
+              ]}
+            >
+              Sayım Çıkışı (012160)
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'virman' && [styles.activeTabItem, { borderBottomColor: themeColors.virmanColor }],
-          ]}
-          onPress={() => setActiveTab('virman')}
-        >
-          <Ionicons
-            name="swap-horizontal"
-            size={18}
-            color={activeTab === 'virman' ? themeColors.virmanColor : themeColors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: activeTab === 'virman' ? themeColors.virmanColor : themeColors.textMuted },
-              activeTab === 'virman' && styles.activeTabText,
+              styles.tabItem,
+              activeTab === 'giris' && [styles.activeTabItem, { borderBottomColor: themeColors.girisColor }],
             ]}
+            onPress={() => setActiveTab('giris')}
           >
-            Stok Virman (012810)
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="log-in-outline"
+              size={17}
+              color={activeTab === 'giris' ? themeColors.girisColor : themeColors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'giris' ? themeColors.girisColor : themeColors.textMuted },
+                activeTab === 'giris' && styles.activeTabText,
+              ]}
+            >
+              Sayım Girişi (012250)
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'gecmis' && [styles.activeTabItem, { borderBottomColor: '#FF6B00' }],
-          ]}
-          onPress={() => setActiveTab('gecmis')}
-        >
-          <Ionicons
-            name="time-outline"
-            size={18}
-            color={activeTab === 'gecmis' ? '#FF6B00' : themeColors.textMuted}
-          />
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabText,
-              { color: activeTab === 'gecmis' ? '#FF6B00' : themeColors.textMuted },
-              activeTab === 'gecmis' && styles.activeTabText,
+              styles.tabItem,
+              activeTab === 'virman' && [styles.activeTabItem, { borderBottomColor: themeColors.virmanColor }],
             ]}
+            onPress={() => setActiveTab('virman')}
           >
-            Geçmiş
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="swap-horizontal"
+              size={17}
+              color={activeTab === 'virman' ? themeColors.virmanColor : themeColors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'virman' ? themeColors.virmanColor : themeColors.textMuted },
+                activeTab === 'virman' && styles.activeTabText,
+              ]}
+            >
+              Stok Virman (012810)
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabItem,
+              activeTab === 'gecmis' && [styles.activeTabItem, { borderBottomColor: '#FF6B00' }],
+            ]}
+            onPress={() => setActiveTab('gecmis')}
+          >
+            <Ionicons
+              name="time-outline"
+              size={17}
+              color={activeTab === 'gecmis' ? '#FF6B00' : themeColors.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'gecmis' ? '#FF6B00' : themeColors.textMuted },
+                activeTab === 'gecmis' && styles.activeTabText,
+              ]}
+            >
+              Geçmiş
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* 3. ANA İÇERİK ALANI */}
@@ -807,13 +986,71 @@ export default function DepoFisleriView({
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* A. SAYIM ÇIKIŞI VEYA GİRİŞİ PANELİ */}
-        {(activeTab === 'cikis' || activeTab === 'giris') && (
+        {/* A. SEVK (012500) / SAYIM ÇIKIŞI (012160) / SAYIM GİRİŞİ (012250) PANELİ */}
+        {(activeTab === 'sevk' || activeTab === 'cikis' || activeTab === 'giris') && (
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 12, paddingBottom: 110 }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* SEVK (012500) İÇİN ÇİFT DEPO SEÇİM KARTI (ÇIKIŞ ⇄ GİRİŞ) */}
+            {activeTab === 'sevk' && (
+              <View style={[styles.sevkDualDepoCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {/* ÇIKIŞ DEPOSU (KAYNAK) */}
+                  <TouchableOpacity
+                    style={[styles.sevkDepoBox, { backgroundColor: themeColors.cardLow, borderColor: '#EF4444' }]}
+                    onPress={() => {
+                      setSelectingDepoField('sevkSource');
+                      setShowDepoModal(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="log-out-outline" size={14} color="#EF4444" />
+                      <Text style={[styles.sevkDepoRole, { color: '#EF4444' }]}>ÇIKIŞ DEPOSU</Text>
+                    </View>
+                    <Text style={[styles.sevkDepoName, { color: themeColors.text }]} numberOfLines={1}>
+                      {sevkSourceDepo?.depo_adi || `Depo ${sevkSourceDepo?.depo_no || 1}`}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: themeColors.textMuted }}>Kodu: {sevkSourceDepo?.depo_no || 1}</Text>
+                  </TouchableOpacity>
+
+                  {/* SWAP BUTONU */}
+                  <TouchableOpacity
+                    style={[styles.swapBtn, { backgroundColor: themeColors.sevkColor }]}
+                    onPress={handleSwapDepolar}
+                  >
+                    <Ionicons name="swap-horizontal" size={20} color="#fff" />
+                  </TouchableOpacity>
+
+                  {/* GİRİŞ DEPOSU (HEDEF) */}
+                  <TouchableOpacity
+                    style={[styles.sevkDepoBox, { backgroundColor: themeColors.cardLow, borderColor: '#10B981' }]}
+                    onPress={() => {
+                      setSelectingDepoField('sevkTarget');
+                      setShowDepoModal(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="log-in-outline" size={14} color="#10B981" />
+                      <Text style={[styles.sevkDepoRole, { color: '#10B981' }]}>GİRİŞ DEPOSU</Text>
+                    </View>
+                    <Text style={[styles.sevkDepoName, { color: themeColors.text }]} numberOfLines={1}>
+                      {sevkTargetDepo?.depo_adi || `Depo ${sevkTargetDepo?.depo_no || 2}`}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: themeColors.textMuted }}>Kodu: {sevkTargetDepo?.depo_no || 2}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {sevkSourceDepo?.depo_no === sevkTargetDepo?.depo_no && (
+                  <View style={styles.sevkWarnBanner}>
+                    <Ionicons name="warning-outline" size={14} color="#EF4444" />
+                    <Text style={styles.sevkWarnText}>Dikkat: Çıkış ve Giriş deposu aynı seçilemez!</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Evrak Üst Bilgi Kartı */}
             <View style={[styles.headerCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
               <View style={styles.headerCardRow}>
@@ -826,7 +1063,7 @@ export default function DepoFisleriView({
                       onChangeText={t => {
                         const val = t.toUpperCase();
                         setEvrakSeri(val);
-                        fetchNextSira(activeTab === 'cikis' ? 12160 : 12250, val);
+                        fetchNextSira(activeTab === 'sevk' ? 12500 : activeTab === 'cikis' ? 12160 : 12250, val);
                       }}
                       placeholder="Seri"
                       placeholderTextColor={themeColors.textMuted}
@@ -843,6 +1080,32 @@ export default function DepoFisleriView({
                     />
                     {isLoadingSeq && <ActivityIndicator size="small" color="#FF6B00" />}
                   </View>
+
+                  {/* Sevk Hızlı Seri Butonları */}
+                  {activeTab === 'sevk' && (
+                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
+                      {['1', 'RG', '2', 'SM'].map(s => (
+                        <TouchableOpacity
+                          key={s}
+                          onPress={() => {
+                            setEvrakSeri(s);
+                            fetchNextSira(12500, s);
+                          }}
+                          style={[
+                            styles.quickSeriChip,
+                            {
+                              backgroundColor: evrakSeri === s ? themeColors.sevkColor : themeColors.cardLow,
+                              borderColor: evrakSeri === s ? themeColors.sevkColor : themeColors.border,
+                            }
+                          ]}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: evrakSeri === s ? '#fff' : themeColors.textMuted }}>
+                            {s}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
 
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -857,19 +1120,40 @@ export default function DepoFisleriView({
                 </View>
               </View>
 
+              {/* Sevk İrsaliye / Matbu Belge No (İsteğe Bağlı) */}
+              {activeTab === 'sevk' && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[styles.miniLabel, { color: themeColors.textMuted }]}>MATBU SEVK İRSALİYE NO (İSTEĞE BAĞLI)</Text>
+                  <TextInput
+                    style={[styles.descInput, { backgroundColor: themeColors.cardLow, color: themeColors.text, borderColor: themeColors.border }]}
+                    placeholder="Örn: IRS-2026-00123"
+                    placeholderTextColor={themeColors.textMuted}
+                    value={matbuBelgeNo}
+                    onChangeText={setMatbuBelgeNo}
+                    autoCapitalize="characters"
+                  />
+                </View>
+              )}
+
               {/* Fiş Açıklaması */}
               <View style={{ marginTop: 10 }}>
                 <Text style={[styles.miniLabel, { color: themeColors.textMuted }]}>FİŞ AÇIKLAMASI</Text>
                 <TextInput
                   style={[styles.descInput, { backgroundColor: themeColors.cardLow, color: themeColors.text, borderColor: themeColors.border }]}
-                  placeholder={activeTab === 'cikis' ? 'Örn: Sayım Eksiği, Fire, Kırık Mal' : 'Örn: Sayım Fazlası, Devir'}
+                  placeholder={
+                    activeTab === 'sevk' ? 'Örn: Şubeler Arası Transfer, Mağaza İkmal'
+                    : activeTab === 'cikis' ? 'Örn: Sayım Eksiği, Fire, Kırık Mal'
+                    : 'Örn: Sayım Fazlası, Devir'
+                  }
                   placeholderTextColor={themeColors.textMuted}
                   value={genelAciklama}
                   onChangeText={setGenelAciklama}
                 />
                 {/* Hızlı Açıklama Çipleri */}
                 <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                  {(activeTab === 'cikis'
+                  {(activeTab === 'sevk'
+                    ? ['ŞUBELER ARASI TRANSFER', 'MAĞAZA SEVKİYATI', 'ARAÇ YÜKLEME', 'MERKEZ DEPO İKMAL', 'ARIZALI / İADE SEVKİ']
+                    : activeTab === 'cikis'
                     ? ['SAYIM EKSİĞİ', 'FİRE / HASAR', 'KIRIK MAL', 'HURDA ÇIKIŞI']
                     : ['SAYIM FAZLASI', 'DEVİR GİRİŞİ', 'BULUNAN MAL', 'DEPO DÜZENLEME']
                   ).map((chip, idx) => (
@@ -908,7 +1192,15 @@ export default function DepoFisleriView({
 
                 {/* Kamera Aç Butonu */}
                 <TouchableOpacity
-                  style={[styles.camBtn, { backgroundColor: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor }]}
+                  style={[
+                    styles.camBtn,
+                    {
+                      backgroundColor:
+                        activeTab === 'sevk' ? themeColors.sevkColor
+                        : activeTab === 'cikis' ? themeColors.cikisColor
+                        : themeColors.girisColor
+                    }
+                  ]}
                   onPress={() => setIsCameraActive(!isCameraActive)}
                 >
                   <Ionicons name={isCameraActive ? 'close' : 'barcode-outline'} size={22} color="#fff" />
@@ -961,7 +1253,15 @@ export default function DepoFisleriView({
                         <Text style={[styles.resultName, { color: themeColors.textMuted }]} numberOfLines={1}>{item.name}</Text>
                         <Text style={{ fontSize: 11, color: '#FF6B00' }}>Barkod: {item.barcode || 'Yok'}</Text>
                       </View>
-                      <Ionicons name="add-circle" size={24} color={activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor} />
+                      <Ionicons
+                        name="add-circle"
+                        size={24}
+                        color={
+                          activeTab === 'sevk' ? themeColors.sevkColor
+                          : activeTab === 'cikis' ? themeColors.cikisColor
+                          : themeColors.girisColor
+                        }
+                      />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -969,14 +1269,29 @@ export default function DepoFisleriView({
 
               {/* Seçili Ürün Kartı & Miktar Girişi */}
               {selectedProduct && (
-                <View style={[styles.selectedProductBox, { backgroundColor: themeColors.cardLow, borderColor: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor }]}>
+                <View
+                  style={[
+                    styles.selectedProductBox,
+                    {
+                      backgroundColor: themeColors.cardLow,
+                      borderColor:
+                        activeTab === 'sevk' ? themeColors.sevkColor
+                        : activeTab === 'cikis' ? themeColors.cikisColor
+                        : themeColors.girisColor
+                    }
+                  ]}
+                >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={[styles.selectedProductCode, { color: themeColors.text }]}>{selectedProduct.stock_code}</Text>
                       <Text style={[styles.selectedProductName, { color: themeColors.textMuted }]} numberOfLines={2}>{selectedProduct.name}</Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                         <Text style={{ fontSize: 11, color: '#FF6B00', fontWeight: '700' }}>Barkod: {selectedProduct.barcode || '-'}</Text>
-                        <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700' }}>Mevcut Depo Stoğu: {selectedProduct.current_stok ?? 0} {selectedProduct.unit || 'ADET'}</Text>
+                        <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700' }}>
+                          {activeTab === 'sevk'
+                            ? `Kaynak Depo (${sevkSourceDepo?.depo_no || 1}) Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`
+                            : `Mevcut Depo Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`}
+                        </Text>
                       </View>
                     </View>
                     <TouchableOpacity onPress={() => setSelectedProduct(null)}>
@@ -1022,12 +1337,22 @@ export default function DepoFisleriView({
 
                   {/* Sepete Ekle Butonu */}
                   <TouchableOpacity
-                    style={[styles.addBtn, { backgroundColor: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor }]}
+                    style={[
+                      styles.addBtn,
+                      {
+                        backgroundColor:
+                          activeTab === 'sevk' ? themeColors.sevkColor
+                          : activeTab === 'cikis' ? themeColors.cikisColor
+                          : themeColors.girisColor
+                      }
+                    ]}
                     onPress={handleAddCartItem}
                   >
                     <Ionicons name="checkmark-circle" size={18} color="#fff" />
                     <Text style={styles.addBtnText}>
-                      {activeTab === 'cikis' ? 'ÇIKIŞ LİSTESİNE EKLE' : 'GİRİŞ LİSTESİNE EKLE'}
+                      {activeTab === 'sevk' ? 'SEVK LİSTESİNE EKLE'
+                       : activeTab === 'cikis' ? 'ÇIKIŞ LİSTESİNE EKLE'
+                       : 'GİRİŞ LİSTESİNE EKLE'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1038,7 +1363,9 @@ export default function DepoFisleriView({
             <View style={{ marginTop: 14 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={[styles.sectionHeading, { color: themeColors.text }]}>
-                  {activeTab === 'cikis' ? 'ÇIKILACAK KALEMLER' : 'GİRİLECEK KALEMLER'} ({cartItems.length})
+                  {activeTab === 'sevk' ? 'SEVK EDİLECEK KALEMLER'
+                   : activeTab === 'cikis' ? 'ÇIKILACAK KALEMLER'
+                   : 'GİRİLECEK KALEMLER'} ({cartItems.length})
                 </Text>
                 {cartItems.length > 0 && (
                   <TouchableOpacity onPress={() => setCartItems([])}>
@@ -1065,8 +1392,18 @@ export default function DepoFisleriView({
                       ) : null}
                     </View>
                     <View style={{ alignItems: 'flex-end', marginLeft: 10 }}>
-                      <Text style={[styles.cartItemQty, { color: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor }]}>
-                        {activeTab === 'cikis' ? '-' : '+'}{item.miktar} {item.unit}
+                      <Text
+                        style={[
+                          styles.cartItemQty,
+                          {
+                            color:
+                              activeTab === 'sevk' ? themeColors.sevkColor
+                              : activeTab === 'cikis' ? themeColors.cikisColor
+                              : themeColors.girisColor
+                          }
+                        ]}
+                      >
+                        {activeTab === 'sevk' ? '➔ ' : activeTab === 'cikis' ? '-' : '+'}{item.miktar} {item.unit}
                       </Text>
                       <TouchableOpacity
                         onPress={() => setCartItems(cartItems.filter((_, i) => i !== idx))}
@@ -1083,7 +1420,15 @@ export default function DepoFisleriView({
             {/* MİKRO ERP'YE KAYDET BUTONU */}
             {cartItems.length > 0 && (
               <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: activeTab === 'cikis' ? themeColors.cikisColor : themeColors.girisColor }]}
+                style={[
+                  styles.submitBtn,
+                  {
+                    backgroundColor:
+                      activeTab === 'sevk' ? themeColors.sevkColor
+                      : activeTab === 'cikis' ? themeColors.cikisColor
+                      : themeColors.girisColor
+                  }
+                ]}
                 onPress={handleSubmitFisToMikro}
                 disabled={isSubmitting}
               >
@@ -1093,7 +1438,9 @@ export default function DepoFisleriView({
                   <>
                     <Ionicons name="cloud-upload" size={20} color="#fff" />
                     <Text style={styles.submitBtnText}>
-                      {activeTab === 'cikis'
+                      {activeTab === 'sevk'
+                        ? `MİKRO ERP'YE KAYDET (012500 SEVK FİŞİ)`
+                        : activeTab === 'cikis'
                         ? `MİKRO ERP'YE KAYDET (012160 ÇIKIŞ FİŞİ)`
                         : `MİKRO ERP'YE KAYDET (012250 GİRİŞ FİŞİ)`}
                     </Text>
@@ -1449,12 +1796,41 @@ export default function DepoFisleriView({
         {/* C. GEÇMİŞ FİŞLER PANELİ */}
         {activeTab === 'gecmis' && (
           <View style={{ flex: 1, padding: 12 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={[styles.sectionHeading, { color: themeColors.text }]}>SON MİKRO DEPO FİŞLERİ</Text>
               <TouchableOpacity onPress={fetchRecentFisler} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Ionicons name="refresh" size={16} color="#FF6B00" />
                 <Text style={{ fontSize: 12, color: '#FF6B00', fontWeight: '700' }}>Yenile</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Fiş Filtre Çipleri */}
+            <View style={{ marginBottom: 10 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {(['TÜMÜ', '012500 SEVK', '012160 ÇIKIŞ', '012250 GİRİŞ', '012810 VİRMAN'] as const).map(f => (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setGecmisFilter(f)}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: gecmisFilter === f ? '#FF6B00' : themeColors.cardLow,
+                        borderColor: gecmisFilter === f ? '#FF6B00' : themeColors.border,
+                      }
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        color: gecmisFilter === f ? '#fff' : themeColors.textMuted
+                      }}
+                    >
+                      {f}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
 
             {isLoadingRecent ? (
@@ -1464,15 +1840,35 @@ export default function DepoFisleriView({
               </View>
             ) : (
               <FlatList
-                data={recentFisler}
+                data={recentFisler.filter(item => {
+                  if (gecmisFilter === '012500 SEVK') return String(item.MenuNo) === '12500';
+                  if (gecmisFilter === '012160 ÇIKIŞ') return String(item.MenuNo) === '12160';
+                  if (gecmisFilter === '012250 GİRİŞ') return String(item.MenuNo) === '12250';
+                  if (gecmisFilter === '012810 VİRMAN') return String(item.MenuNo) === '12810';
+                  return true;
+                })}
                 keyExtractor={(item, index) => `${item.MenuNo}_${item.Seri}_${item.Sira}_${index}`}
                 contentContainerStyle={{ paddingBottom: 110 }}
                 renderItem={({ item }) => {
-                  const isCikis = item.MenuNo === '12160' || item.MenuNo === 12160;
-                  const isGiris = item.MenuNo === '12250' || item.MenuNo === 12250;
-                  const isVirman = item.MenuNo === '12810' || item.MenuNo === 12810;
-                  const fisTitle = isCikis ? 'Sayım Çıkışı (012160)' : isGiris ? 'Sayım Girişi (012250)' : 'Stok Virman (012810)';
-                  const fisColor = isCikis ? themeColors.cikisColor : isGiris ? themeColors.girisColor : themeColors.virmanColor;
+                  const isSevk = String(item.MenuNo) === '12500';
+                  const isCikis = String(item.MenuNo) === '12160';
+                  const isGiris = String(item.MenuNo) === '12250';
+                  const isVirman = String(item.MenuNo) === '12810';
+
+                  const fisTitle = isSevk ? 'Depolar Arası Sevk (012500)'
+                    : isCikis ? 'Sayım Çıkışı (012160)'
+                    : isGiris ? 'Sayım Girişi (012250)'
+                    : 'Stok Virman (012810)';
+
+                  const fisColor = isSevk ? themeColors.sevkColor
+                    : isCikis ? themeColors.cikisColor
+                    : isGiris ? themeColors.girisColor
+                    : themeColors.virmanColor;
+
+                  const iconName = isSevk ? 'paper-plane-outline'
+                    : isCikis ? 'log-out-outline'
+                    : isGiris ? 'log-in-outline'
+                    : 'swap-horizontal';
 
                   return (
                     <TouchableOpacity
@@ -1483,7 +1879,7 @@ export default function DepoFisleriView({
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <View style={[styles.badgeIcon, { backgroundColor: `${fisColor}22` }]}>
                             <Ionicons
-                              name={isCikis ? 'log-out-outline' : isGiris ? 'log-in-outline' : 'swap-horizontal'}
+                              name={iconName}
                               size={16}
                               color={fisColor}
                             />
@@ -1502,10 +1898,24 @@ export default function DepoFisleriView({
                         </Text>
                       </View>
 
+                      {/* Depo Bilgisi */}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                        <Text style={{ fontSize: 11, color: themeColors.textMuted }}>{item.DepoAdi || `Depo ${item.DepoNo}`}</Text>
+                        {isSevk ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>
+                              {item.CikisDepoAdi || `Depo ${item.CikisDepoNo || item.DepoNo}`}
+                            </Text>
+                            <Ionicons name="arrow-forward" size={12} color={themeColors.textMuted} />
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>
+                              {item.GirisDepoAdi || `Depo ${item.GirisDepoNo}`}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={{ fontSize: 11, color: themeColors.textMuted }}>{item.DepoAdi || `Depo ${item.DepoNo}`}</Text>
+                        )}
+
                         {item.Aciklama ? (
-                          <Text style={{ fontSize: 11, color: '#FF6B00', maxWidth: '60%' }} numberOfLines={1}>
+                          <Text style={{ fontSize: 11, color: '#FF6B00', maxWidth: '50%' }} numberOfLines={1}>
                             {item.Aciklama}
                           </Text>
                         ) : null}
@@ -1522,13 +1932,23 @@ export default function DepoFisleriView({
       {/* 4. DEPO SEÇİM MODALI */}
       <Modal
         isVisible={showDepoModal}
-        onBackdropPress={() => setShowDepoModal(false)}
+        onBackdropPress={() => {
+          setShowDepoModal(false);
+          setSelectingDepoField(null);
+        }}
         style={styles.modal}
       >
         <View style={[styles.modalContent, { backgroundColor: themeColors.card, maxHeight: '75%' }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: themeColors.text }]}>İşlem Yapılacak Depo</Text>
-            <TouchableOpacity onPress={() => setShowDepoModal(false)}>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+              {selectingDepoField === 'sevkSource' ? 'Sevk Çıkış Deposu (Kaynak)'
+               : selectingDepoField === 'sevkTarget' ? 'Sevk Giriş Deposu (Hedef)'
+               : 'İşlem Yapılacak Depo'}
+            </Text>
+            <TouchableOpacity onPress={() => {
+              setShowDepoModal(false);
+              setSelectingDepoField(null);
+            }}>
               <Ionicons name="close" size={24} color={themeColors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -1547,29 +1967,42 @@ export default function DepoFisleriView({
               String(d.depo_no).includes(depoSearch)
             )}
             keyExtractor={item => String(item.depo_no)}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.depoOptionRow,
-                  { borderBottomColor: themeColors.border },
-                  activeDepo?.depo_no === item.depo_no && { backgroundColor: 'rgba(255, 107, 0, 0.1)' },
-                ]}
-                onPress={() => {
-                  setActiveDepo(item);
-                  setShowDepoModal(false);
-                  setDepoSearch('');
-                  // Eğer sepette ürün varsa stoğunu yeniden çekebilir
-                }}
-              >
-                <View>
-                  <Text style={[styles.depoOptionTitle, { color: themeColors.text }]}>{item.depo_adi}</Text>
-                  <Text style={{ fontSize: 11, color: themeColors.textMuted }}>Depo Kodu: {item.depo_no}</Text>
-                </View>
-                {activeDepo?.depo_no === item.depo_no && (
-                  <Ionicons name="checkmark-circle" size={20} color="#FF6B00" />
-                )}
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const isSelected = 
+                selectingDepoField === 'sevkSource' ? sevkSourceDepo?.depo_no === item.depo_no
+                : selectingDepoField === 'sevkTarget' ? sevkTargetDepo?.depo_no === item.depo_no
+                : activeDepo?.depo_no === item.depo_no;
+
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.depoOptionRow,
+                    { borderBottomColor: themeColors.border },
+                    isSelected && { backgroundColor: 'rgba(255, 107, 0, 0.1)' },
+                  ]}
+                  onPress={() => {
+                    if (selectingDepoField === 'sevkSource') {
+                      setSevkSourceDepo(item);
+                    } else if (selectingDepoField === 'sevkTarget') {
+                      setSevkTargetDepo(item);
+                    } else {
+                      setActiveDepo(item);
+                    }
+                    setShowDepoModal(false);
+                    setDepoSearch('');
+                    setSelectingDepoField(null);
+                  }}
+                >
+                  <View>
+                    <Text style={[styles.depoOptionTitle, { color: themeColors.text }]}>{item.depo_adi}</Text>
+                    <Text style={{ fontSize: 11, color: themeColors.textMuted }}>Depo Kodu: {item.depo_no}</Text>
+                  </View>
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={20} color="#FF6B00" />
+                  )}
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       </Modal>
@@ -1642,16 +2075,23 @@ const styles = StyleSheet.create({
     maxWidth: 130,
   },
   depoPillText: { fontSize: 11, fontWeight: '700' },
+  tabBarWrapper: {
+    borderBottomWidth: 1,
+  },
+  tabScrollContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+  },
   tabBar: {
     flexDirection: 'row',
     borderBottomWidth: 1,
   },
   tabItem: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -1659,6 +2099,63 @@ const styles = StyleSheet.create({
   activeTabItem: {},
   tabText: { fontSize: 11, fontWeight: '600' },
   activeTabText: { fontWeight: '800' },
+  sevkDualDepoCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  sevkDepoBox: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  sevkDepoRole: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  sevkDepoName: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  swapBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    elevation: 2,
+  },
+  sevkWarnBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  sevkWarnText: {
+    color: '#EF4444',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  quickSeriChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
   headerCard: {
     padding: 12,
     borderRadius: 12,
