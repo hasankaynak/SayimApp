@@ -17,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
+import { executeSqlSafe } from './safeApi';
 
 interface FiyatDegisiklikViewProps {
   isDark: boolean;
@@ -405,7 +406,7 @@ export default function FiyatDegisiklikView({
                 SELECT @NextSira AS inserted_sira;
               `;
 
-              const transRes = await axios.post(API_URL, { query: sql }, { timeout: 20000 });
+              const transRes = await executeSqlSafe(API_URL, sql, { timeout: 20000 });
 
               if (transRes.data?.success) {
                 // 3. Yerel SQLite Güncellemesi (Fiyat Gör'de anında yeni fiyat çıksın)
@@ -427,8 +428,8 @@ export default function FiyatDegisiklikView({
 
                 playSound('success');
                 Alert.alert(
-                  '✅ Başarılı!',
-                  `Fiyat Değişiklik Fişi Mikro'ya aktarıldı!\n\nEvrak Seri: "${evrakSeri}"\nEvrak Sıra: ${nextSira}\nKullanıcı: ${currentUserName}\nKalem Sayısı: ${cartItems.length}`
+                  '🛡️ Test Modu (ERP Koruması)',
+                  `Fiyat değişikliği test modunda simüle edildi ve yerel cihaz hafızasında güncellendi.\n\nEvrak Seri: "${evrakSeri}"\nEvrak Sıra: ${nextSira}\nKalem Sayısı: ${cartItems.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`
                 );
                 setCartItems([]);
               } else {

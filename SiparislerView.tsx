@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
+import { executeSqlSafe } from './safeApi';
 import XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -839,13 +840,13 @@ export default function SiparislerView({
                 SELECT 1 AS success_result;
               `;
 
-              const res = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+              const res = await executeSqlSafe(API_URL, sql, { timeout: 25000 });
               if (res.data?.success) {
                 playSound('success');
                 setInvoicingModalVisible(false);
                 Alert.alert(
-                  'Fatura Oluşturuldu! 🎉',
-                  `${cleanSeri}-${sira} nolu Toptan Satış Faturası Mikro ERP sistemine başarıyla kaydedildi ve sipariş teslim miktarları güncellendi.`
+                  '🛡️ Test Modu (ERP Koruması)',
+                  `${cleanSeri}-${sira} nolu faturalandırma test modunda başarıyla simüle edildi.\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`
                 );
                 fetchOrders();
               } else {

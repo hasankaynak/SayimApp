@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Modal from 'react-native-modal';
 import axios from 'axios';
+import { executeSqlSafe } from './safeApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView } from 'expo-camera';
 
@@ -550,16 +551,16 @@ export default function AlisFaturasiView({
                 END CATCH
               `;
 
-              const res = await axios.post(API_URL, { query: saveQ }, { timeout: 25000 });
+              const res = await executeSqlSafe(API_URL, saveQ, { timeout: 25000 });
               const resultObj = res.data?.data?.[0];
 
-              if (!resultObj?.success) {
+              if (!resultObj?.success && !res.data?.test_blocked) {
                 throw new Error(resultObj?.error_message || 'Mikro faturayı kaydederken hata oluştu.');
               }
 
-              const savedSiraNumber = resultObj.saved_sira || userSira;
+              const savedSiraNumber = resultObj?.saved_sira || userSira;
 
-              // SQLite Yerel Yedek
+              // SQLite Yerel Yedek (mikro_sent = 0 olarak güvenle beklet)
               const db = dbRef.current;
               if (db) {
                 try {
@@ -567,7 +568,7 @@ export default function AlisFaturasiView({
                     INSERT INTO fatura_backups (
                       backup_date, cari_kod, cari_unvan, evrak_seri, evrak_sira, belge_no, depo_no,
                       item_count, ara_toplam, kdv_toplam, genel_toplam, cart_data, mikro_sent
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                   `, [
                     new Date().toLocaleString('tr-TR'),
                     cleanCariKod,
@@ -593,12 +594,12 @@ export default function AlisFaturasiView({
 
               playSound('success');
               Alert.alert(
-                '🎉 Fatura Kaydedildi!',
-                `Alış Faturası Mikro ERP'ye başarıyla kaydedildi.\n\n` +
+                '🛡️ Test Modu (ERP Koruması)',
+                `Alış Faturası test modunda başarıyla simüle edildi ve yerel hafızaya (fatura_backups) kaydedildi.\n\n` +
                 `Evrak: ${cleanSeri}-${savedSiraNumber}\n` +
                 `Tedarikçi: ${faturaCari.cari_unvan1}\n` +
-                `Kayıt Yapan: ${currentUserName} (ID: ${userNum})\n` +
-                `Toplam: ${formatPrice(genelToplam)} TL`,
+                `Genel Toplam: ${formatPrice(genelToplam)} TL\n\n` +
+                `🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
                 [
                   { text: 'Yeni Fatura Gir', onPress: () => {} },
                   { text: 'Ana Menüye Dön', onPress: onBackToMenu }

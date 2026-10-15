@@ -44,6 +44,9 @@ import SiparislerView from './SiparislerView';
 import DepoFisleriView, { FisType } from './DepoFisleriView';
 import LoginView, { AuthSessionData } from './LoginView';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { executeSqlSafe, isWriteQuery, SAFE_TEST_MODE_ACTIVE } from './safeApi';
+import { exportSayimToExcel, sanitizeFormulaInjection } from './exportUtils';
+import { parseQuantitySafe, sanitizeBarcode, isDuplicateScanTrigger } from './sayimUtils';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -345,6 +348,10 @@ export default function App() {
   const [editingItemForDesc, setEditingItemForDesc] = useState<any>(null);
   const [editDescInput, setEditDescInput] = useState('');
   const [cartSearchQuery, setCartSearchQuery] = useState('');
+  const [lastAddedItem, setLastAddedItem] = useState<{ stock_code: string; name: string; quantity: number; previousQuantity: number | null } | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+  const lastScanCodeRef = useRef<string>('');
+  const searchInputRef = useRef<TextInput>(null);
   const [autoSync, setAutoSync] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [sayimBackups, setSayimBackups] = useState<any[]>([]);
@@ -539,7 +546,7 @@ export default function App() {
       const escapedCode = product.stock_code.replace(/'/g, "''");
       const q = `UPDATE STOKLAR SET sto_isim = '${escapedName}', sto_lastup_date = GETDATE(), sto_lastup_user = ${userNum} WHERE sto_kod = '${escapedCode}'; SELECT 1 AS result_fix;`;
       
-      const response = await axios.post(API_URL, { query: q }, { timeout: 15000 });
+      const response = await executeSqlSafe(API_URL, q, { timeout: 15000 });
       if (!response.data?.success && response.data?.error) {
         throw new Error(response.data.error);
       }
@@ -564,7 +571,10 @@ export default function App() {
       const activeUserName = activeUserObj ? activeUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
 
       setEditNameModalVisible(false);
-      Alert.alert('Başarılı', `Ürün ismi Mikro ve telefonda güncellendi.\n\nGüncelleyen Kullanıcı: ${activeUserName} (ID: ${userNum})`);
+      Alert.alert(
+        'Test / Güvenli Mod',
+        `Ürün ismi yerel SQLite veritabanında güncellendi.\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.\nKullanıcı: ${activeUserName} (ID: ${userNum})`
+      );
     } catch (err: any) {
       Alert.alert('Güncelleme Hatası', err.response?.data?.error || err.message || 'İsim güncellenemedi.');
     } finally {
@@ -1167,6 +1177,16 @@ export default function App() {
   };
 
   const handleBarCodeScanned = async ({ data }: any) => {
+    const cleanBarcode = sanitizeBarcode(data);
+    if (!cleanBarcode) return;
+
+    // Donanım okuyucu çift tetikleme (debounce) koruması
+    if (isDuplicateScanTrigger(cleanBarcode, lastScanCodeRef.current, lastScanTimeRef.current, 400)) {
+      return;
+    }
+    lastScanCodeRef.current = cleanBarcode;
+    lastScanTimeRef.current = Date.now();
+
     if (scanned || isSyncing) return;
     setScanned(true);
     setWasScannedByCamera(true);
@@ -1178,7 +1198,7 @@ export default function App() {
 
     try {
       const db = dbRef.current;
-      const result: any = await db.getFirstAsync('SELECT * FROM products WHERE barcode = ?', [data]);
+      const result: any = await db.getFirstAsync('SELECT * FROM products WHERE barcode = ?', [cleanBarcode]);
       if (result) {
         playSound('success');
         setProduct(result);
@@ -1190,7 +1210,8 @@ export default function App() {
         setCountDescription('');
       } else {
         playSound('error');
-        setProduct({ barcode: data, name: 'Ürün Bulunamadı', stock_code: '---', price: 0, currency: '', unit: '---' });
+        setProduct({ barcode: cleanBarcode, name: 'Ürün Bulunamadı', stock_code: '---', price: 0, currency: '', unit: '---' });
+        ToastAndroid.show(`Bilinmeyen Barkod: ${cleanBarcode}`, ToastAndroid.LONG);
       }
     } catch (error) { 
       playSound('error');
@@ -1220,6 +1241,57 @@ export default function App() {
         setSearchResults(results);
       }
     } catch (error) { }
+  };
+
+  const handleSearchSubmit = async () => {
+    const rawInput = sanitizeBarcode(searchQuery);
+    if (!rawInput) return;
+    try {
+      const db = dbRef.current;
+      if (!db) return;
+
+      // 1. Önce tam barkod eşleşmesi ara (baştaki sıfırlar ve string bütünlüğü korunarak)
+      const exactBarcode: any[] = await db.getAllAsync(
+        `SELECT p.*, COALESCE((SELECT SUM(miktar) FROM depo_stoklar WHERE stock_code = p.stock_code${appMode === 'sayim' && selectedDepo ? ` AND depo_no = '${selectedDepo.depo_no}'` : ''}), 0) as toplam_stok FROM products p WHERE p.barcode = ?`,
+        [rawInput]
+      );
+      if (exactBarcode && exactBarcode.length === 1) {
+        selectProduct(exactBarcode[0]);
+        playSound('success');
+        setSearchQuery('');
+        setSearchResults([]);
+        return;
+      }
+      if (exactBarcode && exactBarcode.length > 1) {
+        setSearchResults(exactBarcode);
+        setShowResults(true);
+        return;
+      }
+
+      // 2. Tam stok kodu eşleşmesi ara
+      const exactCode: any[] = await db.getAllAsync(
+        `SELECT p.*, COALESCE((SELECT SUM(miktar) FROM depo_stoklar WHERE stock_code = p.stock_code${appMode === 'sayim' && selectedDepo ? ` AND depo_no = '${selectedDepo.depo_no}'` : ''}), 0) as toplam_stok FROM products p WHERE UPPER(p.stock_code) = ?`,
+        [rawInput.toUpperCase()]
+      );
+      if (exactCode && exactCode.length === 1) {
+        selectProduct(exactCode[0]);
+        playSound('success');
+        setSearchQuery('');
+        setSearchResults([]);
+        return;
+      }
+      if (exactCode && exactCode.length > 1) {
+        setSearchResults(exactCode);
+        setShowResults(true);
+        return;
+      }
+
+      // 3. Eşleşme yoksa sesli ve görsel açık uyarı ver
+      if (searchResults.length === 0) {
+        playSound('error');
+        ToastAndroid.show(`Kayıt bulunamadı: ${rawInput}`, ToastAndroid.LONG);
+      }
+    } catch (e) {}
   };
 
   const selectProduct = (item: any) => {
@@ -1608,9 +1680,9 @@ export default function App() {
         END CATCH
       `;
 
-      const insertRes = await axios.post(API_URL, { query: insertQ }, { timeout: 15000 });
+      const insertRes = await executeSqlSafe(API_URL, insertQ, { timeout: 15000 });
       const resultObj = insertRes.data?.data?.[0];
-      if (!resultObj?.success) {
+      if (!resultObj?.success && !insertRes.data?.test_blocked) {
         throw new Error(resultObj?.error_message || 'Mikro kayıt sırasında hata oluştu.');
       }
 
@@ -1789,28 +1861,86 @@ export default function App() {
 
   // --- SAYIM METHODS ---
   const selectDepoAndSave = async (depo: any) => {
+    if (activeCart.length > 0 && selectedDepo && String(selectedDepo.depo_no) !== String(depo.depo_no)) {
+      Alert.alert(
+        'Depo Değişimi Uyarısı',
+        `Sepette "${selectedDepo.depo_adi}" deposuna ait ${activeCart.length} kalem sayım bulunmaktadır. Depo değiştirilirse mevcut sayım yeni depoya karıştırılmamalıdır.\n\nNe yapmak istersiniz?`,
+        [
+          { text: 'İptal', style: 'cancel' },
+          {
+            text: 'Mevcut Sayımı Kaydet ve Değiştir',
+            onPress: async () => {
+              await generateAndSendExcel();
+              setSelectedDepo(depo);
+              await AsyncStorage.setItem('selected_depo_no', String(depo.depo_no));
+              setShowDepoModal(false);
+              setDepoSearchQuery('');
+            }
+          },
+          {
+            text: 'Sepeti Temizle ve Değiştir',
+            style: 'destructive',
+            onPress: async () => {
+              saveCartToStorage([]);
+              setSelectedDepo(depo);
+              await AsyncStorage.setItem('selected_depo_no', String(depo.depo_no));
+              setShowDepoModal(false);
+              setDepoSearchQuery('');
+              ToastAndroid.show(`Aktif depo seçildi: ${depo.depo_adi}`, ToastAndroid.SHORT);
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     setSelectedDepo(depo);
     await AsyncStorage.setItem('selected_depo_no', String(depo.depo_no));
     setShowDepoModal(false);
     setDepoSearchQuery('');
     ToastAndroid.show(`Aktif depo seçildi: ${depo.depo_adi}`, ToastAndroid.SHORT);
   };
+
   const saveCartToStorage = async (newCart: any[]) => {
     setActiveCart([...newCart]);
     await AsyncStorage.setItem('sayim_cart', JSON.stringify(newCart));
   };
+
+  const handleUndoLastAdd = () => {
+    if (!lastAddedItem) return;
+    const existingIndex = activeCart.findIndex(c => c.stock_code === lastAddedItem.stock_code);
+    if (existingIndex < 0) {
+      setLastAddedItem(null);
+      return;
+    }
+    let newCart = [...activeCart];
+    if (lastAddedItem.previousQuantity === null) {
+      newCart.splice(existingIndex, 1);
+    } else {
+      newCart[existingIndex].quantity = lastAddedItem.previousQuantity;
+    }
+    saveCartToStorage(newCart);
+    ToastAndroid.show(`Geri alındı: ${lastAddedItem.name}`, ToastAndroid.SHORT);
+    setLastAddedItem(null);
+  };
+
   const handleAddToCart = () => {
     if (!product || product.stock_code === '---') return;
     if (appMode === 'sayim' && !selectedDepo) { Alert.alert('Hata', 'Depo seçilmedi.'); return; }
     if (appMode === 'sevk' && (!sevkSourceDepo || !sevkTargetDepo)) { Alert.alert('Hata', 'Çıkış veya Giriş deposu seçilmedi.'); return; }
 
-    const quantity = parseFloat(countInput);
-    if (isNaN(quantity) || quantity <= 0) { Alert.alert("Hata", "Lütfen geçerli bir adet giriniz."); return; }
-    
+    const qtyValidation = parseQuantitySafe(countInput);
+    if (!qtyValidation.isValid) {
+      Alert.alert('Geçersiz Miktar', qtyValidation.errorMessage || 'Lütfen geçerli bir miktar giriniz.');
+      return;
+    }
+    const quantity = qtyValidation.quantity;
+
     const existingIndex = activeCart.findIndex(c => c.stock_code === product.stock_code);
     let newCart = [...activeCart];
     if (existingIndex >= 0) {
-      Alert.alert("Ürün Mevcut", `Bu üründen ${newCart[existingIndex].quantity} adet eklendi. Üzerine ekleyelim mi?`, [
+      const prevQty = newCart[existingIndex].quantity;
+      Alert.alert("Ürün Mevcut", `Bu üründen ${prevQty} ${product.unit || 'adet'} eklendi. Üzerine ekleyelim mi?`, [
         { text: "İptal", style: "cancel" },
         { text: "Üzerine Ekle", onPress: () => { 
             newCart[existingIndex].quantity += quantity; 
@@ -1820,6 +1950,12 @@ export default function App() {
                 : countDescription.trim();
             }
             saveCartToStorage(newCart); 
+            setLastAddedItem({
+              stock_code: product.stock_code,
+              name: product.name,
+              quantity: quantity,
+              previousQuantity: prevQty
+            });
             addRecentProduct(product, newCart[existingIndex].quantity, newCart[existingIndex].description);
             ToastAndroid.show("Eklendi!", ToastAndroid.SHORT); 
             setCountInput('1'); 
@@ -1835,6 +1971,12 @@ export default function App() {
               newCart[existingIndex].description = countDescription.trim();
             }
             saveCartToStorage(newCart); 
+            setLastAddedItem({
+              stock_code: product.stock_code,
+              name: product.name,
+              quantity: quantity,
+              previousQuantity: prevQty
+            });
             addRecentProduct(product, quantity, newCart[existingIndex].description);
             ToastAndroid.show("Güncellendi!", ToastAndroid.SHORT); 
             setCountInput('1'); 
@@ -1848,7 +1990,7 @@ export default function App() {
     } else {
       const isSevk = appMode === 'sevk';
       newCart.unshift({ 
-        barcode: product.barcode, 
+        barcode: sanitizeBarcode(product.barcode), 
         stock_code: product.stock_code, 
         name: product.name, 
         depo_no: isSevk ? sevkSourceDepo.depo_no : selectedDepo.depo_no, 
@@ -1857,10 +1999,17 @@ export default function App() {
         target_depo_adi: isSevk ? sevkTargetDepo.depo_adi : null,
         is_sevk: isSevk,
         quantity: quantity, 
+        unit: product.unit || 'Adet',
         description: countDescription.trim(),
         added_at: new Date().toISOString() 
       });
       saveCartToStorage(newCart);
+      setLastAddedItem({
+        stock_code: product.stock_code,
+        name: product.name,
+        quantity: quantity,
+        previousQuantity: null
+      });
       addRecentProduct(product, quantity, countDescription.trim());
       ToastAndroid.show("Sepete eklendi!", ToastAndroid.SHORT);
       setCountInput('1');
@@ -1871,148 +2020,32 @@ export default function App() {
     }
   };
   const sendBackupToMikro = async (backupItem: any): Promise<boolean> => {
-    let mikroAktarimHataMesaji = '';
     try {
       if (!backupItem.cart_data) return false;
       const cartItems = JSON.parse(backupItem.cart_data);
       if (cartItems.length === 0) return false;
 
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = (d.getMonth() + 1).toString().padStart(2, '0');
-      const day = d.getDate().toString().padStart(2, '0');
-      const h = d.getHours().toString().padStart(2, '0');
-      const min = d.getMinutes().toString().padStart(2, '0');
-      const s = d.getSeconds().toString().padStart(2, '0');
-      const sqlDateTarihYaliniz = `'${y}${m}${day}'`;
-      const sqlDateTime = `'${y}-${m}-${day} ${h}:${min}:${s}'`; 
-
-      const isSevkList = cartItems[0].is_sevk;
-      const evrakSeri = isSevkList ? '1' : '';
-      let targetEvrakNo = backupItem.mikro_evrak_no;
-      const userNum = parseInt(mikroUserNo, 10) || 7;
-
-      if (isSevkList) {
-        try {
-          const seqQ = `SELECT ISNULL(MAX(sth_evrakno_sira), 0) + 1 AS NextSira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_tip = 2 AND sth_cins = 6`;
-          const seqRes = await axios.post(API_URL, { query: seqQ });
-          if (seqRes.data && seqRes.data.data && seqRes.data.data.length > 0) {
-            targetEvrakNo = seqRes.data.data[0].NextSira;
-            const db = dbRef.current;
-            if(db) await db.runAsync('UPDATE sayim_backups SET mikro_evrak_no = ? WHERE id = ?', [targetEvrakNo, backupItem.id]);
-          }
-        } catch(e) {}
-      } else {
-        try {
-          const seqQ = `SELECT ISNULL(MAX(sth_evrakno_sira), 0) + 1 AS NextSira FROM STOK_HAREKETLERI WITH (NOLOCK) WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evraktip = 6 AND sth_cins = 3`;
-          const seqRes = await axios.post(API_URL, { query: seqQ });
-          if (seqRes.data && seqRes.data.data && seqRes.data.data.length > 0) {
-            targetEvrakNo = seqRes.data.data[0].NextSira;
-            const db = dbRef.current;
-            if(db) await db.runAsync('UPDATE sayim_backups SET mikro_evrak_no = ? WHERE id = ?', [targetEvrakNo, backupItem.id]);
-          }
-        } catch(e) {}
-      }
-
-      if (!targetEvrakNo) {
-        targetEvrakNo = isSevkList ? Math.floor(Math.random() * 90000) + 10000 : Math.floor(Math.random() * 900) + 100;
-        const db = dbRef.current;
-        if(db) await db.runAsync('UPDATE sayim_backups SET mikro_evrak_no = ? WHERE id = ?', [targetEvrakNo, backupItem.id]);
-      }
-
-      const depoNoForDelete = cartItems[0].depo_no || 1;
-      let sqlQueries = '';
-
-      if (isSevkList) {
-        sqlQueries = `
-          BEGIN TRANSACTION;
-          DELETE FROM STOK_HAREKETLERI WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evrakno_sira = ${targetEvrakNo} AND sth_cins = 6;\n`;
-        sqlQueries += cartItems.map((item: any, index: number) => {
-          return `INSERT INTO STOK_HAREKETLERI (sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum, sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date, sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo, sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash, sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod, sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10, sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10, sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar, sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6, sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4, sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik, sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid, sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi, sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl, sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu, sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl, sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu, sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu, sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3, sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5, sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl, sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu, sth_tevkifat_sifirlandi_fl) VALUES (NEWID(), 0, 0, 0, 16, 0, 0, 0, 0, ${userNum}, ${sqlDateTime}, ${userNum}, ${sqlDateTime}, '', '', '', 21, '17.05d', 12500, '', '', '', 0, '', '', 0, 0, ${sqlDateTarihYaliniz}, 2, 6, 0, 2, '${evrakSeri}', ${targetEvrakNo}, ${index}, '', ${sqlDateTarihYaliniz}, '${item.stock_code}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', 0, '', '', 0, 1, 1, 0, 1, ${item.quantity.toString().replace(',', '.')}, ${item.quantity.toString().replace(',', '.')}, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', ${item.target_depo_no}, ${item.depo_no}, ${sqlDateTarihYaliniz}, '', '', '1899-12-30', 0, 0, 0, 0, 0, 1, '', 0, '00000000-0000-0000-0000-000000000000', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '', '', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, ${sqlDateTarihYaliniz}, 0, 0, 0, '', '', 0);`;
-        }).join('\n') + '\nCOMMIT TRANSACTION;\nSELECT 1 AS result_fix;';
-      } else {
-        // SAYIM SONUCU FİŞİ (MIKRO MENÜ 012810 - STOK_HAREKETLERI & 071100 SAYIM_SONUCLARI)
-        sqlQueries = `
-          BEGIN TRANSACTION;
-          DECLARE @Now datetime = ${sqlDateTime};
-          DECLARE @Tarih datetime = ${sqlDateTarihYaliniz};
-          DECLARE @NextSira int = ${targetEvrakNo};
-
-          DELETE FROM STOK_HAREKETLERI WHERE sth_evrakno_seri = '${evrakSeri}' AND sth_evrakno_sira = @NextSira AND sth_evraktip = 6 AND sth_cins = 3;
-          DELETE FROM SAYIM_SONUCLARI WHERE sym_tarihi = @Tarih AND sym_depono = ${depoNoForDelete} AND sym_evrakno = @NextSira;\n`;
-
-        cartItems.forEach((item: any, index: number) => {
-          const itemMiktar = parseFloat(String(item.quantity).replace(',', '.')) || 1;
-          const sKod = (item.stock_code || '').replace(/'/g, "''");
-          const itemDepo = item.depo_no || depoNoForDelete;
-
-          // 1. STOK_HAREKETLERI (Sayım Sonucu Fişi - Menü 012810)
-          sqlQueries += `
-            INSERT INTO STOK_HAREKETLERI (
-              sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
-              sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
-              sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
-              sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
-              sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
-              sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
-              sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
-              sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
-              sth_fis_tarihi, sth_fis_sirano, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
-            ) VALUES (
-              NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
-              ${userNum}, @Now, ${userNum}, @Now,
-              '', '', '', 21, '17.05d', '12800',
-              '', '', '', 0, '', 0,
-              0, 0, @Tarih, 1, 3, 0, 6, '${evrakSeri}',
-              @NextSira, ${index}, '', @Tarih, '${sKod}',
-              ${itemMiktar}, ${itemMiktar}, 1, 0, 0,
-              ${itemDepo}, ${itemDepo}, @Tarih,
-              '', '', '',
-              '1899-12-30', 0, 0, 1, 50, 0, 1
-            );
-
-            -- 2. SAYIM_SONUCLARI (El Terminali Ham Sayımı - Menü 071100)
-            INSERT INTO SAYIM_SONUCLARI (
-              sym_Guid, sym_DBCno, sym_SpecRECno, sym_iptal, sym_fileid, sym_hidden, sym_kilitli, sym_degisti, sym_checksum,
-              sym_create_user, sym_create_date, sym_lastup_user, sym_lastup_date,
-              sym_special1, sym_special2, sym_special3,
-              sym_tarihi, sym_depono, sym_evrakno, sym_satirno,
-              sym_Stokkodu, sym_reyonkodu, sym_koridorkodu, sym_rafkodu,
-              sym_miktar1, sym_miktar2, sym_miktar3, sym_miktar4, sym_miktar5,
-              sym_birim_pntr, sym_barkod, sym_renkno, sym_bedenno, sym_parti_kodu, sym_lot_no, sym_serino
-            ) VALUES (
-              NEWID(), 0, 0, 0, 28, 0, 0, 0, 0,
-              ${userNum}, @Now, ${userNum}, @Now,
-              'MOBIL', '', '',
-              @Tarih, ${itemDepo}, @NextSira, ${index + 1},
-              '${sKod}', '0', '0', '0',
-              ${itemMiktar}, 0, 0, 0, 0,
-              1, '', 0, 0, '', 0, ''
-            );
-          `;
-        });
-
-        sqlQueries += `
-          COMMIT TRANSACTION;
-          SELECT 1 AS result_fix;
-        `;
-      }
-      
-      await axios.post(API_URL, { query: sqlQueries }, { timeout: 20000 });
-      
-      const db = dbRef.current;
-      if(db && backupItem.id) await db.runAsync('UPDATE sayim_backups SET mikro_sent = 1 WHERE id = ?', [backupItem.id]);
-      
-      // Update ui list
-      setSayimBackups(prev => prev.map(p => p.id === backupItem.id ? {...p, mikro_sent: 1} : p));
-
+      const isSevkList = cartItems[0]?.is_sevk;
       const fişTipi = isSevkList ? 'Depo Transfer Fişi' : 'Depo Sayım Fişi (012800)';
-      ToastAndroid.show(`Mikro'ya başarıyla gönderildi! (${fişTipi} Sıra: ${targetEvrakNo})`, ToastAndroid.LONG);
+
+      // KESİN KURAL: MİKRO ERP'YE HİÇBİR VERİ YAZILMAYACAK!
+      // Kaydı güvenle yerel SQLite sayim_backups içinde mikro_sent = 0 olarak tut
+      const db = dbRef.current;
+      if (db && backupItem.id) {
+        await db.runAsync('UPDATE sayim_backups SET mikro_sent = 0 WHERE id = ?', [backupItem.id]);
+      }
+
+      setSayimBackups(prev => prev.map(p => p.id === backupItem.id ? { ...p, mikro_sent: 0 } : p));
+
+      playSound('order');
+      Alert.alert(
+        "🛡️ Test Modu (Mikro ERP Koruması)",
+        `Mikro ERP'ye yazma KESİNLİKLE engellenmiştir.\n\n${fişTipi} (${cartItems.length} kalem) yerel SQLite veritabanında güvenle saklandı ve bekletiliyor.\n\nGerçek ERP veritabanına hiçbir stok hareketi veya sayım fişi işlenmedi.`
+      );
+      ToastAndroid.show(`TEST MODU: ${fişTipi} yerel yedeklerde güvenle saklandı.`, ToastAndroid.LONG);
       return true;
     } catch (err: any) {
-      mikroAktarimHataMesaji = err.response?.data?.error || err.message;
-      Alert.alert("Mikro Aktarım Hatası", mikroAktarimHataMesaji);
+      Alert.alert("Hata", "Yerel kayıt hatası: " + err.message);
       return false;
     }
   };
@@ -2069,40 +2102,45 @@ export default function App() {
         setAppMode('menu');
       };
 
-      if (isConnected) {
-        Alert.alert(
-          "İşlemi Tamamla",
-          `${fisTipi} olarak ${activeCart.length} kalem ürün kaydedilecek. Mikro ERP'ye aktarmak istiyor musunuz?`,
-          [
-            { text: "İptal", style: "cancel" },
-            {
-              text: "Yalnızca Telefona Kaydet",
-              onPress: async () => {
-                await saveBackupToDb();
-                finishAndClear();
-                ToastAndroid.show("Yerel yedeklere kaydedildi. Ayarlar menüsünden aktarabilirsiniz.", ToastAndroid.LONG);
-              }
-            },
-            {
-              text: "Mikro'ya Aktar",
-              onPress: async () => {
-                const backupObj = await saveBackupToDb();
-                if (backupObj) {
-                  await sendBackupToMikro(backupObj);
-                }
-                finishAndClear();
-              }
+      Alert.alert(
+        "Sayım İşlemini Tamamla",
+        `${fisTipi} olarak ${activeCart.length} kalem ürün hazırlandı. Ne yapmak istersiniz?`,
+        [
+          { text: "İptal", style: "cancel" },
+          {
+            text: "📊 Excel Paylaş (.xlsx)",
+            onPress: async () => {
+              await saveBackupToDb();
+              await exportSayimToExcel({
+                cart: activeCart,
+                depoAdi: isSevk ? sevkSourceDepo?.depo_adi : selectedDepo?.depo_adi,
+                depoNo: isSevk ? sevkSourceDepo?.depo_no : selectedDepo?.depo_no,
+                userName: userName || (authSession?.user?.display_name || 'Kullanıcı'),
+                isSevk
+              });
+              finishAndClear();
             }
-          ]
-        );
-      } else {
-        await saveBackupToDb();
-        Alert.alert(
-          "Yerel Olarak Kaydedildi",
-          `İnternet bağlantısı olmadığı için ${fisTipi} cihazınıza kaydedildi. Bağlantı sağlandığında Ayarlar menüsünden Mikro'ya aktarabilirsiniz.`,
-          [{ text: "Tamam", onPress: finishAndClear }]
-        );
-      }
+          },
+          {
+            text: "💾 Telefona Kaydet (Taslak)",
+            onPress: async () => {
+              await saveBackupToDb();
+              finishAndClear();
+              ToastAndroid.show("Yerel yedeklere kaydedildi.", ToastAndroid.LONG);
+            }
+          },
+          {
+            text: "🛡️ Mikro'ya Aktar (Test Korumalı)",
+            onPress: async () => {
+              const backupObj = await saveBackupToDb();
+              if (backupObj) {
+                await sendBackupToMikro(backupObj);
+              }
+              finishAndClear();
+            }
+          }
+        ]
+      );
     } catch (e: any) {
       Alert.alert("Hata", "İşlem kaydedilemedi: " + e.message);
     }
@@ -4996,8 +5034,57 @@ export default function App() {
           </View>
         ) : appMode !== 'cari' ? (
           <View style={styles.resultPanel}>
+            {/* SON EKLENEN & GERİ AL (UNDO) BİLGİ KARTI */}
+            {lastAddedItem && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.10)',
+                borderColor: '#3B82F6',
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                marginBottom: 10
+              }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>Son Eklenen Ürün:</Text>
+                  <Text style={{ fontSize: 13, color: styles.colors.text, fontWeight: '700' }} numberOfLines={1}>
+                    {lastAddedItem.name} ({lastAddedItem.quantity} Adet)
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleUndoLastAdd}
+                  style={{
+                    backgroundColor: '#EF4444',
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <Ionicons name="arrow-undo" size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>GERİ AL</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={styles.searchContainer}>
-              <TextInput style={[styles.searchInput, { flex: 1, paddingRight: 40 }]} placeholder="Ad, stok kodu veya barkod ile ara..." placeholderTextColor="#8a9ab5" value={searchQuery} onChangeText={(text) => handleSearch(text.toLocaleUpperCase('tr-TR'))} autoCapitalize="characters" />
+              <TextInput
+                ref={searchInputRef}
+                style={[styles.searchInput, { flex: 1, paddingRight: 40 }]}
+                placeholder="Ad, stok kodu veya barkod ile ara..."
+                placeholderTextColor="#8a9ab5"
+                value={searchQuery}
+                onChangeText={(text) => handleSearch(text.toLocaleUpperCase('tr-TR'))}
+                onSubmitEditing={handleSearchSubmit}
+                blurOnSubmit={false}
+                returnKeyType="search"
+                autoCapitalize="characters"
+              />
               <TouchableOpacity onPress={handleSpeechStart} style={styles.micSearch}>
                 <Ionicons name={isListening ? "mic" : "mic-outline"} size={22} color={isListening ? "#EF4444" : (isDark ? "#3B82F6" : "#1E40AF")} />
               </TouchableOpacity>
@@ -5406,7 +5493,7 @@ export default function App() {
                           <View style={styles.diffBannerRow}>
                             <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: '800' }}>Sayım Sonrası Fark:</Text>
                             <Text style={{ color: '#FF6B00', fontSize: 12, fontWeight: '900' }}>
-                              {formatPrice((parseFloat(countInput) || 0) - (depoStoklar.find((d: any) => selectedDepo && String(d.DepoNo).trim().padStart(2, '0') === String(selectedDepo.depo_no).trim().padStart(2, '0'))?.Miktar || 0))} {product.unit || 'Adet'}
+                              {formatPrice((parseFloat(countInput.replace(',', '.')) || 0) - (depoStoklar.find((d: any) => selectedDepo && String(d.DepoNo).trim().padStart(2, '0') === String(selectedDepo.depo_no).trim().padStart(2, '0'))?.Miktar || 0))} {product.unit || 'Adet'}
                             </Text>
                           </View>
                         </View>
@@ -5415,7 +5502,10 @@ export default function App() {
                         <View style={styles.stepperRow}>
                           <TouchableOpacity
                             style={styles.stepperBtn}
-                            onPress={() => setCountInput(prev => String(Math.max(1, (parseInt(prev) || 1) - 1)))}
+                            onPress={() => setCountInput(prev => {
+                              const val = parseFloat(prev.replace(',', '.')) || 0;
+                              return String(Math.max(0, Math.round((val - 1) * 100) / 100));
+                            })}
                           >
                             <Ionicons name="remove" size={28} color={styles.colors.text} />
                           </TouchableOpacity>
@@ -5423,7 +5513,7 @@ export default function App() {
                           <View style={styles.stepperInputBox}>
                             <TextInput
                               style={styles.stepperInput}
-                              keyboardType="numeric"
+                              keyboardType="decimal-pad"
                               value={countInput}
                               onChangeText={setCountInput}
                               autoFocus={false}
@@ -5439,7 +5529,10 @@ export default function App() {
 
                           <TouchableOpacity
                             style={styles.stepperBtn}
-                            onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + 1))}
+                            onPress={() => setCountInput(prev => {
+                              const val = parseFloat(prev.replace(',', '.')) || 0;
+                              return String(Math.round((val + 1) * 100) / 100);
+                            })}
                           >
                             <Ionicons name="add" size={28} color={styles.colors.text} />
                           </TouchableOpacity>
@@ -5451,14 +5544,20 @@ export default function App() {
                             <TouchableOpacity
                               key={delta}
                               style={styles.quickPillBtn}
-                              onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + delta))}
+                              onPress={() => setCountInput(prev => {
+                                const val = parseFloat(prev.replace(',', '.')) || 0;
+                                return String(Math.round((val + delta) * 100) / 100);
+                              })}
                             >
                               <Text style={styles.quickPillText}>+{delta}</Text>
                             </TouchableOpacity>
                           ))}
                           <TouchableOpacity
                             style={[styles.quickPillBtn, { backgroundColor: styles.colors.secondarySoft }]}
-                            onPress={() => setCountInput(prev => String((parseInt(prev) || 0) + 24))}
+                            onPress={() => setCountInput(prev => {
+                              const val = parseFloat(prev.replace(',', '.')) || 0;
+                              return String(Math.round((val + 24) * 100) / 100);
+                            })}
                           >
                             <Text style={[styles.quickPillText, { color: styles.colors.secondary }]}>x24</Text>
                           </TouchableOpacity>

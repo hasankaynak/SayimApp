@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Modal from 'react-native-modal';
 import axios from 'axios';
+import { executeSqlSafe } from './safeApi';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -511,12 +512,12 @@ export default function DepoFisleriView({
           SELECT 1 AS success, @SiraNo AS CreatedSira;
         `;
 
-        const saveRes = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+        const saveRes = await executeSqlSafe(API_URL, sql, { timeout: 25000 });
         if (saveRes.data?.data) {
           playSound('success');
           Alert.alert(
-            'İşlem Başarılı',
-            `Mikro ERP'de Depolar Arası Sevk Fişi (012500) başarıyla oluşturuldu!\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nÇıkış Deposu: ${sevkSourceDepo?.depo_adi}\nGiriş Deposu: ${sevkTargetDepo?.depo_adi}\nToplam Kalem: ${cartItems.length}`,
+            '🛡️ Test Modu (ERP Koruması)',
+            `Depolar Arası Sevk Fişi (012500) test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nÇıkış Deposu: ${sevkSourceDepo?.depo_adi}\nGiriş Deposu: ${sevkTargetDepo?.depo_adi}\nToplam Kalem: ${cartItems.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
             [{ text: 'Tamam' }]
           );
           setCartItems([]);
@@ -603,13 +604,13 @@ export default function DepoFisleriView({
           SELECT 1 AS success, @SiraNo AS CreatedSira;
         `;
 
-        const saveRes = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+        const saveRes = await executeSqlSafe(API_URL, sql, { timeout: 25000 });
         if (saveRes.data?.data) {
           playSound('success');
           const fisAdi = isCikis ? 'Sayım Çıkışı Depo Fişi (012160)' : 'Sayım Girişi Depo Fişi (012250)';
           Alert.alert(
-            'İşlem Başarılı',
-            `Mikro ERP'de ${fisAdi} başarıyla oluşturuldu!\n\nEvrak No: ${targetSeri}-${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Kalem: ${cartItems.length}`,
+            '🛡️ Test Modu (ERP Koruması)',
+            `${fisAdi} test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri}-${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Kalem: ${cartItems.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
             [{ text: 'Tamam' }]
           );
           setCartItems([]);
@@ -717,12 +718,12 @@ export default function DepoFisleriView({
           SELECT 1 AS success, @SiraNo AS CreatedSira;
         `;
 
-        const saveRes = await axios.post(API_URL, { query: sql }, { timeout: 25000 });
+        const saveRes = await executeSqlSafe(API_URL, sql, { timeout: 25000 });
         if (saveRes.data?.data) {
           playSound('success');
           Alert.alert(
-            'İşlem Başarılı',
-            `Mikro ERP'de Stok Virman Fişi (012810) başarıyla oluşturuldu!\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Virman Çifti: ${virmanPairs.length}`,
+            '🛡️ Test Modu (ERP Koruması)',
+            `Stok Virman Fişi (012810) test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Virman Çifti: ${virmanPairs.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
             [{ text: 'Tamam' }]
           );
           setVirmanPairs([]);
