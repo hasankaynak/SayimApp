@@ -489,7 +489,8 @@ export default function AlisFaturasiView({
                   sth_satirno, sth_belge_no, sth_belge_tarih, sth_cari_kodu, sth_stok_kod,
                   sth_giris_depo_no, sth_cikis_depo_no, sth_miktar, sth_miktar2, sth_birim_pntr,
                   sth_birimfiyat, sth_tutar, sth_vergi_pntr, sth_vergi, sth_fat_uid,
-                  sth_firmano, sth_subeno, sth_stok_srm_merkezi, sth_proje_kodu, sth_normal_iade
+                  sth_firmano, sth_subeno, sth_stok_srm_merkezi, sth_proje_kodu, sth_normal_iade,
+                  sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_malkbl_sevk_tarihi
                 ) VALUES (
                   NEWID(), 0, @Now, ${userNum}, @Now, ${userNum},
                   16, 21, '17.05d', '62205', '0',
@@ -497,7 +498,8 @@ export default function AlisFaturasiView({
                   ${idx + 1}, '${cleanBelgeNo}', @Tarih, '${cleanCariKod}', '${item.stock_code.replace(/'/g, "''")}',
                   ${depoNo}, ${depoNo}, ${item.miktar}, ${item.miktar}, 1,
                   ${item.birim_fiyat}, ${item.tutar}, ${item.kdv_pntr}, ${item.kdv_tutari}, @FatGuid,
-                  0, 0, '', '', 0
+                  0, 0, '', '', 0,
+                  0, 1, 49.25, 0, 1, @Tarih
                 );
               `).join('\n');
 
@@ -526,14 +528,16 @@ export default function AlisFaturasiView({
                     cha_tarihi, cha_tip, cha_cinsi, cha_evrak_tip, cha_evrakno_seri, cha_evrakno_sira,
                     cha_satir_no, cha_belge_no, cha_belge_tarih, cha_kod, cha_ciro_cari_kodu,
                     cha_meblag, cha_aratoplam,
-                    cha_firmano, cha_subeno, cha_srmrkkodu, cha_projekodu
+                    cha_firmano, cha_subeno, cha_srmrkkodu, cha_projekodu,
+                    cha_d_cins, cha_d_kur, cha_altd_kur
                   ) VALUES (
                     @FatGuid, 0, @Now, ${userNum}, @Now, ${userNum},
                     51, 21, '17.05d', '62205', '0',
                     @Tarih, 1, 6, 0, '${cleanSeri}', @NextSira,
                     0, '${cleanBelgeNo}', @Tarih, '${cleanCariKod}', '${cleanCariKod}',
                     ${genelToplam.toFixed(2)}, ${araToplam.toFixed(2)},
-                    0, 0, '', ''
+                    0, 0, '', '',
+                    0, 1, 49.25
                   );
 
                   COMMIT TRANSACTION;

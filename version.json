@@ -1,6 +1,6 @@
 {
-  "version": "1.0.40",
-  "versionCode": 40,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.40/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.40\n• ALT MENÜ (DOCK) YÖNLENDİRME DÜZENLEMESİ:\n• Alt gezinme çubuğunda 'Evraklar' ve 'Rapor' butonlarının aynı ekrana açılma sorunu giderildi.\n• 'Evraklar' tıklandığında doğrudan Mikro Faturalar & Evraklar listesi (Alış/Satış evrakları, evrak arama ve detayları) açılır.\n• 'Rapor' tıklandığında ise doğrudan Giriş - Çıkış Analiz ve Stok Raporları açılır."
+  "version": "1.0.41",
+  "versionCode": 41,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.41/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.41\n• SİLİNEN ÜRÜNLERİN TEMİZLENMESİ:\n• Mikro ERP'den silinen stok kartları (örn: TEST.01 vb.) telefon yerel hafızasından ve arama sonuçlarından otomatik olarak temizlenir.\n• FORA MİKRO SENKRONİZASYON UYUMLULUĞU:\n• Fora uygulamasında 'Değişen kayıtlar çekilemedi' hatasına yol açan barkodsuz stok kartı ve eksik döviz alanları Mikro standartlarına göre optimize edildi.\n• Barkod tanımlama ve yeni stok kartı açma işlemlerinde bar_fileid 15 ve Mikro standart başlıkları zorunlu kılındı.\n• Alış Faturası ve hareket kayıtlarına döviz kuru ve sevk tarihi alanları entegre edildi."
 }

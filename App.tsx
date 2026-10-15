@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.40';
-const CURRENT_VERSION_CODE = 40;
+const CURRENT_VERSION = '1.0.41';
+const CURRENT_VERSION_CODE = 41;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -775,6 +775,7 @@ export default function App() {
       try { await db.execAsync(`ALTER TABLE products ADD COLUMN iskonto_orani TEXT;`); } catch (e) {}
       try { await db.execAsync(`ALTER TABLE sayim_backups ADD COLUMN mikro_evrak_no INTEGER;`); } catch (e) {}
       try { await db.execAsync(`ALTER TABLE sayim_backups ADD COLUMN mikro_sent INTEGER DEFAULT 0;`); } catch (e) {}
+      try { await db.execAsync(`DELETE FROM products WHERE stock_code IN ('TEST01', 'TEST.01') OR barcode IN ('12345', 'TESTBARCODE');`); } catch (e) {}
       await updateStats();
       const depoRes: any[] = await db.getAllAsync('SELECT DISTINCT depo_no, depo_adi FROM depo_stoklar WHERE depo_no IS NOT NULL ORDER BY depo_no');
       setDepos(depoRes || []);
@@ -848,6 +849,7 @@ export default function App() {
       const db = dbRef.current;
       if (db) {
         await db.withTransactionAsync(async () => {
+          await db.runAsync('DELETE FROM products');
           for (const item of remoteProducts) {
             await db.runAsync(
               'INSERT OR REPLACE INTO products (barcode, stock_code, name, price, currency, unit, name_normalized, lastup_date, iskonto_orani) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1020,7 +1022,7 @@ export default function App() {
     setIsProcessingBarkod(true);
     const userNum = parseInt(mikroUserNo, 10) || 7;
     try {
-      const q = `INSERT INTO BARKOD_TANIMLARI (bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user, bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr) VALUES (NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum}, 18, '${product.barcode}', '${selectedStok.stock_code}', 1, 0, 0); SELECT 1 AS result_fix;`;
+      const q = `INSERT INTO BARKOD_TANIMLARI (bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user, bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr, bar_MainProgramNo, bar_VersionNo, bar_MenuNo) VALUES (NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum}, 15, '${product.barcode}', '${selectedStok.stock_code}', 1, 0, 0, 21, '17.05d', '11500'); SELECT 1 AS result_fix;`;
       await axios.post(API_URL, { query: q }, { timeout: 10000 });
       
       const db = dbRef.current;
@@ -1214,10 +1216,12 @@ export default function App() {
           -- 2. BARKOD_TANIMLARI TABLOSUNA INSERT
           INSERT INTO BARKOD_TANIMLARI (
             bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user,
-            bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr
+            bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr,
+            bar_MainProgramNo, bar_VersionNo, bar_MenuNo
           ) VALUES (
             NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
-            224, '${escapedBarcode}', '${escapedCode}', 1, 0, 0
+            15, '${escapedBarcode}', '${escapedCode}', 1, 0, 0,
+            21, '17.05d', '11500'
           );
 
           -- 3. STOK_SATIS_FIYAT_LISTELERI (sfiyat_deposirano=0 ve sfiyat_odemeplan=0 zorunlu)
