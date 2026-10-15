@@ -1,6 +1,6 @@
 {
-  "version": "1.0.44",
-  "versionCode": 44,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.44/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.44\n• MİKRO 'SONRAKİ BENZER KARTI OLUŞTUR' KART KLONLAMA ENTEGRASYONU:\n• Yeni Stok Kartı Aç modalı, Mikro Masaüstü ERP'nin yerel 'Sonraki Benzer Kartı Oluştur' standardına uyarlandı.\n• Yeni kart oluşturulurken STOKLAR tablosundaki tüm 235 sistem ve muhasebe kolonu referans alınan benzer karttan kusursuz şekilde kopyalanır.\n• Fora Mikro ve Masaüstü Mikro'da eksik kolon veya muhasebe tanım hatası oluşması tamamen engellendi.\n• Şablon Kart Seçici: Sistem otomatik olarak Mikro'daki son geçerli kartı şablon alır veya kullanıcı dilediği herhangi bir ürünü referans seçebilir.\n• Sonraki Kod Üretici: Referans kartın kod yapısını analiz ederek bir sonraki ardışık stok kodunu otomatik önerir."
+  "version": "1.0.45",
+  "versionCode": 45,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.45/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.45\n• OTOMATİK GÜNCELLEME VE PAKET KURUCU İYİLEŞTİRMESİ:\n• Android 11+ cihazlarda 'expointentlauncher.start.activity' ve paket yükleyici açılış hatası giderildi.\n• AndroidManifest <queries> tanımı ile sistem APK Paket Yükleyici erişimi tam uyumlu hale getirildi.\n• 3 Kademeli Güvenli Kurulum: VIEW intent, INSTALL_PACKAGE intent ve Sistem Paylaş/Aç menüsü entegre edildi.\n• Olası izin veya güvenlik kısıtlamalarında doğrudan 'Bilinmeyen Kaynak İzni Aç' ve 'Tarayıcıdan İndir & Kur' alternatifleri eklendi.\n• Güncelleme penceresine tek dokunuşla tarayıcıdan indirme seçeneği eklendi."
 }

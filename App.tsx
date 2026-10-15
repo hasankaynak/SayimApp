@@ -20,7 +20,8 @@ import {
   Dimensions,
   useColorScheme,
   Image,
-  ToastAndroid
+  ToastAndroid,
+  Linking
 } from 'react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -33,6 +34,7 @@ import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 import XLSX from 'xlsx';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ReportsView from './ReportsView';
@@ -80,8 +82,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.44';
-const CURRENT_VERSION_CODE = 44;
+const CURRENT_VERSION = '1.0.45';
+const CURRENT_VERSION_CODE = 45;
 
 const STOKLAR_COLS = [
   'sto_Guid','sto_DBCno','sto_SpecRECno','sto_iptal','sto_fileid','sto_hidden','sto_kilitli','sto_degisti','sto_checksum','sto_create_user','sto_create_date','sto_lastup_user','sto_lastup_date','sto_special1','sto_special2','sto_special3','sto_MainProgramNo','sto_VersionNo','sto_MenuNo','sto_MikroSpecial1','sto_MikroSpecial2','sto_MikroSpecial3','sto_ExternalProgramType','sto_ExternalProgramId','sto_Hash','sto_kod','sto_isim','sto_kisa_ismi','sto_yabanci_isim','sto_sat_cari_kod','sto_cins','sto_doviz_cinsi','sto_detay_takip','sto_birim1_ad','sto_birim1_katsayi','sto_birim1_agirlik','sto_birim1_en','sto_birim1_boy','sto_birim1_yukseklik','sto_birim1_dara','sto_birim2_ad','sto_birim2_katsayi','sto_birim2_agirlik','sto_birim2_en','sto_birim2_boy','sto_birim2_yukseklik','sto_birim2_dara','sto_birim3_ad','sto_birim3_katsayi','sto_birim3_agirlik','sto_birim3_en','sto_birim3_boy','sto_birim3_yukseklik','sto_birim3_dara','sto_birim4_ad','sto_birim4_katsayi','sto_birim4_agirlik','sto_birim4_en','sto_birim4_boy','sto_birim4_yukseklik','sto_birim4_dara','sto_muh_kod','sto_muh_Iade_kod','sto_muh_sat_muh_kod','sto_muh_satIadmuhkod','sto_muh_sat_isk_kod','sto_muh_aIiskmuhkod','sto_muh_satmalmuhkod','sto_yurtdisi_satmuhk','sto_ilavemasmuhkod','sto_yatirimtesmuhkod','sto_depsatmuhkod','sto_depsatmalmuhkod','sto_bagortsatmuhkod','sto_bagortsatIadmuhkod','sto_bagortsatIskmuhkod','sto_satfiyfarkmuhkod','sto_yurtdisisatmalmuhkod','sto_bagortsatmalmuhkod','sto_sifirbedsatmalmuhkod','sto_ihrackayitlisatismuhkod','sto_ihrackayitlisatismaliyetimuhkod','sto_karorani','sto_min_stok','sto_siparis_stok','sto_max_stok','sto_ver_sip_birim','sto_al_sip_birim','sto_siparis_sure','sto_perakende_vergi','sto_toptan_vergi','sto_yer_kod','sto_elk_etk_tipi','sto_raf_etiketli','sto_etiket_bas','sto_satis_dursun','sto_siparis_dursun','sto_malkabul_dursun','sto_malkabul_gun1','sto_malkabul_gun2','sto_malkabul_gun3','sto_malkabul_gun4','sto_malkabul_gun5','sto_malkabul_gun6','sto_malkabul_gun7','sto_siparis_gun1','sto_siparis_gun2','sto_siparis_gun3','sto_siparis_gun4','sto_siparis_gun5','sto_siparis_gun6','sto_siparis_gun7','sto_iskon_yapilamaz','sto_tasfiyede','sto_alt_grup_no','sto_kategori_kodu','sto_urun_sorkod','sto_altgrup_kod','sto_anagrup_kod','sto_uretici_kodu','sto_sektor_kodu','sto_reyon_kodu','sto_muhgrup_kodu','sto_ambalaj_kodu','sto_marka_kodu','sto_model_kodu','sto_sezon_kodu','sto_hammadde_kodu','sto_prim_kodu','sto_kalkon_kodu','sto_paket_kodu','sto_pozisyonbayrak_kodu','sto_mkod_artik','sto_kasa_tarti_fl','sto_miktarondalikli_fl','sto_pasif_fl','sto_eksiyedusebilir_fl','sto_GtipNo','sto_puan','sto_komisyon_hzmkodu','sto_komisyon_orani','sto_otvuygulama','sto_otvtutar','sto_otvliste','sto_otvbirimi','sto_prim_orani','sto_garanti_sure','sto_garanti_sure_tipi','sto_iplik_Ne_no','sto_standartmaliyet','sto_kanban_kasa_miktari','sto_oivuygulama','sto_zraporu_stoku_fl','sto_maxiskonto_orani','sto_detay_takibinde_depo_kontrolu_fl','sto_tamamlayici_kodu','sto_oto_barkod_acma_sekli','sto_oto_barkod_kod_yapisi','sto_KasaIskontoOrani','sto_KasaIskontoTutari','sto_gelirpayi','sto_oivtutar','sto_oivturu','sto_giderkodu','sto_oivvergipntr','sto_Tevkifat_turu','sto_SKT_fl','sto_terazi_SKT','sto_RafOmru','sto_KasadaTaksitlenebilir_fl','sto_ufrsfark_kod','sto_iade_ufrsfark_kod','sto_yurticisat_ufrsfark_kod','sto_satiade_ufrsfark_kod','sto_satisk_ufrsfark_kod','sto_alisk_ufrsfark_kod','sto_satmal_ufrsfark_kod','sto_yurtdisisat_ufrsfark_kod','sto_ilavemas_ufrsfark_kod','sto_yatirimtes_ufrsfark_kod','sto_depsat_ufrsfark_kod','sto_depsatmal_ufrsfark_kod','sto_bagortsat_ufrsfark_kod','sto_bagortsatiade_ufrsfark_kod','sto_bagortsatisk_ufrsfark_kod','sto_satfiyfark_ufrsfark_kod','sto_yurtdisisatmal_ufrsfark_kod','sto_bagortsatmal_ufrsfark_kod','sto_sifirbedsatmal_ufrsfark_kod','sto_uretimmaliyet_ufrsfark_kod','sto_uretimkapasite_ufrsfark_kod','sto_degerdusuklugu_ufrs_kod','sto_halrusumyudesi','sto_webe_gonderilecek_fl','sto_min_stok_belirleme_gun','sto_sip_stok_belirleme_gun','sto_max_stok_belirleme_gun','sto_sev_bel_opr_degerlendime_fl','sto_otv_tevkifat_turu','sto_kay_plan_degerlendir','sto_CRM_sistemine_aktar_fl','sto_yerli_yabanci','sto_mensei','sto_oto_parti_lot_kod_fl','sto_efat_sinif_kodu','sto_efat_sinif_listesi','sto_efat_sinif_versiyonu','sto_utssisteminegonderilsin_fl','sto_posetbeyannamekonusu_fl','sto_STT_oncesi_kaldirma','sto_toplam_rafomru','sto_fiyat_kasada_belirlenir_fl','sto_franchise_siparis_dursun','sto_GEKAP','sto_GEKAP_birim','sto_resim_url','sto_GEKAP_depozitoonaykodu','sto_cabuk_bozulabilen_urun_fl','sto_satin_alma_talep_birim','sto_bagimsiz_miktar_takip_fl','sto_varyant_detayli_fl1','sto_varyant_detayli_fl2','sto_varyant_detayli_fl3','sto_varyant_detayli_fl4','sto_varyant_detayli_fl5','sto_varyant_kod_arr1','sto_varyant_kod_arr2','sto_varyant_kod_arr3','sto_varyant_kod_arr4','sto_varyant_kod_arr5','sto_urun_niteligi','sto_kuresel_urun_numarasi','sto_yerlilikorani','sto_karsi_program_kodu','sto_lotnoyapartikodugonder_fl'
@@ -543,18 +545,102 @@ export default function App() {
       const result = await downloadResumable.downloadAsync();
       if (result && result.uri) {
         setUpdateStatusText('İndirme tamamlandı! Android kurulumu başlatılıyor...');
-        const contentUri = await FileSystem.getContentUriAsync(result.uri);
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: contentUri,
-          flags: 268435457,
-          type: 'application/vnd.android.package-archive',
-        });
+        let installed = false;
+        let lastErrorMsg = '';
+
+        // Yöntem 1: FileSystem.getContentUriAsync + IntentLauncher ACTION_VIEW
+        try {
+          const contentUri = await FileSystem.getContentUriAsync(result.uri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1 | 2 | 268435456, // FLAG_GRANT_READ_URI_PERMISSION | FLAG_GRANT_WRITE_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
+            type: 'application/vnd.android.package-archive',
+          });
+          installed = true;
+        } catch (intentErr1: any) {
+          lastErrorMsg = intentErr1?.message || String(intentErr1);
+          console.log('Yöntem 1 (ACTION_VIEW) başarısız:', lastErrorMsg);
+        }
+
+        // Yöntem 2: FileSystem.getContentUriAsync + IntentLauncher ACTION_INSTALL_PACKAGE
+        if (!installed) {
+          try {
+            const contentUri = await FileSystem.getContentUriAsync(result.uri);
+            await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
+              data: contentUri,
+              flags: 1 | 2 | 268435456,
+              type: 'application/vnd.android.package-archive',
+            });
+            installed = true;
+          } catch (intentErr2: any) {
+            lastErrorMsg = intentErr2?.message || String(intentErr2);
+            console.log('Yöntem 2 (ACTION_INSTALL_PACKAGE) başarısız:', lastErrorMsg);
+          }
+        }
+
+        // Yöntem 3: expo-sharing ile Paket Yükleyiciyi çağırma (Sistem Paylaş/Aç menüsü)
+        if (!installed) {
+          try {
+            const isSharingAvailable = await Sharing.isAvailableAsync();
+            if (isSharingAvailable) {
+              await Sharing.shareAsync(result.uri, {
+                mimeType: 'application/vnd.android.package-archive',
+                dialogTitle: 'SayimApp Güncellemesini Kur',
+                UTI: 'com.android.package-archive',
+              });
+              installed = true;
+            }
+          } catch (shareErr: any) {
+            lastErrorMsg = shareErr?.message || String(shareErr);
+            console.log('Yöntem 3 (Sharing) başarısız:', lastErrorMsg);
+          }
+        }
+
         setTimeout(async () => {
           setIsDownloading(false);
           try {
             await deactivateKeepAwake('sayimapp_update_keepawake');
           } catch (e) {}
         }, 1500);
+
+        if (!installed) {
+          Alert.alert(
+            'Kurulum Başlatılamadı',
+            `Güncelleme paketi başarıyla indirildi ancak Android otomatik kurulumu başlatamadı.\n\nSebep: ${lastErrorMsg || 'Bilinmeyen kaynak izni veya paket yükleyici erişimi kısıtlı.'}\n\nNasıl devam etmek istersiniz?`,
+            [
+              {
+                text: 'Tarayıcıdan İndir & Kur',
+                onPress: async () => {
+                  try {
+                    await Linking.openURL(url);
+                  } catch (e) {
+                    Alert.alert('Hata', 'Tarayıcı açılamadı.');
+                  }
+                },
+              },
+              {
+                text: 'İzin Ayarını Aç',
+                onPress: async () => {
+                  try {
+                    await IntentLauncher.startActivityAsync('android.settings.MANAGE_UNKNOWN_APP_SOURCES', {
+                      data: 'package:com.antigravity.sayimapp',
+                    });
+                  } catch (e) {
+                    try {
+                      await IntentLauncher.startActivityAsync('android.settings.SECURITY_SETTINGS', {});
+                    } catch (secErr) {
+                      Alert.alert('Bilgi', 'Lütfen Android Ayarlar > Güvenlik > Bilinmeyen Uygulamaları Yükle bölümünden SayimApp\'e izin verin.');
+                    }
+                  }
+                },
+              },
+              {
+                text: 'Kapat',
+                style: 'cancel',
+              },
+            ]
+          );
+        }
       } else {
         throw new Error('İndirme dosyası alınamadı.');
       }
@@ -564,8 +650,24 @@ export default function App() {
         await deactivateKeepAwake('sayimapp_update_keepawake');
       } catch (e) {}
       Alert.alert(
-        'Yükleme Başlatılamadı',
-        `Güncelleme indirildi ancak kurulum başlatılamadı:\n${error.message || error}\n\nLütfen ayarlardan 'Bilinmeyen uygulamaları yükle' iznini kontrol edin.`
+        'Yükleme Hatası',
+        `Güncelleme işlemi sırasında bir sorun oluştu:\n${error.message || error}\n\nTarayıcınız üzerinden doğrudan en güncel APK'yı indirmek ister misiniz?`,
+        [
+          {
+            text: 'Tarayıcıdan İndir',
+            onPress: async () => {
+              try {
+                await Linking.openURL(url);
+              } catch (e) {
+                Alert.alert('Hata', 'Tarayıcı açılamadı.');
+              }
+            },
+          },
+          {
+            text: 'İptal',
+            style: 'cancel',
+          },
+        ]
       );
     }
   };
@@ -3230,12 +3332,44 @@ export default function App() {
               justifyContent: 'center',
               flexDirection: 'row',
               gap: 8,
+              shadowColor: '#FF6B00',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 4,
             }}
           >
             <Ionicons name="cloud-download" size={20} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Şimdi Güncelle</Text>
           </TouchableOpacity>
         </View>
+
+        {/* BROWSER DIRECT DOWNLOAD OPTION */}
+        <TouchableOpacity
+          onPress={async () => {
+            if (availableUpdate?.downloadUrl) {
+              setShowUpdateModal(false);
+              try {
+                await Linking.openURL(availableUpdate.downloadUrl);
+              } catch (e) {
+                Alert.alert('Hata', 'Tarayıcı açılamadı.');
+              }
+            }
+          }}
+          style={{
+            marginTop: 12,
+            paddingVertical: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 6,
+          }}
+        >
+          <Ionicons name="globe-outline" size={15} color={styles.colors.textMuted} />
+          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
+            Sorun yaşarsanız tarayıcıdan doğrudan indirin
+          </Text>
+        </TouchableOpacity>
       </View>
     </Modal>
   );
