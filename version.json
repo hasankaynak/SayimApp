@@ -1,6 +1,6 @@
 {
-  "version": "1.0.49",
-  "versionCode": 49,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.49/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.49\n• Yenilenmiş Doğal ve Profesyonel Ses Sistemi:\n  - Barkod Tarama: Gerçek perakende ve optik el terminali lazer okuma bipi entegre edildi.\n  - Başarı / Fiş Kaydı: Apple Pay tarzı zarif ve modern onay tınısı (Success Chime) entegre edildi.\n  - Hata / Uyarı: Robotik olmayan yumuşak üç tonlu ters uyarı efekti (Zap Three Tone) entegre edildi.\n  - Yeni Sipariş / Kart Bildirimi: Gerçek otel resepsiyon sipariş çanı (Hotel Service Bell) entegre edildi.\n• Canlı Mikro ERP Bildirimleri & Ayarlar:\n  - Mikro ERP'ye yeni müşteri siparişi (038003) veya yeni stok kartı açıldığında mobil ekranda canlı kayar bildirim çubuğu gösterimi eklendi.\n  - Bildirime tıklandığında doğrudan Siparişler modülünü açma özelliği eklendi.\n  - Ayarlar ekranına Yeni Ürün Bildirimi, Yeni Sipariş Bildirimi ve Sesli Uyarı açma/kapatma anahtarları eklendi."
+  "version": "1.0.50",
+  "versionCode": 50,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.50/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.50\n• Canlı Güncelleme Bildirimi ve Ses Entegrasyonu:\n  - Uygulama açıkken yeni sürüm yayınlandığında otomatik canlı kayar bildirim çubuğu (banner) ve sesli ikaz (Hotel Bell) ile haber verilmesi sağlandı.\n  - Bildirime dokunulduğunda doğrudan güncelleme ve yükleme penceresi açılır.\n  - Arka planda periyodik olarak yeni sürüm kontrolü eklendi.\n• Veritabanı Yükü Optimizasyonu:\n  - Kullanıcı talebi doğrultusunda 'Yeni Sipariş Bildirimi' ve SIPARISLER tablosu arka plan sorgusu tamamen iptal edildi.\n  - Ayarlar ekranına 'Yeni Güncelleme Bildirimi' açma/kapatma anahtarı eklendi."
 }
