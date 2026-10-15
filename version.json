@@ -1,6 +1,6 @@
 {
-  "version": "1.0.38",
-  "versionCode": 38,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.38/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.38\n• AYARLAR MODAL DÜZENLEMESİ:\n• 'Son Gönderilen Sayım Yedekleri' listesi uzadığında kapatma butonunun ekrandan taşması sorunu giderildi; modal başlığı ve kapatma butonu üstte sabitlenerek içerik kaydırılabilir (ScrollView) hale getirildi.\n• Kullanıcılar E-Katalog panelinde zaten Mikro kullanıcısıyla eşleştirildiği için Ayarlar ekranındaki gereksiz 'Mikro Kullanıcı Numarası Değiştir' alanı kaldırıldı."
+  "version": "1.0.39",
+  "versionCode": 39,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.39/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.39\n• MİKRO KULLANICI DEĞİŞTİRME YETKİLENDİRMESİ GÜNCELLENDİ:\n• Mobil uygulamadan Mikro kullanıcı numarası değiştirme buton ve pencereleri tamamen kaldırıldı.\n• Mikro kullanıcı eşleştirmeleri artık sadece E-Katalog Web Yönetim Paneli (Mobil Rol & Mikro Kısıtlama Yönetimi) üzerinden yönetici tarafından merkezi ve kontrollü olarak belirlenir."
 }

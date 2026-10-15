@@ -672,8 +672,7 @@ export default function AlisFaturasiView({
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onPress={onOpenUserSelect}
+          <View
             style={{
               paddingHorizontal: 8,
               paddingVertical: 6,
@@ -690,7 +689,7 @@ export default function AlisFaturasiView({
             <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800' }}>
               {currentUserName} ({mikroUserNo})
             </Text>
-          </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             onPress={() => {

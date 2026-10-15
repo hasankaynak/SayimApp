@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.38';
-const CURRENT_VERSION_CODE = 38;
+const CURRENT_VERSION = '1.0.39';
+const CURRENT_VERSION_CODE = 39;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -255,7 +255,6 @@ export default function App() {
 
   // MIKRO KULLANICI STATE
   const [mikroUserNo, setMikroUserNo] = useState<string>('7');
-  const [showUserSelectModal, setShowUserSelectModal] = useState(false);
   const [mikroUsersList, setMikroUsersList] = useState<any[]>([]);
 
   // AUTH SESSION & ROLES / PERMISSIONS STATE
@@ -2269,12 +2268,6 @@ export default function App() {
                     Kayıt Yapan: <Text style={{ color: '#00AE78', fontWeight: '900' }}>{mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})</Text>
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => setShowUserSelectModal(true)}
-                  style={{ backgroundColor: '#00AE78', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>DEĞİŞTİR</Text>
-                </TouchableOpacity>
               </View>
 
               {/* BARKOD */}
@@ -2951,74 +2944,7 @@ export default function App() {
     </Modal>
   );
 
-  const renderUserSelectModal = () => (
-    <Modal
-      isVisible={showUserSelectModal}
-      onBackdropPress={() => setShowUserSelectModal(false)}
-      style={styles.modal}
-      avoidKeyboard={true}
-    >
-      <View style={[styles.modalContent, { maxHeight: '75%' }]}>
-        <View style={styles.modalHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0,174,120,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="person" size={20} color="#00AE78" />
-            </View>
-            <View>
-              <Text style={styles.modalTitle}>Aktif Mikro Kullanıcısı</Text>
-              <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>
-                Fiş, fatura ve kart işlemlerinde kaydedilir
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={() => setShowUserSelectModal(false)}>
-            <Ionicons name="close-circle" size={28} color="#8a9ab5" />
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={mikroUsersList.length > 0 ? mikroUsersList : Array.from({ length: 30 }, (_, i) => ({ KULLANICI_NO: i + 1, KULLANICI_ADI: `Kullanıcı ${i + 1}` }))}
-          keyExtractor={item => String(item.KULLANICI_NO)}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const isSelected = String(mikroUserNo) === String(item.KULLANICI_NO);
-            return (
-              <TouchableOpacity
-                onPress={async () => {
-                  const uid = item.KULLANICI_NO.toString();
-                  setMikroUserNo(uid);
-                  await AsyncStorage.setItem('mikro_user_no', uid);
-                  setShowUserSelectModal(false);
-                  ToastAndroid.show(`Aktif Kullanıcı: ${item.KULLANICI_ADI} (No: ${uid}) seçildi`, ToastAndroid.SHORT);
-                }}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  marginVertical: 3,
-                  backgroundColor: isSelected ? (isDark ? 'rgba(0,174,120,0.2)' : '#E6F7F2') : 'transparent',
-                  borderWidth: isSelected ? 1.5 : 1,
-                  borderColor: isSelected ? '#00AE78' : styles.colors.borderLight,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: isSelected ? '#00AE78' : (isDark ? '#1e293b' : '#E2E8F0'), alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: isSelected ? '#fff' : styles.colors.textMuted, fontSize: 12, fontWeight: '800' }}>{item.KULLANICI_NO}</Text>
-                  </View>
-                  <Text style={{ color: isSelected ? (isDark ? '#34D399' : '#00AE78') : styles.colors.text, fontSize: 15, fontWeight: isSelected ? '800' : '600' }}>
-                    {item.KULLANICI_ADI}
-                  </Text>
-                </View>
-                {isSelected && <Ionicons name="checkmark-circle" size={22} color="#00AE78" />}
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-    </Modal>
-  );
+  const renderUserSelectModal = () => null;
 
   // 1. OTURUM KONTROLÜ (AÇILIŞ SPLASH EKRANI)
   if (isAuthChecking) {
@@ -3083,10 +3009,6 @@ export default function App() {
                   `Kullanıcı Adı: ${authSession?.user?.username || '-'}\nRol: ${authSession?.user?.role_name || '-'}\nMikro Kullanıcı: #${mikroUserNo} ${mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || ''}`,
                   [
                     { text: 'Kapat', style: 'cancel' },
-                    ...(authSession?.user?.role_code === 'ADMIN' ? [{
-                      text: 'Mikro Kullanıcı Değiştir',
-                      onPress: () => setShowUserSelectModal(true)
-                    }] : []),
                     {
                       text: 'Çıkış Yap',
                       style: 'destructive',
@@ -4044,7 +3966,6 @@ export default function App() {
           openNewCardModal={openNewCardModal}
           faturaCart={faturaCart}
           setFaturaCart={setFaturaCart}
-          onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
           canViewCosts={authSession?.restrictions?.can_view_costs ?? true}
         />
@@ -4068,7 +3989,6 @@ export default function App() {
           formatPrice={formatPrice}
           playSound={playSound}
           onBackToMenu={() => setAppMode('menu')}
-          onOpenUserSelect={() => setShowUserSelectModal(true)}
           mikroUsersList={mikroUsersList}
         />
         {renderUserSelectModal()}

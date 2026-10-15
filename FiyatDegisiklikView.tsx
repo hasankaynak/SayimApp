@@ -463,15 +463,14 @@ export default function FiyatDegisiklikView({
         </View>
 
         {/* AKTİF KULLANICI ROZETİ */}
-        <TouchableOpacity
-          onPress={onOpenUserSelect}
+        <View
           style={[styles.userBadge, { backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2' }]}
         >
           <Ionicons name="person-circle" size={18} color={colors.success} />
           <Text style={[styles.userBadgeText, { color: colors.success }]}>
             {currentUserName} ({mikroUserNo})
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
