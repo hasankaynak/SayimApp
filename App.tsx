@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.36';
-const CURRENT_VERSION_CODE = 36;
+const CURRENT_VERSION = '1.0.37';
+const CURRENT_VERSION_CODE = 37;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -3054,28 +3054,27 @@ export default function App() {
 
         {/* TOP FIXED APP BAR */}
         <View style={styles.menuHeaderBar}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1, minWidth: 0, marginRight: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, marginRight: 6 }}>
             <Image
               source={require('./assets/icon.png')}
-              style={{ width: 35, height: 35, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
+              style={{ width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.menuHeaderTitle} numberOfLines={1}>
                 MD TİCARET
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-                  <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444' }]} />
-                  <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444' }]}>
-                    {isConnected ? 'Mikro Çevrimiçi' : 'Çevrimdışı'}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)', paddingHorizontal: 6, paddingVertical: 2 }]}>
+                  <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444', width: 6, height: 6 }]} />
+                  <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444', fontSize: 10, fontWeight: '700' }]}>
+                    {isConnected ? 'Çevrimiçi' : 'Çevrimdışı'}
                   </Text>
                 </View>
-                <Text style={styles.menuHeaderSubText} numberOfLines={1}>• Stok & Sayım</Text>
               </View>
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0 }}>
             {/* Active User Badge / Switcher */}
             <TouchableOpacity
               onPress={() => {
@@ -3102,17 +3101,17 @@ export default function App() {
                 alignItems: 'center',
                 gap: 4,
                 backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
-                paddingHorizontal: 8,
-                paddingVertical: 6,
-                borderRadius: 12,
+                paddingHorizontal: 7,
+                paddingVertical: 5,
+                borderRadius: 10,
                 borderWidth: 1,
                 borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
-                maxWidth: 120,
+                maxWidth: 105,
               }}
             >
-              <Ionicons name="person-circle" size={16} color="#00AE78" />
+              <Ionicons name="person-circle" size={15} color="#00AE78" />
               <Text
-                style={{ fontSize: 11, fontWeight: '800', color: '#00AE78' }}
+                style={{ fontSize: 11, fontWeight: '700', color: '#00AE78' }}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -3124,9 +3123,9 @@ export default function App() {
             <TouchableOpacity
               onPress={handleLogout}
               activeOpacity={0.7}
-              style={[styles.headerIconBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2' }]}
+              style={[styles.headerIconBtn, { width: 32, height: 32, backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2' }]}
             >
-              <Ionicons name="log-out-outline" size={17} color="#EF4444" />
+              <Ionicons name="log-out-outline" size={16} color="#EF4444" />
             </TouchableOpacity>
 
             {/* Compact Sync Action Button */}
@@ -3134,10 +3133,10 @@ export default function App() {
               onPress={() => !isSyncing && handleSync(false)}
               disabled={isSyncing}
               activeOpacity={0.7}
-              style={styles.headerIconBtn}
+              style={[styles.headerIconBtn, { width: 32, height: 32 }]}
             >
               <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}>
-                <Ionicons name="sync" size={17} color={styles.colors.secondary} />
+                <Ionicons name="sync" size={16} color={styles.colors.secondary} />
               </Animated.View>
             </TouchableOpacity>
 
@@ -3151,9 +3150,9 @@ export default function App() {
                 setShowSettingsModal(true);
               }}
               activeOpacity={0.7}
-              style={styles.headerIconBtn}
+              style={[styles.headerIconBtn, { width: 32, height: 32 }]}
             >
-              <Ionicons name="settings-outline" size={18} color={styles.colors.textMuted} />
+              <Ionicons name="settings-outline" size={16} color={styles.colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -5591,8 +5590,8 @@ const getStyles = (isDark: boolean) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       paddingTop: Platform.OS === 'android' ? 42 : 52,
       backgroundColor: isDark ? 'rgba(22, 34, 52, 0.95)' : 'rgba(255, 255, 255, 0.95)',
       borderBottomWidth: 1,
