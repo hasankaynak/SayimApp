@@ -29,6 +29,7 @@ interface ReportsViewProps {
   API_URL: string;
   onBackToMenu: () => void;
   formatPrice: (price: number) => string;
+  initialTab?: 'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som';
 }
 
 export default function ReportsView({
@@ -37,9 +38,16 @@ export default function ReportsView({
   dbRef,
   API_URL,
   onBackToMenu,
-  formatPrice
+  formatPrice,
+  initialTab = 'stok_analiz'
 }: ReportsViewProps) {
-  const [activeTab, setActiveTab] = useState<'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som'>('stok_analiz');
+  const [activeTab, setActiveTab] = useState<'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [isExporting, setIsExporting] = useState(false);
 
   // ----------------------------------------------------
@@ -433,6 +441,10 @@ export default function ReportsView({
   useEffect(() => {
     if (activeTab === 'stok_analiz' && stokData.length === 0) {
       fetchStokHareketOzeti();
+    } else if (activeTab === 'fatura' && invoices.length === 0) {
+      fetchInvoices();
+    } else if (activeTab === 'satis' && salesReportData.length === 0) {
+      fetchSalesReport();
     } else if (activeTab === 'grup_som') {
       if (grupSomSubTab === 'grup' && grupData.length === 0) {
         fetchGrupReport();
@@ -1205,7 +1217,7 @@ export default function ReportsView({
           >
             <Ionicons name="receipt-outline" size={16} color={activeTab === 'fatura' ? colors.primary : colors.textMuted} />
             <Text style={[styles.tabPillText, { color: activeTab === 'fatura' ? colors.primary : colors.textMuted }]}>
-              Faturalar
+              Faturalar & Evraklar
             </Text>
           </TouchableOpacity>
 

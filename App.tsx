@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.39';
-const CURRENT_VERSION_CODE = 39;
+const CURRENT_VERSION = '1.0.40';
+const CURRENT_VERSION_CODE = 40;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -177,6 +177,7 @@ export default function App() {
 
   // --- SAYIM ADDITIONS ---
   const [appMode, setAppMode] = useState<'menu' | 'fiyatgor' | 'sayim' | 'sevk' | 'cari' | 'raporlar' | 'fatura' | 'fiyat_degisiklik' | 'siparisler'>('menu');
+  const [reportsInitialTab, setReportsInitialTab] = useState<'stok_analiz' | 'gelis' | 'fatura' | 'satis' | 'grup_som'>('stok_analiz');
   const [depos, setDepos] = useState<any[]>([]);
   const [selectedDepo, setSelectedDepo] = useState<any>(null);
   const [showDepoModal, setShowDepoModal] = useState(false);
@@ -3314,6 +3315,7 @@ export default function App() {
                 Alert.alert('Yetkisiz Erişim', 'Raporlar & Analiz modülüne erişim yetkiniz bulunmamaktadır.');
                 return;
               }
+              setReportsInitialTab('stok_analiz');
               !isSyncing && setAppMode('raporlar');
             }}
             disabled={isSyncing}
@@ -3676,6 +3678,7 @@ export default function App() {
                   Alert.alert('Yetkisiz Erişim', 'Raporlar ve Evraklar modülüne erişim yetkiniz bulunmamaktadır.');
                   return;
                 }
+                setReportsInitialTab('fatura');
                 setAppMode('raporlar');
               }}
             >
@@ -3690,6 +3693,7 @@ export default function App() {
                   Alert.alert('Yetkisiz Erişim', 'Raporlar modülüne erişim yetkiniz bulunmamaktadır.');
                   return;
                 }
+                setReportsInitialTab('stok_analiz');
                 setAppMode('raporlar');
               }}
             >
@@ -3941,6 +3945,7 @@ export default function App() {
           API_URL={API_URL}
           onBackToMenu={() => setAppMode('menu')}
           formatPrice={formatPrice}
+          initialTab={reportsInitialTab}
         />
         {renderUserSelectModal()}
         {renderUpdatePromptModal()}
