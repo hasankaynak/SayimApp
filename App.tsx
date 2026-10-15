@@ -80,8 +80,29 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.43';
-const CURRENT_VERSION_CODE = 43;
+const CURRENT_VERSION = '1.0.44';
+const CURRENT_VERSION_CODE = 44;
+
+const STOKLAR_COLS = [
+  'sto_Guid','sto_DBCno','sto_SpecRECno','sto_iptal','sto_fileid','sto_hidden','sto_kilitli','sto_degisti','sto_checksum','sto_create_user','sto_create_date','sto_lastup_user','sto_lastup_date','sto_special1','sto_special2','sto_special3','sto_MainProgramNo','sto_VersionNo','sto_MenuNo','sto_MikroSpecial1','sto_MikroSpecial2','sto_MikroSpecial3','sto_ExternalProgramType','sto_ExternalProgramId','sto_Hash','sto_kod','sto_isim','sto_kisa_ismi','sto_yabanci_isim','sto_sat_cari_kod','sto_cins','sto_doviz_cinsi','sto_detay_takip','sto_birim1_ad','sto_birim1_katsayi','sto_birim1_agirlik','sto_birim1_en','sto_birim1_boy','sto_birim1_yukseklik','sto_birim1_dara','sto_birim2_ad','sto_birim2_katsayi','sto_birim2_agirlik','sto_birim2_en','sto_birim2_boy','sto_birim2_yukseklik','sto_birim2_dara','sto_birim3_ad','sto_birim3_katsayi','sto_birim3_agirlik','sto_birim3_en','sto_birim3_boy','sto_birim3_yukseklik','sto_birim3_dara','sto_birim4_ad','sto_birim4_katsayi','sto_birim4_agirlik','sto_birim4_en','sto_birim4_boy','sto_birim4_yukseklik','sto_birim4_dara','sto_muh_kod','sto_muh_Iade_kod','sto_muh_sat_muh_kod','sto_muh_satIadmuhkod','sto_muh_sat_isk_kod','sto_muh_aIiskmuhkod','sto_muh_satmalmuhkod','sto_yurtdisi_satmuhk','sto_ilavemasmuhkod','sto_yatirimtesmuhkod','sto_depsatmuhkod','sto_depsatmalmuhkod','sto_bagortsatmuhkod','sto_bagortsatIadmuhkod','sto_bagortsatIskmuhkod','sto_satfiyfarkmuhkod','sto_yurtdisisatmalmuhkod','sto_bagortsatmalmuhkod','sto_sifirbedsatmalmuhkod','sto_ihrackayitlisatismuhkod','sto_ihrackayitlisatismaliyetimuhkod','sto_karorani','sto_min_stok','sto_siparis_stok','sto_max_stok','sto_ver_sip_birim','sto_al_sip_birim','sto_siparis_sure','sto_perakende_vergi','sto_toptan_vergi','sto_yer_kod','sto_elk_etk_tipi','sto_raf_etiketli','sto_etiket_bas','sto_satis_dursun','sto_siparis_dursun','sto_malkabul_dursun','sto_malkabul_gun1','sto_malkabul_gun2','sto_malkabul_gun3','sto_malkabul_gun4','sto_malkabul_gun5','sto_malkabul_gun6','sto_malkabul_gun7','sto_siparis_gun1','sto_siparis_gun2','sto_siparis_gun3','sto_siparis_gun4','sto_siparis_gun5','sto_siparis_gun6','sto_siparis_gun7','sto_iskon_yapilamaz','sto_tasfiyede','sto_alt_grup_no','sto_kategori_kodu','sto_urun_sorkod','sto_altgrup_kod','sto_anagrup_kod','sto_uretici_kodu','sto_sektor_kodu','sto_reyon_kodu','sto_muhgrup_kodu','sto_ambalaj_kodu','sto_marka_kodu','sto_model_kodu','sto_sezon_kodu','sto_hammadde_kodu','sto_prim_kodu','sto_kalkon_kodu','sto_paket_kodu','sto_pozisyonbayrak_kodu','sto_mkod_artik','sto_kasa_tarti_fl','sto_miktarondalikli_fl','sto_pasif_fl','sto_eksiyedusebilir_fl','sto_GtipNo','sto_puan','sto_komisyon_hzmkodu','sto_komisyon_orani','sto_otvuygulama','sto_otvtutar','sto_otvliste','sto_otvbirimi','sto_prim_orani','sto_garanti_sure','sto_garanti_sure_tipi','sto_iplik_Ne_no','sto_standartmaliyet','sto_kanban_kasa_miktari','sto_oivuygulama','sto_zraporu_stoku_fl','sto_maxiskonto_orani','sto_detay_takibinde_depo_kontrolu_fl','sto_tamamlayici_kodu','sto_oto_barkod_acma_sekli','sto_oto_barkod_kod_yapisi','sto_KasaIskontoOrani','sto_KasaIskontoTutari','sto_gelirpayi','sto_oivtutar','sto_oivturu','sto_giderkodu','sto_oivvergipntr','sto_Tevkifat_turu','sto_SKT_fl','sto_terazi_SKT','sto_RafOmru','sto_KasadaTaksitlenebilir_fl','sto_ufrsfark_kod','sto_iade_ufrsfark_kod','sto_yurticisat_ufrsfark_kod','sto_satiade_ufrsfark_kod','sto_satisk_ufrsfark_kod','sto_alisk_ufrsfark_kod','sto_satmal_ufrsfark_kod','sto_yurtdisisat_ufrsfark_kod','sto_ilavemas_ufrsfark_kod','sto_yatirimtes_ufrsfark_kod','sto_depsat_ufrsfark_kod','sto_depsatmal_ufrsfark_kod','sto_bagortsat_ufrsfark_kod','sto_bagortsatiade_ufrsfark_kod','sto_bagortsatisk_ufrsfark_kod','sto_satfiyfark_ufrsfark_kod','sto_yurtdisisatmal_ufrsfark_kod','sto_bagortsatmal_ufrsfark_kod','sto_sifirbedsatmal_ufrsfark_kod','sto_uretimmaliyet_ufrsfark_kod','sto_uretimkapasite_ufrsfark_kod','sto_degerdusuklugu_ufrs_kod','sto_halrusumyudesi','sto_webe_gonderilecek_fl','sto_min_stok_belirleme_gun','sto_sip_stok_belirleme_gun','sto_max_stok_belirleme_gun','sto_sev_bel_opr_degerlendime_fl','sto_otv_tevkifat_turu','sto_kay_plan_degerlendir','sto_CRM_sistemine_aktar_fl','sto_yerli_yabanci','sto_mensei','sto_oto_parti_lot_kod_fl','sto_efat_sinif_kodu','sto_efat_sinif_listesi','sto_efat_sinif_versiyonu','sto_utssisteminegonderilsin_fl','sto_posetbeyannamekonusu_fl','sto_STT_oncesi_kaldirma','sto_toplam_rafomru','sto_fiyat_kasada_belirlenir_fl','sto_franchise_siparis_dursun','sto_GEKAP','sto_GEKAP_birim','sto_resim_url','sto_GEKAP_depozitoonaykodu','sto_cabuk_bozulabilen_urun_fl','sto_satin_alma_talep_birim','sto_bagimsiz_miktar_takip_fl','sto_varyant_detayli_fl1','sto_varyant_detayli_fl2','sto_varyant_detayli_fl3','sto_varyant_detayli_fl4','sto_varyant_detayli_fl5','sto_varyant_kod_arr1','sto_varyant_kod_arr2','sto_varyant_kod_arr3','sto_varyant_kod_arr4','sto_varyant_kod_arr5','sto_urun_niteligi','sto_kuresel_urun_numarasi','sto_yerlilikorani','sto_karsi_program_kodu','sto_lotnoyapartikodugonder_fl'
+];
+
+const BARKOD_COLS = [
+  'bar_Guid','bar_DBCno','bar_SpecRECno','bar_iptal','bar_fileid','bar_hidden','bar_kilitli','bar_degisti','bar_checksum','bar_create_user','bar_create_date','bar_lastup_user','bar_lastup_date','bar_special1','bar_special2','bar_special3','bar_MainProgramNo','bar_VersionNo','bar_MenuNo','bar_MikroSpecial1','bar_MikroSpecial2','bar_MikroSpecial3','bar_ExternalProgramType','bar_ExternalProgramId','bar_Hash','bar_kodu','bar_stokkodu','bar_partikodu','bar_lotno','bar_serino_veya_bagkodu','bar_barkodtipi','bar_icerigi','bar_birimpntr','bar_master','bar_bedenpntr','bar_renkpntr','bar_baglantitipi','bar_har_uid','bar_asortitanimkodu','bar_VarBaglantiUId1','bar_VarBaglantiUId2','bar_VarBaglantiUId3','bar_VarBaglantiUId4','bar_VarBaglantiUId5'
+];
+
+const suggestNextStockCode = (code: string): string => {
+  if (!code) return `STK-${Date.now().toString().slice(-6)}`;
+  const clean = code.trim();
+  const match = clean.match(/^(.*?)(\d+)$/);
+  if (match) {
+    const prefix = match[1];
+    const numStr = match[2];
+    const nextNum = (parseInt(numStr, 10) + 1).toString().padStart(numStr.length, '0');
+    return prefix + nextNum;
+  }
+  return `${clean}.01`;
+};
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -228,10 +249,16 @@ export default function App() {
   const [isLoadingStockDefs, setIsLoadingStockDefs] = useState(false);
 
   // Kart İçi Seçici Ekran State
-  const [cardPickerType, setCardPickerType] = useState<'none' | 'anagrup' | 'altgrup' | 'marka' | 'cari'>('none');
+  const [cardPickerType, setCardPickerType] = useState<'none' | 'anagrup' | 'altgrup' | 'marka' | 'cari' | 'template'>('none');
   const [cardPickerSearch, setCardPickerSearch] = useState('');
   const [stockCariSearchResults, setStockCariSearchResults] = useState<any[]>([]);
   const [isSearchingStockCari, setIsSearchingStockCari] = useState(false);
+
+  // MİKRO BENZER KART (ŞABLON) STATE
+  const [templateStockCode, setTemplateStockCode] = useState('');
+  const [templateStockName, setTemplateStockName] = useState('');
+  const [templateSearchResults, setTemplateSearchResults] = useState<any[]>([]);
+  const [isSearchingTemplate, setIsSearchingTemplate] = useState(false);
 
   // ALIŞ FATURASI SEPET STATE
   const [faturaCart, setFaturaCart] = useState<FaturaItem[]>([]);
@@ -1085,14 +1112,64 @@ export default function App() {
     }
   };
 
-  const openNewCardModal = (prefilledBarcode: string = '', forFatura: boolean = false) => {
+  const handleSearchTemplateCards = async (term: string) => {
+    setCardPickerSearch(term);
+    setIsSearchingTemplate(true);
+    try {
+      const uText = term.trim().toLocaleUpperCase('tr-TR').replace(/'/g, "''");
+      let q = '';
+      if (uText.length > 0) {
+        q = `
+          SELECT TOP 30 sto_kod, sto_isim, sto_anagrup_kod, sto_altgrup_kod, sto_marka_kodu, sto_reyon_kodu, sto_sektor_kodu, sto_sat_cari_kod, sto_birim1_ad, sto_perakende_vergi, sto_doviz_cinsi
+          FROM STOKLAR WITH (NOLOCK)
+          WHERE sto_iptal = 0 AND sto_kod NOT LIKE 'TEST%' AND (sto_isim LIKE '%${uText}%' OR sto_kod LIKE '%${uText}%')
+          ORDER BY sto_lastup_date DESC;
+        `;
+      } else {
+        q = `
+          SELECT TOP 30 sto_kod, sto_isim, sto_anagrup_kod, sto_altgrup_kod, sto_marka_kodu, sto_reyon_kodu, sto_sektor_kodu, sto_sat_cari_kod, sto_birim1_ad, sto_perakende_vergi, sto_doviz_cinsi
+          FROM STOKLAR WITH (NOLOCK)
+          WHERE sto_iptal = 0 AND sto_kod NOT LIKE 'TEST%' AND sto_isim IS NOT NULL AND LEN(sto_isim) > 2
+          ORDER BY sto_create_date DESC;
+        `;
+      }
+      const res = await axios.post(API_URL, { query: q }, { timeout: 10000 });
+      if (res.data?.data) {
+        setTemplateSearchResults(res.data.data);
+      }
+    } catch (e) {
+      console.log('Template cards search error:', e);
+    } finally {
+      setIsSearchingTemplate(false);
+    }
+  };
+
+  const applyTemplateCard = (card: any, updateCode: boolean = true) => {
+    if (!card) return;
+    setTemplateStockCode(card.sto_kod || '');
+    setTemplateStockName(card.sto_isim || '');
+    if (card.sto_anagrup_kod) setNewCardAnaGrup(card.sto_anagrup_kod);
+    if (card.sto_altgrup_kod) setNewCardAltGrup(card.sto_altgrup_kod);
+    if (card.sto_marka_kodu) setNewCardMarka(card.sto_marka_kodu);
+    if (card.sto_reyon_kodu) setNewCardReyon(card.sto_reyon_kodu);
+    if (card.sto_sektor_kodu) setNewCardSektorKod(card.sto_sektor_kodu);
+    if (card.sto_sat_cari_kod) setNewCardCariKod(card.sto_sat_cari_kod);
+    if (card.sto_birim1_ad) setNewCardUnit(card.sto_birim1_ad);
+    if (card.sto_perakende_vergi) {
+      setNewCardVat(card.sto_perakende_vergi === 1 ? 1 : card.sto_perakende_vergi === 4 ? 10 : 20);
+    }
+    if (card.sto_doviz_cinsi !== undefined) {
+      const curMap: Record<number, 'TL' | 'USD' | 'EUR' | 'GBP'> = { 0: 'TL', 1: 'USD', 2: 'EUR', 3: 'GBP' };
+      setNewCardCurrency(curMap[card.sto_doviz_cinsi] || 'TL');
+    }
+    if (updateCode && card.sto_kod) {
+      setNewCardCode(suggestNextStockCode(card.sto_kod));
+    }
+  };
+
+  const openNewCardModal = async (prefilledBarcode: string = '', forFatura: boolean = false) => {
     const cleanBarcode = (prefilledBarcode || '').trim();
     setNewCardBarcode(cleanBarcode);
-    if (cleanBarcode.length > 0) {
-      setNewCardCode(`STK-${cleanBarcode.substring(0, 15)}`);
-    } else {
-      setNewCardCode(`STK-${Date.now().toString().slice(-6)}`);
-    }
     setNewCardName('');
     setNewCardPrice('');
     setNewCardAlisPrice('');
@@ -1112,8 +1189,31 @@ export default function App() {
     setCardPickerType('none');
     setCardPickerSearch('');
     setStockCariSearchResults([]);
+    setTemplateSearchResults([]);
     setShowNewCardModal(true);
     fetchStockCardDefinitions();
+
+    // Mikro 'Sonraki Benzer Kart' referansını otomatik çek
+    try {
+      const q = `
+        SELECT TOP 1 sto_kod, sto_isim, sto_anagrup_kod, sto_altgrup_kod, sto_marka_kodu, sto_reyon_kodu, sto_sektor_kodu, sto_sat_cari_kod, sto_birim1_ad, sto_perakende_vergi, sto_doviz_cinsi
+        FROM STOKLAR WITH (NOLOCK)
+        WHERE sto_iptal = 0 AND sto_kod NOT LIKE 'TEST%' AND sto_isim IS NOT NULL AND LEN(sto_isim) > 2
+        ORDER BY sto_create_date DESC;
+      `;
+      const res = await axios.post(API_URL, { query: q }, { timeout: 8000 });
+      const latestCard = res.data?.data?.[0];
+      if (latestCard) {
+        applyTemplateCard(latestCard, true);
+        if (cleanBarcode.length > 0 && !latestCard.sto_kod) {
+          setNewCardCode(`STK-${cleanBarcode.substring(0, 15)}`);
+        }
+      } else {
+        setNewCardCode(cleanBarcode.length > 0 ? `STK-${cleanBarcode.substring(0, 15)}` : `STK-${Date.now().toString().slice(-6)}`);
+      }
+    } catch (e) {
+      setNewCardCode(cleanBarcode.length > 0 ? `STK-${cleanBarcode.substring(0, 15)}` : `STK-${Date.now().toString().slice(-6)}`);
+    }
   };
 
   const handleCreateNewStockCard = async () => {
@@ -1160,7 +1260,7 @@ export default function App() {
         return;
       }
 
-      // 2. Parametreler
+      // 2. Parametreler & Mikro Şablon Klonlama
       const userNum = parseInt(mikroUserNo, 10) || 7;
       const dovizMap: Record<string, number> = { 'TL': 0, 'USD': 1, 'EUR': 2, 'GBP': 3 };
       const dovizInt = dovizMap[newCardCurrency] || 0;
@@ -1178,53 +1278,90 @@ export default function App() {
       const escapedSatCari = (newCardCariKod || '').replace(/'/g, "''");
       const escapedUretici = (newCardUreticiKod || '').replace(/'/g, "''");
       const escapedSektor = (newCardSektorKod || '').replace(/'/g, "''");
+      const escapedTemplate = (templateStockCode || '').trim().replace(/'/g, "''");
+
+      const stokOverrides: Record<string, string> = {
+        sto_Guid: 'NEWID()',
+        sto_create_user: String(userNum),
+        sto_create_date: 'GETDATE()',
+        sto_lastup_user: String(userNum),
+        sto_lastup_date: 'GETDATE()',
+        sto_kod: `'${escapedCode}'`,
+        sto_isim: `'${escapedName}'`,
+        sto_kisa_ismi: `'${escapedName.substring(0, 50)}'`,
+        sto_birim1_ad: `'${escapedUnit}'`,
+        sto_doviz_cinsi: String(dovizInt),
+        sto_perakende_vergi: String(vatPntr),
+        sto_toptan_vergi: String(vatPntr),
+        sto_anagrup_kod: `COALESCE(NULLIF('${escapedAnaGrup}', ''), sto_anagrup_kod, '')`,
+        sto_altgrup_kod: `COALESCE(NULLIF('${escapedAltGrup}', ''), sto_altgrup_kod, '')`,
+        sto_marka_kodu: `COALESCE(NULLIF('${escapedMarka}', ''), sto_marka_kodu, '')`,
+        sto_reyon_kodu: `COALESCE(NULLIF('${escapedReyon}', ''), sto_reyon_kodu, '')`,
+        sto_sektor_kodu: `COALESCE(NULLIF('${escapedSektor}', ''), sto_sektor_kodu, '')`,
+        sto_sat_cari_kod: `COALESCE(NULLIF('${escapedSatCari}', ''), sto_sat_cari_kod, '')`,
+        sto_uretici_kodu: `COALESCE(NULLIF('${escapedUretici}', ''), sto_uretici_kodu, '')`
+      };
+
+      const selectStokCols = STOKLAR_COLS.map(c => {
+        if (stokOverrides[c] !== undefined) return `${stokOverrides[c]} AS ${c}`;
+        return c;
+      }).join(', ');
+
+      const barOverrides: Record<string, string> = {
+        bar_Guid: 'NEWID()',
+        bar_create_user: String(userNum),
+        bar_create_date: 'GETDATE()',
+        bar_lastup_user: String(userNum),
+        bar_lastup_date: 'GETDATE()',
+        bar_kodu: `'${escapedBarcode}'`,
+        bar_stokkodu: `'${escapedCode}'`
+      };
+
+      const selectBarCols = BARKOD_COLS.map(c => {
+        if (barOverrides[c] !== undefined) return `${barOverrides[c]} AS ${c}`;
+        return c;
+      }).join(', ');
 
       const insertQ = `
         BEGIN TRANSACTION;
         BEGIN TRY
-          -- 1. STOKLAR TABLOSUNA INSERT (sto_plu_no IDENTITY olduğu için yazılmaz)
-          INSERT INTO STOKLAR (
-            sto_Guid, sto_DBCno, sto_create_date, sto_create_user, sto_lastup_date, sto_lastup_user,
-            sto_fileid, sto_MainProgramNo, sto_VersionNo, sto_MenuNo, sto_Hash,
-            sto_kod, sto_isim, sto_kisa_ismi, sto_cins, sto_doviz_cinsi,
-            sto_birim1_ad, sto_birim1_katsayi,
-            sto_anagrup_kod, sto_altgrup_kod, sto_marka_kodu, sto_reyon_kodu,
-            sto_sat_cari_kod, sto_uretici_kodu, sto_sektor_kodu,
-            sto_muh_kod, sto_muh_Iade_kod, sto_muh_sat_muh_kod, sto_muh_satIadmuhkod,
-            sto_muh_sat_isk_kod, sto_muh_aIiskmuhkod, sto_muh_satmalmuhkod, sto_yurtdisi_satmuhk,
-            sto_ilavemasmuhkod, sto_yatirimtesmuhkod, sto_depsatmuhkod, sto_depsatmalmuhkod,
-            sto_bagortsatmuhkod, sto_bagortsatIadmuhkod, sto_bagortsatIskmuhkod, sto_satfiyfarkmuhkod,
-            sto_yurtdisisatmalmuhkod, sto_bagortsatmalmuhkod, sto_sifirbedsatmalmuhkod,
-            sto_perakende_vergi, sto_toptan_vergi, sto_raf_etiketli, sto_etiket_bas,
-            sto_otvbirimi
-          ) VALUES (
-            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
-            13, 21, '17.05d', '11300', '0',
-            '${escapedCode}', '${escapedName}', '${escapedName.substring(0, 50)}', 0, ${dovizInt},
-            '${escapedUnit}', 1,
-            '${escapedAnaGrup}', '${escapedAltGrup}', '${escapedMarka}', '${escapedReyon}',
-            '${escapedSatCari}', '${escapedUretici}', '${escapedSektor}',
-            '153', '153', '600', '610',
-            '611', '153', '621', '601',
-            '153', '258', '600', '621',
-            '600', '610', '611', '600',
-            '621', '621', '760',
-            ${vatPntr}, ${vatPntr}, 1, 1,
-            1
-          );
+          DECLARE @Tpl nvarchar(50) = '${escapedTemplate}';
+          IF @Tpl = '' OR NOT EXISTS (SELECT 1 FROM STOKLAR WITH (NOLOCK) WHERE sto_kod = @Tpl)
+          BEGIN
+            SELECT TOP 1 @Tpl = sto_kod
+            FROM STOKLAR WITH (NOLOCK)
+            WHERE sto_iptal = 0 AND sto_kod NOT LIKE 'TEST%' AND sto_isim IS NOT NULL AND LEN(sto_isim) > 2
+            ORDER BY sto_create_date DESC;
+          END
 
-          -- 2. BARKOD_TANIMLARI TABLOSUNA INSERT
-          INSERT INTO BARKOD_TANIMLARI (
-            bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user,
-            bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr,
-            bar_MainProgramNo, bar_VersionNo, bar_MenuNo
-          ) VALUES (
-            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
-            15, '${escapedBarcode}', '${escapedCode}', 1, 0, 0,
-            21, '17.05d', '11500'
-          );
+          -- 1. STOKLAR (235 kolon Mikro 'Sonraki Benzer Kartı Oluştur' mantığıyla şablondan kopyalanır)
+          INSERT INTO STOKLAR (${STOKLAR_COLS.join(', ')})
+          SELECT ${selectStokCols}
+          FROM STOKLAR WITH (NOLOCK)
+          WHERE sto_kod = @Tpl;
 
-          -- 3. STOK_SATIS_FIYAT_LISTELERI (sfiyat_deposirano=0 ve sfiyat_odemeplan=0 zorunlu)
+          -- 2. BARKOD_TANIMLARI (Şablonun barkod konfigürasyonu veya standart parametreler)
+          IF EXISTS (SELECT 1 FROM BARKOD_TANIMLARI WITH (NOLOCK) WHERE bar_stokkodu = @Tpl)
+          BEGIN
+            INSERT INTO BARKOD_TANIMLARI (${BARKOD_COLS.join(', ')})
+            SELECT TOP 1 ${selectBarCols}
+            FROM BARKOD_TANIMLARI WITH (NOLOCK)
+            WHERE bar_stokkodu = @Tpl;
+          END
+          ELSE
+          BEGIN
+            INSERT INTO BARKOD_TANIMLARI (
+              bar_Guid, bar_DBCno, bar_create_date, bar_create_user, bar_lastup_date, bar_lastup_user,
+              bar_fileid, bar_kodu, bar_stokkodu, bar_birimpntr, bar_bedenpntr, bar_renkpntr,
+              bar_MainProgramNo, bar_VersionNo, bar_MenuNo, bar_har_uid, bar_Hash
+            ) VALUES (
+              NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
+              15, '${escapedBarcode}', '${escapedCode}', 1, 0, 0,
+              21, '17.05d', '11500', '00000000-0000-0000-0000-000000000000', '0'
+            );
+          END
+
+          -- 3. STOK_SATIS_FIYAT_LISTELERI
           INSERT INTO STOK_SATIS_FIYAT_LISTELERI (
             sfiyat_Guid, sfiyat_DBCno, sfiyat_create_date, sfiyat_create_user, sfiyat_lastup_date, sfiyat_lastup_user,
             sfiyat_fileid, sfiyat_stokkod, sfiyat_listesirano, sfiyat_deposirano, sfiyat_odemeplan, sfiyat_birim_pntr,
@@ -2035,11 +2172,14 @@ export default function App() {
                   {cardPickerType !== 'none'
                     ? (cardPickerType === 'anagrup' ? 'Ana Grup Seçimi'
                       : cardPickerType === 'altgrup' ? 'Alt Grup Seçimi'
-                      : cardPickerType === 'marka' ? 'Marka Seçimi' : 'Tedarikçi Cari Seçimi')
+                      : cardPickerType === 'marka' ? 'Marka Seçimi'
+                      : cardPickerType === 'template' ? 'Mikro Benzer Kart Seçimi' : 'Tedarikçi Cari Seçimi')
                     : (isNewCardForFatura ? 'Yeni Kart Aç & Faturaya Ekle' : 'Yeni Stok Kartı Aç')}
                 </Text>
                 <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '600' }}>
-                  {cardPickerType !== 'none' ? 'Listeden dokunarak seçebilirsiniz' : (isNewCardForFatura ? 'Mikro ERP & Alış Faturası Canlı Kayıt' : 'Mikro ERP & Detaylı Stok Kartı')}
+                  {cardPickerType !== 'none'
+                    ? (cardPickerType === 'template' ? 'Kopyalanacak benzer referans kartını seçin' : 'Listeden dokunarak seçebilirsiniz')
+                    : (isNewCardForFatura ? 'Mikro ERP & Alış Faturası Canlı Kayıt' : 'Mikro ERP & Detaylı Stok Kartı')}
                 </Text>
               </View>
             </View>
@@ -2076,6 +2216,7 @@ export default function App() {
                     if (cardPickerType === 'altgrup') { setNewCardAltGrup(''); }
                     if (cardPickerType === 'marka') { setNewCardMarka(''); }
                     if (cardPickerType === 'cari') { setNewCardCariKod(''); setNewCardCariUnvan(''); }
+                    if (cardPickerType === 'template') { setTemplateStockCode(''); setTemplateStockName(''); }
                     setCardPickerType('none');
                   }}
                   style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: 'rgba(239, 68, 68, 0.12)' }}
@@ -2089,12 +2230,14 @@ export default function App() {
                 <Ionicons name="search" size={18} color="#8a9ab5" style={{ marginRight: 8 }} />
                 <TextInput
                   style={{ flex: 1, color: styles.colors.text, fontSize: 13, fontWeight: '700' }}
-                  placeholder={cardPickerType === 'cari' ? "Cari adı veya kodu ile arayın..." : "Ara / Filtrele..."}
+                  placeholder={cardPickerType === 'cari' ? "Cari adı veya kodu ile arayın..." : cardPickerType === 'template' ? "Ürün adı veya stok kodu ile arayın..." : "Ara / Filtrele..."}
                   placeholderTextColor="#8a9ab5"
                   value={cardPickerSearch}
                   onChangeText={(t) => {
                     if (cardPickerType === 'cari') {
                       handleStockCariSearch(t);
+                    } else if (cardPickerType === 'template') {
+                      handleSearchTemplateCards(t);
                     } else {
                       setCardPickerSearch(t);
                     }
@@ -2103,14 +2246,86 @@ export default function App() {
                   autoCapitalize={cardPickerType === 'cari' ? 'characters' : 'none'}
                 />
                 {cardPickerSearch.length > 0 && (
-                  <TouchableOpacity onPress={() => { setCardPickerSearch(''); if (cardPickerType === 'cari') setStockCariSearchResults([]); }}>
+                  <TouchableOpacity onPress={() => {
+                    setCardPickerSearch('');
+                    if (cardPickerType === 'cari') setStockCariSearchResults([]);
+                    if (cardPickerType === 'template') handleSearchTemplateCards('');
+                  }}>
                     <Ionicons name="close-circle" size={18} color="#8a9ab5" />
                   </TouchableOpacity>
                 )}
               </View>
 
-              {/* Cari Seçici Listesi */}
-              {cardPickerType === 'cari' ? (
+              {/* Şablon / Benzer Kart Seçici Listesi */}
+              {cardPickerType === 'template' ? (
+                <View style={{ flex: 1 }}>
+                  {isSearchingTemplate ? (
+                    <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color="#2563EB" />
+                      <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 8 }}>Stok kartları aranıyor...</Text>
+                    </View>
+                  ) : templateSearchResults.length > 0 ? (
+                    <FlatList
+                      data={templateSearchResults}
+                      keyExtractor={(item) => item.sto_kod}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}
+                      renderItem={({ item }) => {
+                        const isSelected = templateStockCode === item.sto_kod;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => {
+                              applyTemplateCard(item, true);
+                              setCardPickerType('none');
+                            }}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              paddingVertical: 12,
+                              paddingHorizontal: 12,
+                              borderRadius: 10,
+                              backgroundColor: isSelected ? (isDark ? 'rgba(37, 99, 235, 0.2)' : '#DBEAFE') : (isDark ? '#1e293b' : '#F8FAFC'),
+                              marginBottom: 6,
+                              borderWidth: 1,
+                              borderColor: isSelected ? '#2563EB' : styles.colors.border
+                            }}
+                          >
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                <View style={{ backgroundColor: '#2563EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>{item.sto_kod}</Text>
+                                </View>
+                                {item.sto_anagrup_kod ? (
+                                  <View style={{ backgroundColor: isDark ? '#334155' : '#E2E8F0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                                    <Text style={{ color: styles.colors.textMuted, fontSize: 9, fontWeight: '700' }}>Grup: {item.sto_anagrup_kod}</Text>
+                                  </View>
+                                ) : null}
+                                {item.sto_birim1_ad ? (
+                                  <View style={{ backgroundColor: isDark ? '#334155' : '#E2E8F0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                                    <Text style={{ color: styles.colors.textMuted, fontSize: 9, fontWeight: '700' }}>{item.sto_birim1_ad}</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                              <Text style={{ color: styles.colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                                {item.sto_isim}
+                              </Text>
+                            </View>
+                            {isSelected && <Ionicons name="checkmark-circle" size={22} color="#2563EB" />}
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <View style={{ paddingVertical: 30, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="cube-outline" size={36} color={styles.colors.textMuted} style={{ marginBottom: 8, opacity: 0.6 }} />
+                      <Text style={{ color: styles.colors.textMuted, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+                        {cardPickerSearch.trim().length > 0 ? 'Eşleşen stok kartı bulunamadı' : 'Kayıtlı stok kartı bulunamadı'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : cardPickerType === 'cari' ? (
                 <View style={{ flex: 1 }}>
                   {isSearchingStockCari ? (
                     <View style={{ paddingVertical: 30, alignItems: 'center' }}>
@@ -2275,8 +2490,73 @@ export default function App() {
                 </View>
               </View>
 
+              {/* MİKRO BENZER KART ŞABLONU (SONRAKİ BENZER KART) */}
+              <View style={{
+                backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EFF6FF',
+                borderRadius: 14,
+                padding: 12,
+                marginTop: 8,
+                marginBottom: 10,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(37, 99, 235, 0.28)' : '#BFDBFE'
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="copy" size={15} color="#2563EB" />
+                    <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '900', letterSpacing: 0.3 }}>
+                      MİKRO BENZER KART ŞABLONU
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: '#2563EB', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>Sonraki Benzer Kart</Text>
+                  </View>
+                </View>
+
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: isDark ? '#1e293b' : '#FFFFFF',
+                  padding: 10,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: styles.colors.border
+                }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ fontSize: 10, color: styles.colors.textMuted, fontWeight: '700' }}>
+                      Klonlanacak Referans Kart:
+                    </Text>
+                    <Text style={{ fontSize: 13, color: styles.colors.text, fontWeight: '900', marginTop: 2 }} numberOfLines={1}>
+                      {templateStockCode ? `${templateStockCode} - ${templateStockName || 'Kayıtlı Kart'}` : 'Mikro Son Kartı (Otomatik)'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCardPickerType('template');
+                      setCardPickerSearch('');
+                      handleSearchTemplateCards('');
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: '#2563EB',
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 8
+                    }}
+                  >
+                    <Ionicons name="search" size={13} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>Kart Seç</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 10, color: styles.colors.textMuted, fontWeight: '600', marginTop: 6 }}>
+                  ℹ️ Mikro Desktop ERP kuralıyla; tüm muhasebe hesapları, sistem parametreleri, vergi ve takip bayrakları bu karttan kopyalanır.
+                </Text>
+              </View>
+
               {/* BARKOD */}
-              <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4, marginTop: 10 }}>
+              <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4, marginTop: 4 }}>
                 BARKOD NUMARASI *
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -2309,9 +2589,20 @@ export default function App() {
               </View>
 
               {/* STOK KODU */}
-              <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
-                STOK KODU *
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+                  STOK KODU *
+                </Text>
+                {templateStockCode ? (
+                  <TouchableOpacity
+                    onPress={() => setNewCardCode(suggestNextStockCode(templateStockCode))}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, backgroundColor: 'rgba(37, 99, 235, 0.1)' }}
+                  >
+                    <Ionicons name="flash" size={11} color="#2563EB" />
+                    <Text style={{ fontSize: 10, color: '#2563EB', fontWeight: '800' }}>Sonraki Kod</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
               <View style={{ height: 46, backgroundColor: isDark ? '#1e293b' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: styles.colors.border, marginBottom: 12 }}>
                 <Ionicons name="key-outline" size={18} color="#3B82F6" style={{ marginRight: 8 }} />
                 <TextInput

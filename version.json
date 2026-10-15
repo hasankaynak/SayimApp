@@ -1,6 +1,6 @@
 {
-  "version": "1.0.43",
-  "versionCode": 43,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.43/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.43\n• SİPARİŞ FATURALAŞTIRMA TARİH VE DEPO GELİŞTİRMESİ:\n• Satış Faturası Kes modalına manuel evrak/sipariş tarihi girişi eklendi (YYYY-AA-GG veya GG.AA.YYYY formatında).\n• 'Bugün' ve tek tıkla siparişin orijinal tarihini getiren 'Sipariş Tarihi' hızlı seçim butonları entegre edildi.\n• Çıkış Deposu seçimi yatay kesilen butonlar yerine profesyonel, şık ve tam ekran Modal Dropdown Açılır Listeye dönüştürüldü.\n• Tüm depolar depo numarası, depo adı ve aktif seçim rozeti ile listelenebilir hale getirildi."
+  "version": "1.0.44",
+  "versionCode": 44,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.44/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.44\n• MİKRO 'SONRAKİ BENZER KARTI OLUŞTUR' KART KLONLAMA ENTEGRASYONU:\n• Yeni Stok Kartı Aç modalı, Mikro Masaüstü ERP'nin yerel 'Sonraki Benzer Kartı Oluştur' standardına uyarlandı.\n• Yeni kart oluşturulurken STOKLAR tablosundaki tüm 235 sistem ve muhasebe kolonu referans alınan benzer karttan kusursuz şekilde kopyalanır.\n• Fora Mikro ve Masaüstü Mikro'da eksik kolon veya muhasebe tanım hatası oluşması tamamen engellendi.\n• Şablon Kart Seçici: Sistem otomatik olarak Mikro'daki son geçerli kartı şablon alır veya kullanıcı dilediği herhangi bir ürünü referans seçebilir.\n• Sonraki Kod Üretici: Referans kartın kod yapısını analiz ederek bir sonraki ardışık stok kodunu otomatik önerir."
 }
