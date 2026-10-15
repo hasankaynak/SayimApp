@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.37';
-const CURRENT_VERSION_CODE = 37;
+const CURRENT_VERSION = '1.0.38';
+const CURRENT_VERSION_CODE = 38;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -3805,211 +3805,198 @@ export default function App() {
 
         {/* MODALS: Ayarlar Modal & User Select Modal */}
         <Modal isVisible={showSettingsModal} onBackdropPress={() => setShowSettingsModal(false)} style={styles.modal}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '88%', paddingBottom: 12 }]}>
+            {/* SABİT ÜST BAŞLIK & KAPATMA BUTONU */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Ayarlar</Text>
-              <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowSettingsModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{ padding: 4 }}
+              >
                 <Ionicons name="close" size={26} color={styles.colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            {/* AKTİF KULLANICI KARTI & ÇIKIŞ */}
-            <View style={{
-              backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#F0FDF4',
-              borderRadius: 14,
-              padding: 12,
-              marginTop: 6,
-              marginBottom: 10,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(0,174,120,0.25)' : '#BBF7D0'
-            }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 6 }}>
-                  <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#00AE78', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="person" size={20} color="#fff" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: styles.colors.text }} numberOfLines={1}>
-                      {authSession?.user?.display_name || 'Kullanıcı'}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      <View style={{ backgroundColor: '#00AE78', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>
-                          {authSession?.user?.role_code || 'ROL'}
+            {/* KAYDIRILABİLİR İÇERİK */}
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              {/* AKTİF KULLANICI KARTI & ÇIKIŞ */}
+              <View style={{
+                backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#F0FDF4',
+                borderRadius: 14,
+                padding: 12,
+                marginTop: 2,
+                marginBottom: 10,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(0,174,120,0.25)' : '#BBF7D0'
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 6 }}>
+                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#00AE78', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="person" size={20} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: styles.colors.text }} numberOfLines={1}>
+                        {authSession?.user?.display_name || 'Kullanıcı'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <View style={{ backgroundColor: '#00AE78', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>
+                            {authSession?.user?.role_code || 'ROL'}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: styles.colors.textMuted }}>
+                          @{authSession?.user?.username}
                         </Text>
                       </View>
-                      <Text style={{ fontSize: 11, color: styles.colors.textMuted }}>
-                        @{authSession?.user?.username}
-                      </Text>
                     </View>
                   </View>
+                  <TouchableOpacity
+                    onPress={handleLogout}
+                    style={{
+                      backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : '#FEE2E2',
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: '#EF4444'
+                    }}
+                  >
+                    <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>Çıkış Yap</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={handleLogout}
-                  style={{
-                    backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : '#FEE2E2',
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: '#EF4444'
-                  }}
-                >
-                  <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>Çıkış Yap</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Açılışta Otomatik Senkronizasyon</Text>
+                <TouchableOpacity onPress={async () => { const newVal = !autoSync; setAutoSync(newVal); await AsyncStorage.setItem('autoSync', newVal ? 'true' : 'false'); }}>
+                  <Ionicons name={autoSync ? 'toggle' : 'toggle-outline'} size={38} color={autoSync ? '#00AE78' : '#ccc'} />
                 </TouchableOpacity>
               </View>
-            </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Karanlık Tema (Dark Mode)</Text>
+                <TouchableOpacity onPress={() => setManualTheme(prev => prev === 'dark' ? 'light' : 'dark')}>
+                  <Ionicons name={isDark ? 'toggle' : 'toggle-outline'} size={38} color={isDark ? '#00AE78' : '#ccc'} />
+                </TouchableOpacity>
+              </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
-              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Açılışta Otomatik Senkronizasyon</Text>
-              <TouchableOpacity onPress={async () => { const newVal = !autoSync; setAutoSync(newVal); await AsyncStorage.setItem('autoSync', newVal ? 'true' : 'false'); }}>
-                <Ionicons name={autoSync ? 'toggle' : 'toggle-outline'} size={38} color={autoSync ? '#00AE78' : '#ccc'} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
-              <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Karanlık Tema (Dark Mode)</Text>
-              <TouchableOpacity onPress={() => setManualTheme(prev => prev === 'dark' ? 'light' : 'dark')}>
-                <Ionicons name={isDark ? 'toggle' : 'toggle-outline'} size={38} color={isDark ? '#00AE78' : '#ccc'} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Mikro Kullanıcı Numarası</Text>
-                  <Text style={{ color: '#00AE78', fontSize: 13, fontWeight: '700', marginTop: 3 }}>
-                    {mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || `Kullanıcı ${mikroUserNo}`} (ID: {mikroUserNo})
-                  </Text>
+              {/* UYGULAMA GÜNCELLEMESİ */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                <View>
+                  <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Uygulama Güncellemesi</Text>
+                  <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 2 }}>Mevcut Sürüm: v{CURRENT_VERSION}</Text>
                 </View>
-                {authSession?.user?.role_code === 'ADMIN' ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowSettingsModal(false);
-                      setTimeout(() => setShowUserSelectModal(true), 350);
-                    }}
-                    style={{ backgroundColor: '#00AE78', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>DEĞİŞTİR</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSettingsModal(false);
+                    setTimeout(() => checkForUpdates(false), 400);
+                  }}
+                  style={{ backgroundColor: styles.colors.secondary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                >
+                  <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>KONTROL ET</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* SON GÖNDERİLEN SAYIM YEDEKLERİ */}
+              <View style={{ marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: styles.colors.text, marginBottom: 8 }}>Son Gönderilen Sayım Yedekleri</Text>
+                {sayimBackups.length === 0 ? (
+                  <Text style={{ color: styles.colors.textMuted, fontStyle: 'italic', fontSize: 13 }}>Henüz yedeklenmiş bir sayım yok.</Text>
                 ) : (
-                  <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '700' }}>🔒 Sabit</Text>
-                  </View>
+                  sayimBackups.map(item => (
+                    <View key={String(item.id)} style={{ borderBottomWidth: 1, borderColor: styles.colors.borderLight, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1, paddingRight: 10 }}>
+                        <Text style={{ color: styles.colors.text, fontWeight: 'bold', fontSize: 13 }}>{item.backup_date}</Text>
+                        <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 1 }}>Toplam: {item.item_count} ürün</Text>
+                        <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: 'bold', marginTop: 1 }} numberOfLines={1}>{(() => {
+                          try {
+                            const cd = JSON.parse(item.cart_data);
+                            const isSevk = cd.length > 0 && cd[0].is_sevk;
+                            const nameStr = isSevk ? `Çıkış: ${cd[0].depo_adi} ➔ Giriş: ${cd[0].target_depo_adi}` : (cd.length > 0 ? cd[0].depo_adi : '');
+                            return nameStr + (item.mikro_evrak_no ? ` • MOB ${item.mikro_evrak_no}` : '');
+                          } catch (e) { return ''; }
+                        })()}</Text>
+                        {item.mikro_sent === 1 && <Text style={{ color: '#00AE78', fontSize: 10, marginTop: 1, fontWeight: 'bold' }}>✓ Mikro'ya Gönderildi</Text>}
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            Alert.alert(
+                              "Mikro ERP'ye Aktar",
+                              `${item.backup_date} tarihli fiş (${item.item_count} ürün) Mikro ERP'ye aktarılacaktır. Onaylıyor musunuz?`,
+                              [
+                                { text: 'İptal', style: 'cancel' },
+                                {
+                                  text: 'Aktar',
+                                  onPress: () => sendBackupToMikro(item)
+                                }
+                              ]
+                            );
+                          }}
+                          style={{
+                            backgroundColor: item.mikro_sent === 1 ? (isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2') : (isDark ? 'rgba(255,107,0,0.15)' : '#FFF3EB'),
+                            borderWidth: 1,
+                            borderColor: item.mikro_sent === 1 ? '#00AE78' : '#FF6B00',
+                            padding: 8,
+                            paddingHorizontal: 10,
+                            borderRadius: 10,
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                        >
+                          <Ionicons name={item.mikro_sent === 1 ? "checkmark-circle" : "cloud-upload-outline"} size={13} color={item.mikro_sent === 1 ? "#00AE78" : "#FF6B00"} />
+                          <Text style={{ color: item.mikro_sent === 1 ? "#00AE78" : "#FF6B00", fontSize: 11, fontWeight: 'bold' }}>
+                            {item.mikro_sent === 1 ? "TEKRAR AKTAR" : "AKTAR"}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => {
+                            Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
+                              { text: 'İptal', style: 'cancel' },
+                              { text: 'Düzenle', onPress: () => {
+                                  try {
+                                    const parsedCart = JSON.parse(item.cart_data);
+                                    saveCartToStorage(parsedCart);
+                                    setEditingBackupId(item.id);
+                                    setEditingEvrakNo(item.mikro_evrak_no);
+                                    
+                                    if (parsedCart.length > 0) {
+                                      const firstItem = parsedCart[0];
+                                      if (firstItem.is_sevk) {
+                                        setAppMode('sevk');
+                                        setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
+                                        setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
+                                      } else {
+                                        setAppMode('sayim');
+                                        setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
+                                      }
+                                    }
+
+                                    setShowSettingsModal(false);
+                                    setIsShowingCart(true);
+                                    ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
+                                  } catch (e) {
+                                    Alert.alert('Hata', 'Yedek okunamadı.');
+                                  }
+                                } 
+                              }
+                            ]);
+                        }} style={{ backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, padding: 8, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' }}>
+                          <Text style={{ color: styles.colors.text, fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
                 )}
               </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderColor: styles.colors.border }}>
-              <View>
-                <Text style={{ color: styles.colors.text, fontSize: 15, fontWeight: '600' }}>Uygulama Güncellemesi</Text>
-                <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 2 }}>Mevcut Sürüm: v{CURRENT_VERSION}</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowSettingsModal(false);
-                  setTimeout(() => checkForUpdates(false), 400);
-                }}
-                style={{ backgroundColor: styles.colors.secondary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-              >
-                <Ionicons name="cloud-download-outline" size={16} color="#fff" />
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>KONTROL ET</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ marginTop: 18 }}>
-              <Text style={{ fontSize: 15, fontWeight: 'bold', color: styles.colors.text, marginBottom: 8 }}>Son Gönderilen Sayım Yedekleri</Text>
-              {sayimBackups.length === 0 ? (
-                <Text style={{ color: styles.colors.textMuted, fontStyle: 'italic', fontSize: 13 }}>Henüz yedeklenmiş bir sayım yok.</Text>
-              ) : (
-                <FlatList data={sayimBackups} keyExtractor={item => String(item.id)} renderItem={({ item }) => (
-                  <View style={{ borderBottomWidth: 1, borderColor: styles.colors.borderLight, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flex: 1, paddingRight: 10 }}>
-                      <Text style={{ color: styles.colors.text, fontWeight: 'bold', fontSize: 13 }}>{item.backup_date}</Text>
-                      <Text style={{ color: styles.colors.textMuted, fontSize: 12, marginTop: 1 }}>Toplam: {item.item_count} ürün</Text>
-                      <Text style={{ color: '#FF6B00', fontSize: 11, fontWeight: 'bold', marginTop: 1 }} numberOfLines={1}>{(() => {
-                        try {
-                          const cd = JSON.parse(item.cart_data);
-                          const isSevk = cd.length > 0 && cd[0].is_sevk;
-                          const nameStr = isSevk ? `Çıkış: ${cd[0].depo_adi} ➔ Giriş: ${cd[0].target_depo_adi}` : (cd.length > 0 ? cd[0].depo_adi : '');
-                          return nameStr + (item.mikro_evrak_no ? ` • MOB ${item.mikro_evrak_no}` : '');
-                        } catch (e) { return ''; }
-                      })()}</Text>
-                      {item.mikro_sent === 1 && <Text style={{ color: '#00AE78', fontSize: 10, marginTop: 1, fontWeight: 'bold' }}>✓ Mikro'ya Gönderildi</Text>}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          Alert.alert(
-                            "Mikro ERP'ye Aktar",
-                            `${item.backup_date} tarihli fiş (${item.item_count} ürün) Mikro ERP'ye aktarılacaktır. Onaylıyor musunuz?`,
-                            [
-                              { text: 'İptal', style: 'cancel' },
-                              {
-                                text: 'Aktar',
-                                onPress: () => sendBackupToMikro(item)
-                              }
-                            ]
-                          );
-                        }}
-                        style={{
-                          backgroundColor: item.mikro_sent === 1 ? (isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2') : (isDark ? 'rgba(255,107,0,0.15)' : '#FFF3EB'),
-                          borderWidth: 1,
-                          borderColor: item.mikro_sent === 1 ? '#00AE78' : '#FF6B00',
-                          padding: 8,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          justifyContent: 'center',
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 4
-                        }}
-                      >
-                        <Ionicons name={item.mikro_sent === 1 ? "checkmark-circle" : "cloud-upload-outline"} size={13} color={item.mikro_sent === 1 ? "#00AE78" : "#FF6B00"} />
-                        <Text style={{ color: item.mikro_sent === 1 ? "#00AE78" : "#FF6B00", fontSize: 11, fontWeight: 'bold' }}>
-                          {item.mikro_sent === 1 ? "TEKRAR AKTAR" : "AKTAR"}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity onPress={() => {
-                          Alert.alert('Düzenle', `${item.backup_date} tarihli sayım yedeğini düzenlemek istediğinize emin misiniz? Mevcut sepetiniz silinecek.`, [
-                            { text: 'İptal', style: 'cancel' },
-                            { text: 'Düzenle', onPress: () => {
-                                try {
-                                  const parsedCart = JSON.parse(item.cart_data);
-                                  saveCartToStorage(parsedCart);
-                                  setEditingBackupId(item.id);
-                                  setEditingEvrakNo(item.mikro_evrak_no);
-                                  
-                                  if (parsedCart.length > 0) {
-                                    const firstItem = parsedCart[0];
-                                    if (firstItem.is_sevk) {
-                                      setAppMode('sevk');
-                                      setSevkSourceDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                      setSevkTargetDepo({ depo_no: firstItem.target_depo_no, depo_adi: firstItem.target_depo_adi });
-                                    } else {
-                                      setAppMode('sayim');
-                                      setSelectedDepo({ depo_no: firstItem.depo_no, depo_adi: firstItem.depo_adi });
-                                    }
-                                  }
-
-                                  setShowSettingsModal(false);
-                                  setIsShowingCart(true);
-                                  ToastAndroid.show('Yedek sepetinize yüklendi.', ToastAndroid.SHORT);
-                                } catch (e) {
-                                  Alert.alert('Hata', 'Yedek okunamadı.');
-                                }
-                              } 
-                            }
-                          ]);
-                      }} style={{ backgroundColor: styles.colors.cardLow, borderWidth: 1, borderColor: styles.colors.border, padding: 8, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center' }}>
-                        <Text style={{ color: styles.colors.text, fontSize: 11, fontWeight: 'bold' }}>DÜZENLE</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )} />
-              )}
-            </View>
-
+            </ScrollView>
           </View>
         </Modal>
 

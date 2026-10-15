@@ -1,6 +1,6 @@
 {
-  "version": "1.0.37",
-  "versionCode": 37,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.37/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.37\n• ÜST BAŞLIK & KULLANICI ROZETİ DÜZENLEMESİ:\n• Küçük ve orta boy ekranlarda üst menü çubuğundaki kullanıcı adı, durum rozeti ve işlem butonlarının üst üste binme sorunu giderildi.\n• Durum rozeti daha sade ve şık hale getirildi ('Çevrimiçi' / 'Çevrimdışı').\n• Kullanıcı rozeti ve işlem butonlarının aralıkları tüm ekran genişliklerine tam uyumlu olarak optimize edildi."
+  "version": "1.0.38",
+  "versionCode": 38,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.38/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.38\n• AYARLAR MODAL DÜZENLEMESİ:\n• 'Son Gönderilen Sayım Yedekleri' listesi uzadığında kapatma butonunun ekrandan taşması sorunu giderildi; modal başlığı ve kapatma butonu üstte sabitlenerek içerik kaydırılabilir (ScrollView) hale getirildi.\n• Kullanıcılar E-Katalog panelinde zaten Mikro kullanıcısıyla eşleştirildiği için Ayarlar ekranındaki gereksiz 'Mikro Kullanıcı Numarası Değiştir' alanı kaldırıldı."
 }
