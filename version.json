@@ -1,6 +1,6 @@
 {
-  "version": "1.0.42",
-  "versionCode": 42,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.42/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.42\n• GOOGLE STITCH YENİ INDUSTRIAL UI TASARIMI ENTEGRASYONU:\n• Google Stitch ERP tasarım sistemine tam uyumlu, sade ve göz yormayan arayüz entegre edildi.\n• Arka plan ve kart renkleri hafif, yüksek kontrastlı ve kurumsal palete dönüştürüldü (#F9F9FF / #0B1326).\n• Üst başlık çubuğu minimalist 48px slim tasarıma dönüştürüldü (Yeşil canlı durum göstergesi + MD Ticaret / Modül Adı + Profil Butonu).\n• 5'li Sabit Alt Menü (Fiyat Gör, Sayım, Siparişler, Evraklar, Rapor) tüm ekranlar arasında doğrudan geçiş sağlayacak şekilde entegre edildi.\n• Hızlı Fiyat Gör ve Ürün Detay kartı Stitch Hero standartlarında yeniden yapılandırıldı (Tek parça fiyat kutusu, mikro chip rozetleri, sade depo stok tablosu).\n• Depo Sayım adet stepper'ı 56px ergonomik tuşlar, hızlı adet çipleri (+1, +5, +10, +25, +50, x24) ve turuncu onay butonu ile güncellendi.\n• Alış Faturası ve Alınan Siparişler modülleri yeni Stitch tasarım dili ile hizalandı."
+  "version": "1.0.43",
+  "versionCode": 43,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.43/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.43\n• SİPARİŞ FATURALAŞTIRMA TARİH VE DEPO GELİŞTİRMESİ:\n• Satış Faturası Kes modalına manuel evrak/sipariş tarihi girişi eklendi (YYYY-AA-GG veya GG.AA.YYYY formatında).\n• 'Bugün' ve tek tıkla siparişin orijinal tarihini getiren 'Sipariş Tarihi' hızlı seçim butonları entegre edildi.\n• Çıkış Deposu seçimi yatay kesilen butonlar yerine profesyonel, şık ve tam ekran Modal Dropdown Açılır Listeye dönüştürüldü.\n• Tüm depolar depo numarası, depo adı ve aktif seçim rozeti ile listelenebilir hale getirildi."
 }

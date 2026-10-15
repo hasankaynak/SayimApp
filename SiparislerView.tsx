@@ -148,8 +148,23 @@ export default function SiparislerView({
   const [invoiceSeri, setInvoiceSeri] = useState('SF');
   const [invoiceSira, setInvoiceSira] = useState<number>(0);
   const [invoiceDepoNo, setInvoiceDepoNo] = useState<number>(1);
+  const [invoiceDate, setInvoiceDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [showDepoDropdown, setShowDepoDropdown] = useState(false);
   const [isFetchingCounter, setIsFetchingCounter] = useState(false);
   const [isSubmittingInvoice, setIsSubmittingInvoice] = useState(false);
+
+  // Mevcut Depoların Normalleştirilmiş Listesi
+  const availableDepos = useMemo(() => {
+    const list = depoList.length > 0 ? depoList : (depos && depos.length > 0 ? depos : [{ dep_no: 1, dep_adi: 'Merkez' }]);
+    return list.map((d: any) => ({
+      dep_no: d.dep_no ?? d.depo_no ?? 1,
+      dep_adi: d.dep_adi ?? d.depo_adi ?? `Depo ${d.dep_no ?? d.depo_no ?? 1}`
+    }));
+  }, [depoList, depos]);
+
+  const selectedDepoItem = useMemo(() => {
+    return availableDepos.find((d: any) => d.dep_no === invoiceDepoNo) || availableDepos[0];
+  }, [availableDepos, invoiceDepoNo]);
 
   // --- THEME COLORS ---
   const theme = useMemo(() => ({
@@ -571,6 +586,9 @@ export default function SiparislerView({
     const defaultDepo = pendingItems[0]?.DepoNo || (depos && depos[0]?.dep_no) || 1;
     setInvoiceDepoNo(defaultDepo);
 
+    // Fatura / Evrak tarihi varsayılanı: Bugün
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+
     // Kaydedilmiş son seri harfi
     try {
       const savedSeri = await AsyncStorage.getItem('sayimapp_last_invoice_seri');
@@ -601,6 +619,7 @@ export default function SiparislerView({
     ]);
 
     setInvoiceDepoNo(item.DepoNo || (depos && depos[0]?.dep_no) || 1);
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
 
     try {
       const savedSeri = await AsyncStorage.getItem('sayimapp_last_invoice_seri');
@@ -668,9 +687,25 @@ export default function SiparislerView({
     const cleanSeri = invoiceSeri.toUpperCase().trim();
     const sira = invoiceSira;
 
+    // Tarih ayrıştırma (YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY formatları desteklenir)
+    let cleanDate = (invoiceDate || '').trim();
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(cleanDate)) {
+      const parts = cleanDate.split('.');
+      cleanDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleanDate)) {
+      const parts = cleanDate.split('/');
+      cleanDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      cleanDate = new Date().toISOString().split('T')[0];
+    }
+
     Alert.alert(
       'Fatura Onayı',
-      `${invoicingTargetCari?.cariIsmi} carisine ${cleanSeri}-${sira} nolu Toptan Satış Faturası kesilecek ve ${selectedItems.length} sipariş kalemi güncellenecektir.\n\nOnaylıyor musunuz?`,
+      `${invoicingTargetCari?.cariIsmi} carisine ${cleanSeri}-${sira} nolu Toptan Satış Faturası kesilecek.\n\n` +
+      `📅 Tarih: ${cleanDate}\n` +
+      `🏢 Çıkış Deposu: ${selectedDepoItem?.dep_no} - ${selectedDepoItem?.dep_adi}\n` +
+      `📦 Kalem Sayısı: ${selectedItems.length} ürün\n\n` +
+      `Onaylıyor musunuz?`,
       [
         { text: 'Vazgeç', style: 'cancel' },
         {
@@ -711,12 +746,10 @@ export default function SiparislerView({
                 taxesByPntr[kdvPntr] = (taxesByPntr[kdvPntr] || 0) + kdv;
               });
 
-              const todayStr = new Date().toISOString().split('T')[0];
-
               let sql = `
                 BEGIN TRANSACTION;
                 DECLARE @Now datetime = GETDATE();
-                DECLARE @Tarih datetime = '${todayStr}';
+                DECLARE @Tarih datetime = '${cleanDate}';
                 DECLARE @FatGuid UNIQUEIDENTIFIER = NEWID();
 
                 -- 1. CARI HESAP HAREKETI (Fatura - cha_evrak_tip = 63, cha_cinsi = 6)
@@ -1947,39 +1980,112 @@ export default function SiparislerView({
                   </View>
                 </View>
 
-                {/* Çıkış Deposu Seçimi */}
+                {/* 2. Satır: Manuel Evrak / Sipariş Tarihi Girişi */}
+                <View style={{ marginTop: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={[styles.fieldLabel, { color: theme.textMuted, marginBottom: 0 }]}>
+                      Evrak / Sipariş Tarihi (Manuel)
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => setInvoiceDate(new Date().toISOString().split('T')[0])}
+                        style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 2.5,
+                          borderRadius: 6,
+                          backgroundColor: theme.primaryLight,
+                        }}
+                      >
+                        <Text style={{ fontSize: 10.5, fontWeight: '700', color: theme.primary }}>Bugün</Text>
+                      </TouchableOpacity>
+
+                      {invoicingItems[0]?.SiparisTarihi ? (
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            const raw = invoicingItems[0].SiparisTarihi;
+                            if (raw) {
+                              const dStr = raw.includes('T') ? raw.split('T')[0] : raw;
+                              setInvoiceDate(dStr);
+                            }
+                          }}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 2.5,
+                            borderRadius: 6,
+                            backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+                          }}
+                        >
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: theme.text }}>
+                            Sipariş: {invoicingItems[0].SiparisTarihi.includes('T') ? invoicingItems[0].SiparisTarihi.split('T')[0] : invoicingItems[0].SiparisTarihi}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        {
+                          backgroundColor: theme.card,
+                          color: theme.text,
+                          borderColor: theme.cardBorder,
+                          fontWeight: '800',
+                          paddingLeft: 34,
+                        },
+                      ]}
+                      value={invoiceDate}
+                      onChangeText={setInvoiceDate}
+                      placeholder="YYYY-AA-GG (örn: 2026-10-15)"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                    <View style={{ position: 'absolute', left: 10 }}>
+                      <Ionicons name="calendar-outline" size={16} color={theme.primary} />
+                    </View>
+                  </View>
+                </View>
+
+                {/* 3. Satır: Çıkış Deposu (Dropdown Seçimi) */}
                 <View style={{ marginTop: 10 }}>
                   <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>
                     Çıkış Deposu (Malların Düşeceği Depo)
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      {(depoList.length > 0 ? depoList : (depos && depos.length > 0 ? depos : [{ dep_no: 1, dep_adi: 'Merkez' }])).map((d: any) => {
-                        const isSel = invoiceDepoNo === d.dep_no;
-                        return (
-                          <TouchableOpacity
-                            key={d.dep_no}
-                            onPress={() => setInvoiceDepoNo(d.dep_no)}
-                            style={[
-                              styles.depoSelectChip,
-                              isSel
-                                ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                                : { backgroundColor: theme.card, borderColor: theme.cardBorder },
-                            ]}
-                          >
-                            <Ionicons
-                              name="business-outline"
-                              size={12}
-                              color={isSel ? '#fff' : theme.textMuted}
-                            />
-                            <Text style={[styles.depoSelectChipText, { color: isSel ? '#fff' : theme.text }]}>
-                              {d.dep_no} - {d.dep_adi}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setShowDepoDropdown(true)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: theme.card,
+                      borderColor: theme.cardBorder,
+                      borderWidth: 1,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 9,
+                      marginTop: 2,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <View style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 6,
+                        backgroundColor: theme.primaryLight,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Ionicons name="business" size={14} color={theme.primary} />
+                      </View>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text }} numberOfLines={1}>
+                        {selectedDepoItem ? `${selectedDepoItem.dep_no} - ${selectedDepoItem.dep_adi}` : `${invoiceDepoNo} nolu Depo`}
+                      </Text>
                     </View>
-                  </ScrollView>
+                    <Ionicons name="chevron-down" size={18} color={theme.textMuted} />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -2148,6 +2254,98 @@ export default function SiparislerView({
             </View>
           </View>
         </View>
+      </RNModal>
+
+      {/* ========================================================================= */}
+      {/* 10. ÇIKIŞ DEPOSU SEÇİM DROPDOWN MODAL                                     */}
+      {/* ========================================================================= */}
+      <RNModal
+        visible={showDepoDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDepoDropdown(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowDepoDropdown(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.cardBorder,
+                maxHeight: 440,
+                padding: 16,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: theme.cardBorder }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: theme.primaryLight, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="business" size={16} color={theme.primary} />
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: theme.text }}>Çıkış Deposu Seçin</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDepoDropdown(false)}>
+                <Ionicons name="close-circle" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {availableDepos.map((d: any) => {
+                const isSelected = invoiceDepoNo === d.dep_no;
+                return (
+                  <TouchableOpacity
+                    key={d.dep_no}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setInvoiceDepoNo(d.dep_no);
+                      setShowDepoDropdown(false);
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      backgroundColor: isSelected ? theme.primaryLight : (isDark ? '#1E293B' : '#F8FAFC'),
+                      borderWidth: 1,
+                      borderColor: isSelected ? theme.primary : theme.cardBorder,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                      <View style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        backgroundColor: isSelected ? theme.primary : (isDark ? '#334155' : '#E2E8F0'),
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: isSelected ? '#fff' : theme.text }}>
+                          {d.dep_no}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 13, fontWeight: isSelected ? '800' : '600', color: theme.text, flex: 1 }} numberOfLines={1}>
+                        {d.dep_adi}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                    ) : (
+                      <Ionicons name="ellipse-outline" size={18} color={theme.textMuted} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </RNModal>
     </View>
   );
