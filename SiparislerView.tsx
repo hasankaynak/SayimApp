@@ -153,20 +153,20 @@ export default function SiparislerView({
 
   // --- THEME COLORS ---
   const theme = useMemo(() => ({
-    bg: isDark ? '#0F172A' : '#F8FAFC',
-    card: isDark ? '#1E293B' : '#FFFFFF',
-    cardAlt: isDark ? '#162235' : '#F1F5F9',
-    cardBorder: isDark ? '#334155' : '#E2E8F0',
-    text: isDark ? '#F8FAFC' : '#0F172A',
+    bg: isDark ? '#0B1326' : '#F9F9FF',
+    card: isDark ? '#121826' : '#FFFFFF',
+    cardAlt: isDark ? '#162036' : '#F1F3FF',
+    cardBorder: isDark ? '#1F2937' : '#E2E8F0',
+    text: isDark ? '#F1F5F9' : '#141B2B',
     textMuted: isDark ? '#94A3B8' : '#64748B',
-    primary: '#0284C7', // Sky Blue theme for Orders
-    primaryLight: isDark ? 'rgba(2, 132, 199, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-    primaryBorder: isDark ? 'rgba(2, 132, 199, 0.3)' : 'rgba(2, 132, 199, 0.25)',
-    success: '#10B981',
-    successLight: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
-    warning: '#F59E0B',
-    warningLight: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
-    danger: '#EF4444',
+    primary: '#0051D5', // Stitch Cobalt
+    primaryLight: isDark ? 'rgba(0, 81, 213, 0.15)' : 'rgba(0, 81, 213, 0.1)',
+    primaryBorder: isDark ? 'rgba(0, 81, 213, 0.3)' : 'rgba(0, 81, 213, 0.25)',
+    success: '#006948',
+    successLight: isDark ? 'rgba(0, 105, 72, 0.15)' : 'rgba(0, 105, 72, 0.1)',
+    warning: '#D97706',
+    warningLight: isDark ? 'rgba(217, 119, 6, 0.15)' : 'rgba(217, 119, 6, 0.1)',
+    danger: '#BA1A1A',
     purple: '#8B5CF6',
     purpleLight: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
   }), [isDark]);
@@ -1135,27 +1135,20 @@ export default function SiparislerView({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* ========================================================================= */}
-      {/* 1. TOP HEADER APP BAR                                                     */}
-      {/* ========================================================================= */}
-      <View style={[styles.headerBar, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-          <TouchableOpacity onPress={onBackToMenu} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
+      {/* 1. TOP HEADER APP BAR (STITCH UNIFIED) */}
+      <View style={[styles.headerBar, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder, paddingTop: Platform.OS === 'android' ? 42 : 52, paddingVertical: 10 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          <TouchableOpacity onPress={onBackToMenu} style={{ padding: 4 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={20} color={theme.text} />
           </TouchableOpacity>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-                ALINAN SİPARİŞLER
-              </Text>
-              <View style={[styles.menuNoBadge, { backgroundColor: theme.primaryLight }]}>
-                <Text style={[styles.menuNoText, { color: theme.primary }]}>038003</Text>
-              </View>
-            </View>
-            <Text style={[styles.headerSubtitle, { color: theme.textMuted }]} numberOfLines={1}>
-              {statusFilter === 'acik' ? 'Açık Siparişler' : statusFilter === 'kapali' ? 'Kapalı Siparişler' : 'Tüm Siparişler'} • {dateField === 'teslim' ? 'Teslim Tarihi' : 'Sipariş Tarihi'}
-            </Text>
-          </View>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isConnected ? theme.success : theme.danger }} />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, letterSpacing: 0.3 }}>
+            MD TİCARET
+          </Text>
+          <Text style={{ fontSize: 13, color: theme.textMuted }}>/</Text>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textMuted, flex: 1 }} numberOfLines={1}>
+            Siparişler
+          </Text>
         </View>
 
         {/* Action Buttons: Refresh, Camera, Filter, Export */}

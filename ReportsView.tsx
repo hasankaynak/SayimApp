@@ -160,36 +160,36 @@ export default function ReportsView({
   const [showSalesProdModal, setShowSalesProdModal] = useState(false);
 
   const colors = isDark ? {
-    bg: '#0B1C30',
-    card: '#162234',
-    cardAlt: '#101F33',
-    heroBg: '#213145',
-    text: '#F8FAFC',
+    bg: '#0B1326',
+    card: '#121826',
+    cardAlt: '#162036',
+    heroBg: '#121826',
+    text: '#F1F5F9',
     textMuted: '#94A3B8',
-    border: 'rgba(255,255,255,0.12)',
-    primary: '#3B82F6',
-    primarySoft: 'rgba(59, 130, 246, 0.15)',
+    border: '#1F2937',
+    primary: '#0051D5',
+    primarySoft: 'rgba(0, 81, 213, 0.15)',
     success: '#00AE78',
     successSoft: 'rgba(0, 174, 120, 0.15)',
-    danger: '#EF4444',
-    dangerSoft: 'rgba(239, 68, 68, 0.15)',
-    warning: '#F59E0B',
-    warningSoft: 'rgba(245, 158, 11, 0.15)',
+    danger: '#BA1A1A',
+    dangerSoft: 'rgba(186, 26, 26, 0.15)',
+    warning: '#D97706',
+    warningSoft: 'rgba(217, 119, 6, 0.15)',
     accent: '#FF6B00'
   } : {
-    bg: '#F8F9FF',
+    bg: '#F9F9FF',
     card: '#FFFFFF',
-    cardAlt: '#EFF4FF',
-    heroBg: '#213145',
-    text: '#0B1C30',
+    cardAlt: '#F1F3FF',
+    heroBg: '#121826',
+    text: '#141B2B',
     textMuted: '#64748B',
     border: '#E2E8F0',
     primary: '#0051D5',
     primarySoft: 'rgba(0, 81, 213, 0.10)',
-    success: '#00AE78',
-    successSoft: 'rgba(0, 174, 120, 0.10)',
-    danger: '#DC2626',
-    dangerSoft: 'rgba(220, 38, 38, 0.10)',
+    success: '#006948',
+    successSoft: 'rgba(0, 105, 72, 0.10)',
+    danger: '#BA1A1A',
+    dangerSoft: 'rgba(186, 26, 26, 0.10)',
     warning: '#D97706',
     warningSoft: 'rgba(217, 119, 6, 0.10)',
     accent: '#FF6B00'
@@ -1158,14 +1158,20 @@ export default function ReportsView({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* HEADER SECTION */}
-      <View style={[styles.headerBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]} onPress={onBackToMenu}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Raporlama & Analiz</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>Geliş tarihi, faturalar ve satış raporları</Text>
+      {/* HEADER SECTION (STITCH UNIFIED) */}
+      <View style={[styles.headerBar, { backgroundColor: colors.card, borderBottomColor: colors.border, paddingTop: Platform.OS === 'android' ? 42 : 52, paddingVertical: 10, paddingHorizontal: 16 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          <TouchableOpacity onPress={onBackToMenu} style={{ padding: 4 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isConnected ? colors.success : colors.danger }} />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text, letterSpacing: 0.3 }}>
+            MD TİCARET
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>/</Text>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textMuted, flex: 1 }} numberOfLines={1}>
+            Raporlar
+          </Text>
         </View>
       </View>
 

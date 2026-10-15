@@ -14,7 +14,8 @@ import {
   Animated,
   Easing,
   Dimensions,
-  StyleSheet
+  StyleSheet,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Modal from 'react-native-modal';
@@ -616,49 +617,47 @@ export default function AlisFaturasiView({
   };
 
   const colors = {
-    bg: isDark ? '#0B1C30' : '#F8F9FF',
-    card: isDark ? '#132840' : '#FFFFFF',
-    cardLow: isDark ? '#1A3350' : '#F1F5F9',
-    text: isDark ? '#FFFFFF' : '#0F172A',
-    textMuted: isDark ? '#8A9AB5' : '#64748B',
-    border: isDark ? '#1F3B5C' : '#E2E8F0',
-    primary: '#10B981', // Alış Faturası için canlı zümrüt yeşili
-    primarySoft: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+    bg: isDark ? '#0B1326' : '#F9F9FF',
+    card: isDark ? '#121826' : '#FFFFFF',
+    cardLow: isDark ? '#162036' : '#F1F3FF',
+    text: isDark ? '#F1F5F9' : '#141B2B',
+    textMuted: isDark ? '#94A3B8' : '#64748B',
+    border: isDark ? '#1F2937' : '#E2E8F0',
+    primary: '#006948', // Stitch Tertiary (Emerald)
+    primarySoft: isDark ? 'rgba(0, 105, 72, 0.15)' : 'rgba(0, 105, 72, 0.1)',
     orange: '#FF6B00',
     orangeSoft: isDark ? 'rgba(255, 107, 0, 0.15)' : 'rgba(255, 107, 0, 0.1)',
-    blue: '#3B82F6',
-    danger: '#EF4444',
-    dangerSoft: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'
+    blue: '#0051D5',
+    danger: '#BA1A1A',
+    dangerSoft: isDark ? 'rgba(186, 26, 26, 0.15)' : 'rgba(186, 26, 26, 0.1)'
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* 1. TOP HEADER BAR */}
+      {/* 1. TOP HEADER BAR (STITCH UNIFIED) */}
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 45,
-        paddingBottom: 12,
+        paddingTop: Platform.OS === 'android' ? 42 : 52,
+        paddingBottom: 10,
         backgroundColor: colors.card,
         borderBottomWidth: 1,
         borderColor: colors.border
       }}>
-        <TouchableOpacity
-          onPress={onBackToMenu}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 6 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>Menü</Text>
-        </TouchableOpacity>
-
-        <View style={{ alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="receipt" size={18} color={colors.primary} />
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: -0.3 }}>ALIŞ FATURASI</Text>
-          </View>
-          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>Mal Kabul & Canlı Stok Girişi</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          <TouchableOpacity onPress={onBackToMenu} style={{ padding: 4 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isConnected ? colors.primary : colors.danger }} />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text, letterSpacing: 0.3 }}>
+            MD TİCARET
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>/</Text>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textMuted, flex: 1 }} numberOfLines={1}>
+            Evraklar
+          </Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -670,30 +669,11 @@ export default function AlisFaturasiView({
                   { text: 'Temizle', style: 'destructive', onPress: () => { setFaturaCart([]); AsyncStorage.removeItem('fatura_cart'); } }
                 ]);
               }}
-              style={{ padding: 6, borderRadius: 10, backgroundColor: colors.dangerSoft }}
+              style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.dangerSoft }}
             >
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+              <Ionicons name="trash-outline" size={17} color={colors.danger} />
             </TouchableOpacity>
           )}
-
-          <View
-            style={{
-              paddingHorizontal: 8,
-              paddingVertical: 6,
-              borderRadius: 10,
-              backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
-              borderWidth: 1,
-              borderColor: '#00AE78',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4
-            }}
-          >
-            <Ionicons name="person-circle-outline" size={16} color="#00AE78" />
-            <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: '800' }}>
-              {currentUserName} ({mikroUserNo})
-            </Text>
-          </View>
 
           <TouchableOpacity
             onPress={() => {
@@ -701,22 +681,29 @@ export default function AlisFaturasiView({
               setIsCameraScanned(false);
             }}
             style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 10,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
               backgroundColor: cameraActive ? colors.orange : colors.cardLow,
-              borderWidth: 1,
-              borderColor: cameraActive ? colors.orange : colors.border,
-              flexDirection: 'row',
               alignItems: 'center',
-              gap: 4
+              justifyContent: 'center'
             }}
           >
             <Ionicons name="barcode-outline" size={18} color={cameraActive ? '#fff' : colors.text} />
-            <Text style={{ color: cameraActive ? '#fff' : colors.text, fontSize: 11, fontWeight: '800' }}>
-              {cameraActive ? 'Kapat' : 'Kamera'}
-            </Text>
           </TouchableOpacity>
+
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.orange,
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Ionicons name="person" size={17} color="#fff" />
+          </View>
         </View>
       </View>
 

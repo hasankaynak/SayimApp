@@ -1,6 +1,6 @@
 {
-  "version": "1.0.41",
-  "versionCode": 41,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.41/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.41\n• SİLİNEN ÜRÜNLERİN TEMİZLENMESİ:\n• Mikro ERP'den silinen stok kartları (örn: TEST.01 vb.) telefon yerel hafızasından ve arama sonuçlarından otomatik olarak temizlenir.\n• FORA MİKRO SENKRONİZASYON UYUMLULUĞU:\n• Fora uygulamasında 'Değişen kayıtlar çekilemedi' hatasına yol açan barkodsuz stok kartı ve eksik döviz alanları Mikro standartlarına göre optimize edildi.\n• Barkod tanımlama ve yeni stok kartı açma işlemlerinde bar_fileid 15 ve Mikro standart başlıkları zorunlu kılındı.\n• Alış Faturası ve hareket kayıtlarına döviz kuru ve sevk tarihi alanları entegre edildi."
+  "version": "1.0.42",
+  "versionCode": 42,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.42/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.42\n• GOOGLE STITCH YENİ INDUSTRIAL UI TASARIMI ENTEGRASYONU:\n• Google Stitch ERP tasarım sistemine tam uyumlu, sade ve göz yormayan arayüz entegre edildi.\n• Arka plan ve kart renkleri hafif, yüksek kontrastlı ve kurumsal palete dönüştürüldü (#F9F9FF / #0B1326).\n• Üst başlık çubuğu minimalist 48px slim tasarıma dönüştürüldü (Yeşil canlı durum göstergesi + MD Ticaret / Modül Adı + Profil Butonu).\n• 5'li Sabit Alt Menü (Fiyat Gör, Sayım, Siparişler, Evraklar, Rapor) tüm ekranlar arasında doğrudan geçiş sağlayacak şekilde entegre edildi.\n• Hızlı Fiyat Gör ve Ürün Detay kartı Stitch Hero standartlarında yeniden yapılandırıldı (Tek parça fiyat kutusu, mikro chip rozetleri, sade depo stok tablosu).\n• Depo Sayım adet stepper'ı 56px ergonomik tuşlar, hızlı adet çipleri (+1, +5, +10, +25, +50, x24) ve turuncu onay butonu ile güncellendi.\n• Alış Faturası ve Alınan Siparişler modülleri yeni Stitch tasarım dili ile hizalandı."
 }

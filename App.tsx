@@ -80,8 +80,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.41';
-const CURRENT_VERSION_CODE = 41;
+const CURRENT_VERSION = '1.0.42';
+const CURRENT_VERSION_CODE = 42;
 
 const parseVersion = (v: string): number[] => {
   const clean = (v || '').replace(/^v/i, '').trim();
@@ -2978,111 +2978,221 @@ export default function App() {
     );
   }
 
+  // --- STITCH UNIVERSAL TOP APP BAR ---
+  const renderUniversalTopBar = (title: string, showBack = false, rightContent?: React.ReactNode) => (
+    <View style={styles.menuHeaderBar}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+        {showBack && (
+          <TouchableOpacity
+            onPress={() => { setAppMode('menu'); setIsShowingCart(false); setCameraActive(false); }}
+            style={{ padding: 4, marginRight: 2 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={styles.colors.text} />
+          </TouchableOpacity>
+        )}
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isConnected ? '#00AE78' : '#EF4444' }} />
+        <Text style={{ fontSize: 13, fontWeight: '800', color: styles.colors.text, letterSpacing: 0.3 }}>
+          MD TİCARET
+        </Text>
+        <Text style={{ fontSize: 13, color: styles.colors.textMuted }}>/</Text>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: styles.colors.textMuted, flex: 1 }} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
+
+      {rightContent ? (
+        rightContent
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {/* Sync Button */}
+          <TouchableOpacity
+            onPress={() => !isSyncing && handleSync(false)}
+            disabled={isSyncing}
+            activeOpacity={0.7}
+            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: styles.colors.cardLow, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}>
+              <Ionicons name="sync" size={16} color={styles.colors.secondary} />
+            </Animated.View>
+          </TouchableOpacity>
+
+          {/* Settings Cog */}
+          <TouchableOpacity
+            onPress={async () => {
+              if (dbRef.current) {
+                const backups = await dbRef.current.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC');
+                setSayimBackups(backups || []);
+              }
+              setShowSettingsModal(true);
+            }}
+            activeOpacity={0.7}
+            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: styles.colors.cardLow, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="settings-outline" size={16} color={styles.colors.textMuted} />
+          </TouchableOpacity>
+
+          {/* User circular avatar */}
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                `${authSession?.user?.display_name || 'Kullanıcı Oturumu'}`,
+                `Kullanıcı Adı: ${authSession?.user?.username || '-'}\nRol: ${authSession?.user?.role_name || '-'}\nMikro Kullanıcı: #${mikroUserNo} ${mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || ''}`,
+                [
+                  { text: 'Kapat', style: 'cancel' },
+                  {
+                    text: 'Çıkış Yap',
+                    style: 'destructive',
+                    onPress: handleLogout
+                  }
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: styles.colors.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="person" size={17} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  // --- STITCH UNIVERSAL BOTTOM NAVIGATION DOCK ---
+  const renderUniversalBottomDock = () => (
+    <View style={styles.fixedBottomNavContainer}>
+      <View style={styles.bottomNavTabsRow}>
+        <TouchableOpacity
+          style={styles.bottomNavTab}
+          onPress={() => {
+            if (!hasPerm('MODULE_FIYAT_GOR')) {
+              Alert.alert('Yetkisiz Erişim', 'Fiyat Gör modülüne yetkiniz bulunmamaktadır.');
+              return;
+            }
+            setAppMode('fiyatgor');
+          }}
+        >
+          <Ionicons
+            name={appMode === 'fiyatgor' ? "barcode" : "barcode-outline"}
+            size={22}
+            color={appMode === 'fiyatgor' ? styles.colors.secondary : styles.colors.textMuted}
+          />
+          <Text style={[styles.bottomNavLabel, appMode === 'fiyatgor' && { color: styles.colors.secondary, fontWeight: '700' }]}>
+            Fiyat Gör
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavTab}
+          onPress={() => {
+            if (!hasPerm('MODULE_SAYIM')) {
+              Alert.alert('Yetkisiz Erişim', 'Depo Sayım modülüne yetkiniz bulunmamaktadır.');
+              return;
+            }
+            setAppMode('sayim');
+            if (!selectedDepo) setShowDepoModal(true);
+          }}
+        >
+          <Ionicons
+            name={appMode === 'sayim' ? "cube" : "cube-outline"}
+            size={22}
+            color={appMode === 'sayim' ? styles.colors.secondary : styles.colors.textMuted}
+          />
+          <Text style={[styles.bottomNavLabel, appMode === 'sayim' && { color: styles.colors.secondary, fontWeight: '700' }]}>
+            Sayım
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavTab}
+          onPress={() => {
+            if (!hasPerm('MODULE_SIPARIS_FATURA') && !hasPerm('MODULE_YENI_SIPARIS')) {
+              Alert.alert('Yetkisiz Erişim', 'Siparişler modülüne yetkiniz bulunmamaktadır.');
+              return;
+            }
+            setAppMode('siparisler');
+          }}
+        >
+          <Ionicons
+            name={appMode === 'siparisler' ? "bag-handle" : "bag-handle-outline"}
+            size={22}
+            color={appMode === 'siparisler' ? styles.colors.secondary : styles.colors.textMuted}
+          />
+          <Text style={[styles.bottomNavLabel, appMode === 'siparisler' && { color: styles.colors.secondary, fontWeight: '700' }]}>
+            Siparişler
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavTab}
+          onPress={() => {
+            if (!hasPerm('MODULE_ALIS_FATURASI')) {
+              Alert.alert('Yetkisiz Erişim', 'Evraklar modülüne yetkiniz bulunmamaktadır.');
+              return;
+            }
+            setAppMode('fatura');
+          }}
+        >
+          <Ionicons
+            name={appMode === 'fatura' ? "document-text" : "document-text-outline"}
+            size={22}
+            color={appMode === 'fatura' ? styles.colors.secondary : styles.colors.textMuted}
+          />
+          <Text style={[styles.bottomNavLabel, appMode === 'fatura' && { color: styles.colors.secondary, fontWeight: '700' }]}>
+            Evraklar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.bottomNavTab}
+          onPress={() => {
+            if (!hasPerm('MODULE_RAPORLAR')) {
+              Alert.alert('Yetkisiz Erişim', 'Raporlar modülüne yetkiniz bulunmamaktadır.');
+              return;
+            }
+            setReportsInitialTab('stok_analiz');
+            setAppMode('raporlar');
+          }}
+        >
+          <Ionicons
+            name={appMode === 'raporlar' ? "stats-chart" : "stats-chart-outline"}
+            size={22}
+            color={appMode === 'raporlar' ? styles.colors.secondary : styles.colors.textMuted}
+          />
+          <Text style={[styles.bottomNavLabel, appMode === 'raporlar' && { color: styles.colors.secondary, fontWeight: '700' }]}>
+            Rapor
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* System Version & Update Strip */}
+      <View style={styles.bottomSystemStrip}>
+        <Text style={styles.bottomSystemText}>MD Ticaret • v{CURRENT_VERSION} • Son Senk: {lastSyncTime}</Text>
+        <TouchableOpacity
+          style={styles.bottomUpdateBtn}
+          onPress={() => checkForUpdates(false)}
+        >
+          <Ionicons name="cloud-download-outline" size={13} color={styles.colors.primary} />
+          <Text style={styles.bottomUpdateBtnText}>Güncelle</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   if (appMode === 'menu') {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: styles.colors.bg }}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
 
         {/* TOP FIXED APP BAR */}
-        <View style={styles.menuHeaderBar}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, marginRight: 6 }}>
-            <Image
-              source={require('./assets/icon.png')}
-              style={{ width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
-            />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.menuHeaderTitle} numberOfLines={1}>
-                MD TİCARET
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                <View style={[styles.pulseBadge, { backgroundColor: isConnected ? 'rgba(0,174,120,0.12)' : 'rgba(239,68,68,0.12)', paddingHorizontal: 6, paddingVertical: 2 }]}>
-                  <View style={[styles.pulseDot, { backgroundColor: isConnected ? '#00AE78' : '#EF4444', width: 6, height: 6 }]} />
-                  <Text style={[styles.pulseBadgeText, { color: isConnected ? '#00AE78' : '#EF4444', fontSize: 10, fontWeight: '700' }]}>
-                    {isConnected ? 'Çevrimiçi' : 'Çevrimdışı'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            {/* Active User Badge / Switcher */}
-            <TouchableOpacity
-              onPress={() => {
-                Alert.alert(
-                  `${authSession?.user?.display_name || 'Kullanıcı Oturumu'}`,
-                  `Kullanıcı Adı: ${authSession?.user?.username || '-'}\nRol: ${authSession?.user?.role_name || '-'}\nMikro Kullanıcı: #${mikroUserNo} ${mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || ''}`,
-                  [
-                    { text: 'Kapat', style: 'cancel' },
-                    {
-                      text: 'Çıkış Yap',
-                      style: 'destructive',
-                      onPress: handleLogout
-                    }
-                  ]
-                );
-              }}
-              activeOpacity={0.7}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-                backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
-                paddingHorizontal: 7,
-                paddingVertical: 5,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
-                maxWidth: 105,
-              }}
-            >
-              <Ionicons name="person-circle" size={15} color="#00AE78" />
-              <Text
-                style={{ fontSize: 11, fontWeight: '700', color: '#00AE78' }}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {authSession?.user?.display_name || authSession?.user?.username || `Kullanıcı ${mikroUserNo}`}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Logout Quick Button */}
-            <TouchableOpacity
-              onPress={handleLogout}
-              activeOpacity={0.7}
-              style={[styles.headerIconBtn, { width: 32, height: 32, backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2' }]}
-            >
-              <Ionicons name="log-out-outline" size={16} color="#EF4444" />
-            </TouchableOpacity>
-
-            {/* Compact Sync Action Button */}
-            <TouchableOpacity
-              onPress={() => !isSyncing && handleSync(false)}
-              disabled={isSyncing}
-              activeOpacity={0.7}
-              style={[styles.headerIconBtn, { width: 32, height: 32 }]}
-            >
-              <Animated.View style={isSyncing ? { transform: [{ rotate: spin }] } : undefined}>
-                <Ionicons name="sync" size={16} color={styles.colors.secondary} />
-              </Animated.View>
-            </TouchableOpacity>
-
-            {/* Settings Cog Button */}
-            <TouchableOpacity
-              onPress={async () => {
-                if (dbRef.current) {
-                  const backups = await dbRef.current.getAllAsync('SELECT * FROM sayim_backups ORDER BY id DESC');
-                  setSayimBackups(backups || []);
-                }
-                setShowSettingsModal(true);
-              }}
-              activeOpacity={0.7}
-              style={[styles.headerIconBtn, { width: 32, height: 32 }]}
-            >
-              <Ionicons name="settings-outline" size={16} color={styles.colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {renderUniversalTopBar('Ana Menü')}
 
         {/* SCROLLABLE MAIN CONTENT */}
         <ScrollView
@@ -3360,11 +3470,11 @@ export default function App() {
               !isSyncing && openNewCardModal();
             }}
             disabled={isSyncing}
-            style={[styles.reportHeroCard, { borderColor: '#FF6B00', borderWidth: 1.5 }]}
+            style={styles.reportHeroCard}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
-              <View style={[styles.reportIconBox, { backgroundColor: '#FF6B00' }]}>
-                <Ionicons name="cube" size={24} color="#fff" />
+              <View style={[styles.reportIconBox, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
+                <Ionicons name="cube" size={22} color="#FF6B00" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -3396,18 +3506,18 @@ export default function App() {
               !isSyncing && setAppMode('fatura');
             }}
             disabled={isSyncing}
-            style={[styles.reportHeroCard, { borderColor: '#10B981', borderWidth: 1.5, marginBottom: 12 }]}
+            style={styles.reportHeroCard}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
-              <View style={[styles.reportIconBox, { backgroundColor: '#10B981' }]}>
-                <Ionicons name="receipt" size={24} color="#fff" />
+              <View style={[styles.reportIconBox, { backgroundColor: 'rgba(0, 105, 72, 0.12)' }]}>
+                <Ionicons name="receipt" size={22} color="#006948" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text style={styles.reportHeroTitle} numberOfLines={1}>ALIŞ FATURASI (MAL KABUL)</Text>
-                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                    <Ionicons name="shield-checkmark" size={11} color="#10B981" />
-                    <Text style={[styles.reportTrendText, { color: '#10B981' }]}>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(0, 105, 72, 0.12)' }]}>
+                    <Ionicons name="shield-checkmark" size={11} color="#006948" />
+                    <Text style={[styles.reportTrendText, { color: '#006948' }]}>
                       {faturaCart.length > 0 ? `${faturaCart.length} Kalem Açık` : 'Mal Kabul'}
                     </Text>
                   </View>
@@ -3418,8 +3528,8 @@ export default function App() {
               </View>
             </View>
 
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(16, 185, 129, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ionicons name="arrow-forward" size={18} color="#10B981" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 105, 72, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#006948" />
             </View>
           </TouchableOpacity>
 
@@ -3434,18 +3544,18 @@ export default function App() {
               !isSyncing && setAppMode('fiyat_degisiklik');
             }}
             disabled={isSyncing}
-            style={[styles.reportHeroCard, { borderColor: '#8B5CF6', borderWidth: 1.5, marginBottom: 12 }]}
+            style={styles.reportHeroCard}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
-              <View style={[styles.reportIconBox, { backgroundColor: '#8B5CF6' }]}>
-                <Ionicons name="pricetags" size={24} color="#fff" />
+              <View style={[styles.reportIconBox, { backgroundColor: 'rgba(0, 81, 213, 0.12)' }]}>
+                <Ionicons name="pricetags" size={22} color="#0051D5" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text style={styles.reportHeroTitle} numberOfLines={1}>FİYAT DEĞİŞİKLİĞİ</Text>
-                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
-                    <Ionicons name="flash" size={11} color="#8B5CF6" />
-                    <Text style={[styles.reportTrendText, { color: '#8B5CF6' }]}>Menü 031200</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(0, 81, 213, 0.12)' }]}>
+                    <Ionicons name="flash" size={11} color="#0051D5" />
+                    <Text style={[styles.reportTrendText, { color: '#0051D5' }]}>Menü 031200</Text>
                   </View>
                 </View>
                 <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
@@ -3454,8 +3564,8 @@ export default function App() {
               </View>
             </View>
 
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(139, 92, 246, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 81, 213, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#0051D5" />
             </View>
           </TouchableOpacity>
 
@@ -3470,18 +3580,18 @@ export default function App() {
               !isSyncing && setAppMode('siparisler');
             }}
             disabled={isSyncing}
-            style={[styles.reportHeroCard, { borderColor: '#0284C7', borderWidth: 1.5, marginBottom: 12 }]}
+            style={styles.reportHeroCard}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
-              <View style={[styles.reportIconBox, { backgroundColor: '#0284C7' }]}>
-                <Ionicons name="cart" size={24} color="#fff" />
+              <View style={[styles.reportIconBox, { backgroundColor: 'rgba(0, 81, 213, 0.12)' }]}>
+                <Ionicons name="cart" size={22} color="#0051D5" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text style={styles.reportHeroTitle} numberOfLines={1}>ALINAN SİPARİŞLER</Text>
-                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(2, 132, 199, 0.12)' }]}>
-                    <Ionicons name="flash" size={11} color="#0284C7" />
-                    <Text style={[styles.reportTrendText, { color: '#0284C7' }]}>Menü 038003</Text>
+                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(0, 81, 213, 0.12)' }]}>
+                    <Ionicons name="flash" size={11} color="#0051D5" />
+                    <Text style={[styles.reportTrendText, { color: '#0051D5' }]}>Menü 038003</Text>
                   </View>
                 </View>
                 <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
@@ -3490,8 +3600,8 @@ export default function App() {
               </View>
             </View>
 
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(2, 132, 199, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ionicons name="arrow-forward" size={18} color="#0284C7" />
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 81, 213, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ionicons name="arrow-forward" size={18} color="#0051D5" />
             </View>
           </TouchableOpacity>
 
@@ -3644,94 +3754,8 @@ export default function App() {
           </View>
         </ScrollView>
 
-        {/* FIXED BOTTOM NAVIGATION & APP STATUS BAR */}
-        <View style={styles.fixedBottomNavContainer}>
-          <View style={styles.bottomNavTabsRow}>
-            <TouchableOpacity
-              style={styles.bottomNavTab}
-              onPress={() => {
-                if (!hasPerm('MODULE_SAYIM')) {
-                  Alert.alert('Yetkisiz Erişim', 'Depo Sayım modülüne erişim yetkiniz bulunmamaktadır.');
-                  return;
-                }
-                setAppMode('sayim'); setShowDepoModal(true);
-              }}
-            >
-              <Ionicons name="barcode-outline" size={22} color={styles.colors.textMuted} />
-              <Text style={styles.bottomNavLabel}>Sayım</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.bottomNavTab}
-              onPress={() => {
-                if (!hasPerm('MODULE_FIYAT_GOR')) {
-                  Alert.alert('Yetkisiz Erişim', 'Fiyat Gör / Stoklar modülüne erişim yetkiniz bulunmamaktadır.');
-                  return;
-                }
-                setAppMode('fiyatgor');
-              }}
-            >
-              <Ionicons name="cube-outline" size={22} color={styles.colors.textMuted} />
-              <Text style={styles.bottomNavLabel}>Stoklar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.bottomNavTab}
-              onPress={() => {
-                if (!hasPerm('MODULE_RAPORLAR')) {
-                  Alert.alert('Yetkisiz Erişim', 'Raporlar ve Evraklar modülüne erişim yetkiniz bulunmamaktadır.');
-                  return;
-                }
-                setReportsInitialTab('fatura');
-                setAppMode('raporlar');
-              }}
-            >
-              <Ionicons name="document-text-outline" size={22} color={styles.colors.textMuted} />
-              <Text style={styles.bottomNavLabel}>Evraklar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.bottomNavTab}
-              onPress={() => {
-                if (!hasPerm('MODULE_RAPORLAR')) {
-                  Alert.alert('Yetkisiz Erişim', 'Raporlar modülüne erişim yetkiniz bulunmamaktadır.');
-                  return;
-                }
-                setReportsInitialTab('stok_analiz');
-                setAppMode('raporlar');
-              }}
-            >
-              <Ionicons name="stats-chart-outline" size={22} color={styles.colors.textMuted} />
-              <Text style={styles.bottomNavLabel}>Rapor</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.bottomNavTab}
-              onPress={() => {
-                if (!hasPerm('MODULE_SEVK')) {
-                  Alert.alert('Yetkisiz Erişim', 'Transfer modülüne erişim yetkiniz bulunmamaktadır.');
-                  return;
-                }
-                setAppMode('sevk'); setShowSevkSourceModal(true);
-              }}
-            >
-              <Ionicons name="swap-horizontal-outline" size={22} color={styles.colors.textMuted} />
-              <Text style={styles.bottomNavLabel}>Transfer</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* System Version & Update Strip */}
-          <View style={styles.bottomSystemStrip}>
-            <Text style={styles.bottomSystemText}>MD Ticaret • v{CURRENT_VERSION} • Son Senk: {lastSyncTime}</Text>
-            <TouchableOpacity
-              style={styles.bottomUpdateBtn}
-              onPress={() => checkForUpdates(false)}
-            >
-              <Ionicons name="cloud-download-outline" size={13} color="#FF6B00" />
-              <Text style={styles.bottomUpdateBtnText}>Güncellemeleri Denetle</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* UNIVERSAL BOTTOM NAVIGATION & APP STATUS BAR */}
+        {renderUniversalBottomDock()}
 
         {/* MODALS: Ayarlar Modal & User Select Modal */}
         <Modal isVisible={showSettingsModal} onBackdropPress={() => setShowSettingsModal(false)} style={styles.modal}>
@@ -4035,71 +4059,30 @@ export default function App() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
-        {/* SCREEN TOP HEADER BAR */}
-        <View style={styles.headerBar}>
-          <TouchableOpacity
-            style={[styles.headerBtn, { flexDirection: 'row', width: 'auto', paddingHorizontal: 12, gap: 4 }]}
-            onPress={() => { setAppMode('menu'); setIsShowingCart(false); setCameraActive(false); }}
-          >
-            <Ionicons name="chevron-back" size={18} color={styles.colors.text} />
-            <Text style={{ color: styles.colors.text, fontSize: 13, fontWeight: '700' }}>Menü</Text>
-          </TouchableOpacity>
-
-          <View style={styles.headerCenter}>
-            {appMode === 'sayim' && (
-              <TouchableOpacity onPress={() => setShowDepoModal(true)} style={{ alignItems: 'center' }}>
-                <Text style={styles.headerTitle}>DEPO SAYIM İŞLEMİ</Text>
-                <Text style={[styles.headerSubtitle, { color: '#00AE78', fontWeight: '700' }]} numberOfLines={1}>
-                  #{editingEvrakNo ? `SYM-${editingEvrakNo}` : 'SYM-2026-089'} • {selectedDepo?.depo_adi || 'Depo Seç'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {appMode === 'sevk' && (
-              <TouchableOpacity onPress={() => setShowSevkSourceModal(true)} style={{ alignItems: 'center' }}>
-                <Text style={[styles.headerTitle, { color: '#FF6B00' }]}>DEPOLAR ARASI TRANSFER</Text>
-                <Text style={styles.headerSubtitle} numberOfLines={1}>
-                  {sevkSourceDepo ? sevkSourceDepo.depo_adi : 'Çıkış'} ➔ {sevkTargetDepo ? sevkTargetDepo.depo_adi : 'Giriş'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {appMode === 'fiyatgor' && (
-              <View style={{ alignItems: 'center' }}>
-                <Text style={styles.headerTitle}>FİYAT GÖR & STOK</Text>
-                <Text style={styles.headerSubtitle}>2D Optik Lazer Barkod Arama</Text>
-              </View>
-            )}
-            {appMode === 'cari' && (
-              <View style={{ alignItems: 'center' }}>
-                <Text style={styles.headerTitle}>CARİ HESAPLAR & DEFTER</Text>
-                <Text style={styles.headerSubtitle}>Müşteri / Tedarikçi Ekstre</Text>
-              </View>
-            )}
-          </View>
-
+        {/* SCREEN TOP HEADER BAR (STITCH UNIFIED) */}
+        {renderUniversalTopBar(
+          appMode === 'sayim' ? `Sayım • ${selectedDepo?.depo_adi || 'Depo Seç'}`
+          : appMode === 'sevk' ? `Transfer • ${sevkSourceDepo?.depo_adi || 'Çıkış'} ➔ ${sevkTargetDepo?.depo_adi || 'Giriş'}`
+          : appMode === 'fiyatgor' ? 'Fiyat Gör'
+          : 'Cari Defter',
+          true,
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {appMode === 'fiyatgor' && (
-              <View style={[styles.pulseBadge, { backgroundColor: 'rgba(0,174,120,0.12)' }]}>
-                <View style={[styles.pulseDot, { backgroundColor: '#00AE78' }]} />
-                <Text style={[styles.pulseBadgeText, { color: '#00AE78' }]}>Optik 2D</Text>
-              </View>
-            )}
-
             {(appMode === 'sayim' || appMode === 'sevk') && (
               <TouchableOpacity
-                style={styles.headerBtn}
+                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: styles.colors.cardLow, alignItems: 'center', justifyContent: 'center' }}
                 onPress={() => { setIsShowingCart(true); setCameraActive(false); }}
               >
-                <Ionicons name="cart-outline" size={22} color={styles.colors.secondary} />
+                <Ionicons name="cart-outline" size={19} color={styles.colors.secondary} />
                 {activeCart.length > 0 && (
-                  <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FF6B00', borderRadius: 9, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 }}>
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{activeCart.length}</Text>
+                  <View style={{ position: 'absolute', top: -3, right: -3, backgroundColor: '#FF6B00', borderRadius: 9, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 2 }}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>{activeCart.length}</Text>
                   </View>
                 )}
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
-              style={[styles.headerBtn, cameraActive && styles.headerBtnActive]}
+              style={[{ width: 34, height: 34, borderRadius: 17, backgroundColor: cameraActive ? styles.colors.primary : styles.colors.cardLow, alignItems: 'center', justifyContent: 'center' }]}
               onPress={() => {
                 setCameraActive(!cameraActive);
                 if (!cameraActive) {
@@ -4111,12 +4094,37 @@ export default function App() {
             >
               <Ionicons
                 name={cameraActive ? "barcode" : "barcode-outline"}
-                size={22}
+                size={18}
                 color={cameraActive ? "#fff" : styles.colors.secondary}
               />
             </TouchableOpacity>
+
+            {/* User circular avatar */}
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  `${authSession?.user?.display_name || 'Kullanıcı Oturumu'}`,
+                  `Kullanıcı Adı: ${authSession?.user?.username || '-'}\nRol: ${authSession?.user?.role_name || '-'}\nMikro Kullanıcı: #${mikroUserNo} ${mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo))?.KULLANICI_ADI || ''}`,
+                  [
+                    { text: 'Kapat', style: 'cancel' },
+                    { text: 'Çıkış Yap', style: 'destructive', onPress: handleLogout }
+                  ]
+                );
+              }}
+              activeOpacity={0.7}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: styles.colors.primary,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="person" size={17} color="#fff" />
+            </TouchableOpacity>
           </View>
-        </View>
+        )}
 
         {/* TACTICAL VIEWFINDER WITH RETICLE & LASER */}
         {cameraActive && (
@@ -4519,34 +4527,34 @@ export default function App() {
                       )}
                     </View>
 
-                    {/* MASSIVE PRICE BOX (When not in pure Sayım) */}
+                    {/* STITCH CLEAN PRICE BOX */}
                     {appMode !== 'sayim' && (
-                      <View style={[styles.massivePriceBox, { backgroundColor: isDark ? '#162032' : '#F8FAFC', borderColor: '#00AE78', borderWidth: 1.5, padding: 16 }]}>
+                      <View style={[styles.massivePriceBox, { backgroundColor: styles.colors.cardLow, borderColor: styles.colors.border, borderWidth: 1, padding: 14 }]}>
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                            <Ionicons name="pricetag" size={13} color="#00AE78" />
+                            <Ionicons name="pricetag-outline" size={13} color={styles.colors.primary} />
                             <Text style={{ color: styles.colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
                               Satış Fiyatı (Peşin)
                             </Text>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
-                            <Text style={[styles.massivePriceText, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>{formatPrice(product.price)}</Text>
-                            <Text style={{ color: '#00AE78', fontSize: 20, fontWeight: '900' }}>{product.currency}</Text>
+                            <Text style={[styles.massivePriceText, { color: styles.colors.text, fontSize: 32 }]}>{formatPrice(product.price)}</Text>
+                            <Text style={{ color: styles.colors.primary, fontSize: 18, fontWeight: '800' }}>{product.currency}</Text>
                           </View>
                           {!!product?.iskonto_orani && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: 'rgba(0, 174, 120, 0.12)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: 'rgba(239, 68, 68, 0.10)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' }}>
                               <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>
                                 %{product.iskonto_orani.replace(/^%/, '')} İsk. Net:
                               </Text>
-                              <Text style={{ color: isDark ? '#38BDF8' : '#0284C7', fontSize: 14, fontWeight: '900' }}>
+                              <Text style={{ color: styles.colors.secondary, fontSize: 14, fontWeight: '900' }}>
                                 {formatPrice((parseFloat(product.price) || 0) * (1 - (parseFloat(product.iskonto_orani.replace(/^%/, '')) || 0) / 100))} {product.currency}
                               </Text>
                             </View>
                           )}
                         </View>
                         <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                          <View style={styles.kdvBadge}>
-                            <Text style={styles.kdvBadgeText}>KDV DAHİL</Text>
+                          <View style={[styles.kdvBadge, { backgroundColor: 'rgba(0, 105, 72, 0.12)' }]}>
+                            <Text style={[styles.kdvBadgeText, { color: '#006948' }]}>KDV DAHİL</Text>
                           </View>
                           <TouchableOpacity
                             onPress={() => {
@@ -5438,26 +5446,29 @@ export default function App() {
         </View>
       )}
 
+      {/* UNIVERSAL BOTTOM DOCK */}
+      {!isShowingCart && renderUniversalBottomDock()}
+
     </SafeAreaView>
   );
 }
 
 const getStyles = (isDark: boolean) => {
   const colors = isDark ? {
-    bg: '#0B1C30',
-    card: '#162234',
-    cardLow: '#101F33',
-    cardHigh: '#1F334E',
-    heroBg: '#213145',
-    heroText: '#EAF1FF',
-    text: '#F8FAFC',
+    bg: '#0B1326',
+    card: '#121826',
+    cardLow: '#162036',
+    cardHigh: '#1C2742',
+    heroBg: '#121826',
+    heroText: '#F1F5F9',
+    text: '#F1F5F9',
     textMuted: '#94A3B8',
-    border: 'rgba(255,255,255,0.12)',
+    border: '#1F2937',
     borderLight: 'rgba(255,255,255,0.06)',
     primary: '#FF6B00',
     primarySoft: 'rgba(255, 107, 0, 0.15)',
-    secondary: '#3B82F6',
-    secondarySoft: 'rgba(59, 130, 246, 0.15)',
+    secondary: '#0051D5',
+    secondarySoft: 'rgba(0, 81, 213, 0.15)',
     tertiary: '#00AE78',
     tertiarySoft: 'rgba(0, 174, 120, 0.15)',
     success: '#00AE78',
@@ -5467,24 +5478,24 @@ const getStyles = (isDark: boolean) => {
     warning: '#F59E0B',
     warningSoft: 'rgba(245, 158, 11, 0.15)'
   } : {
-    bg: '#F8F9FF',
+    bg: '#F9F9FF',
     card: '#FFFFFF',
-    cardLow: '#EFF4FF',
-    cardHigh: '#DCE9FF',
-    heroBg: '#213145',
-    heroText: '#EAF1FF',
-    text: '#0B1C30',
+    cardLow: '#F1F3FF',
+    cardHigh: '#E9EDFF',
+    heroBg: '#121826',
+    heroText: '#F1F5F9',
+    text: '#141B2B',
     textMuted: '#64748B',
     border: '#E2E8F0',
-    borderLight: '#EFF4FF',
+    borderLight: '#F1F5F9',
     primary: '#FF6B00',
     primarySoft: 'rgba(255, 107, 0, 0.10)',
     secondary: '#0051D5',
     secondarySoft: 'rgba(0, 81, 213, 0.10)',
-    tertiary: '#00AE78',
-    tertiarySoft: 'rgba(0, 174, 120, 0.10)',
-    success: '#00AE78',
-    successSoft: 'rgba(0, 174, 120, 0.10)',
+    tertiary: '#006948',
+    tertiarySoft: 'rgba(0, 105, 72, 0.10)',
+    success: '#006948',
+    successSoft: 'rgba(0, 105, 72, 0.10)',
     danger: '#DC2626',
     dangerSoft: 'rgba(220, 38, 38, 0.10)',
     warning: '#D97706',
@@ -6379,7 +6390,7 @@ const getStyles = (isDark: boolean) => {
     // STICKY FLOATING CART DOCK
     floatingCartBar: {
       position: 'absolute',
-      bottom: 12,
+      bottom: 74,
       left: 14,
       right: 14,
       height: 60,
