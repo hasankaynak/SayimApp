@@ -1,6 +1,6 @@
 {
-  "version": "1.0.45",
-  "versionCode": 45,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.45/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.45\n• OTOMATİK GÜNCELLEME VE PAKET KURUCU İYİLEŞTİRMESİ:\n• Android 11+ cihazlarda 'expointentlauncher.start.activity' ve paket yükleyici açılış hatası giderildi.\n• AndroidManifest <queries> tanımı ile sistem APK Paket Yükleyici erişimi tam uyumlu hale getirildi.\n• 3 Kademeli Güvenli Kurulum: VIEW intent, INSTALL_PACKAGE intent ve Sistem Paylaş/Aç menüsü entegre edildi.\n• Olası izin veya güvenlik kısıtlamalarında doğrudan 'Bilinmeyen Kaynak İzni Aç' ve 'Tarayıcıdan İndir & Kur' alternatifleri eklendi.\n• Güncelleme penceresine tek dokunuşla tarayıcıdan indirme seçeneği eklendi."
+  "version": "1.0.46",
+  "versionCode": 46,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.46/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.46\n• MİKRO DEPO VE STOK FİŞLERİ MODÜLÜ ENTEGRASYONU:\n• 012160 - Sayım Çıkışı Depo Fişi: Eksik çıkan, fire/hasarlı veya zayi ürünlerin depodan canlı resmi çıkışı.\n• 012250 - Sayım Girişi Depo Fişi: Fazla çıkan, devir veya depoya eklenen ürünlerin resmi girişi.\n• 012810 - Stok Virman Fişi: Aynı depoda kaynak üründen düşüp hedef ürüne aktaran çift satırlı atomik virman eşleştirme mimarisi.\n• Canlı Depo Stoğu Göstergesi: Çıkış veya virman yapılırken ürünün depodaki güncel stok adedinin anlık gösterimi.\n• Mikro Canlı Sayaç: Otomatik seri & sıra numarası çekme, hazır açıklama çipleri ve kamera ile seri barkod okuma.\n• Geçmiş Fişler: Mikro ERP'de kesilmiş son çıkış, giriş ve virman fişlerinin kalem bazında detaylı incelenmesi."
 }
