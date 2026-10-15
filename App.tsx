@@ -269,10 +269,11 @@ export default function App() {
 
   const [beepSound, setBeepSound] = useState<Audio.Sound | null>(null);
 
-  async function playSound(type: 'success' | 'error' | 'beep') {
+  async function playSound(type: 'success' | 'error' | 'beep' | 'order') {
     try {
-      const file = type === 'success' ? require('./assets/success.wav') 
-                 : type === 'error' ? require('./assets/error.wav') 
+      const file = type === 'success' ? require('./assets/success.mp3') 
+                 : type === 'error' ? require('./assets/error.mp3') 
+                 : type === 'order' ? require('./assets/order_bell.mp3')
                  : require('./assets/beep.mp3');
       const { sound } = await Audio.Sound.createAsync(file);
       setBeepSound(sound);
@@ -384,6 +385,19 @@ export default function App() {
   const [editNameInput, setEditNameInput] = useState('');
   const [isUpdatingName, setIsUpdatingName] = useState(false);
 
+  // CANLI MİKRO BİLDİRİMLERİ (YENİ ÜRÜN & YENİ SİPARİŞ) STATE
+  const [notifNewProducts, setNotifNewProducts] = useState(true);
+  const [notifNewOrders, setNotifNewOrders] = useState(true);
+  const [notifSoundActive, setNotifSoundActive] = useState(true);
+  const [liveBanner, setLiveBanner] = useState<{
+    type: 'product' | 'order';
+    title: string;
+    subtitle: string;
+    time: string;
+  } | null>(null);
+  const lastKnownProductCodeRef = useRef<string | null>(null);
+  const lastKnownOrderKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (isSyncing) {
       Animated.loop(Animated.timing(rotateAnim, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })).start();
@@ -416,6 +430,15 @@ export default function App() {
         const savedSync = await AsyncStorage.getItem('autoSync');
         if (savedSync !== null) setAutoSync(savedSync === 'true');
 
+        const savedNotifProd = await AsyncStorage.getItem('notif_new_products');
+        if (savedNotifProd !== null) setNotifNewProducts(savedNotifProd === 'true');
+
+        const savedNotifOrd = await AsyncStorage.getItem('notif_new_orders');
+        if (savedNotifOrd !== null) setNotifNewOrders(savedNotifOrd === 'true');
+
+        const savedNotifSnd = await AsyncStorage.getItem('notif_sound_active');
+        if (savedNotifSnd !== null) setNotifSoundActive(savedNotifSnd === 'true');
+
         const savedSyncTime = await AsyncStorage.getItem('lastSyncTime');
         if (savedSyncTime) setLastSyncTime(savedSyncTime);
 
@@ -430,6 +453,91 @@ export default function App() {
     };
     loadUserName();
   }, []);
+
+  // Mikro Canlı Bildirim Polling Döngüsü (Her 35 saniyede bir kontrol)
+  useEffect(() => {
+    let timer: any;
+
+    const checkMikroLiveAlerts = async () => {
+      if (!isConnected) return;
+      try {
+        // 1. Yeni Ürün Kontrolü
+        if (notifNewProducts) {
+          const prodQ = `
+            SELECT TOP 1 sto_kod, sto_isim, sto_create_date 
+            FROM STOKLAR WITH (NOLOCK) 
+            ORDER BY sto_create_date DESC, sto_Guid DESC;
+          `;
+          const pRes = await axios.post(API_URL, { query: prodQ }, { timeout: 8000 });
+          const latestProd = pRes.data?.data?.[0];
+          if (latestProd?.sto_kod) {
+            const prodCode = String(latestProd.sto_kod).trim();
+            if (lastKnownProductCodeRef.current === null) {
+              lastKnownProductCodeRef.current = prodCode;
+            } else if (lastKnownProductCodeRef.current !== prodCode) {
+              lastKnownProductCodeRef.current = prodCode;
+              setLiveBanner({
+                type: 'product',
+                title: '🎉 Mikro: Yeni Stok Kartı Açıldı!',
+                subtitle: `${latestProd.sto_isim || 'İsimsiz Ürün'} (${prodCode})`,
+                time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+              });
+              if (notifSoundActive) playSound('order');
+            }
+          }
+        }
+
+        // 2. Yeni Sipariş Kontrolü (038003)
+        if (notifNewOrders) {
+          const ordQ = `
+            SELECT TOP 1 
+              sip_evrakno_seri, 
+              sip_evrakno_sira, 
+              sip_musteri_kod,
+              ISNULL((SELECT TOP 1 cari_unvan1 FROM CARI_HESAPLAR WITH (NOLOCK) WHERE cari_kod = sip_musteri_kod), 'Bilinmeyen Cari') AS CariUnvan,
+              COUNT(*) AS KalemSayisi,
+              SUM(sip_tutar) AS ToplamTutar,
+              MAX(sip_create_date) AS SonTarih
+            FROM SIPARISLER WITH (NOLOCK)
+            WHERE sip_evraktip = 1
+            GROUP BY sip_evrakno_seri, sip_evrakno_sira, sip_musteri_kod
+            ORDER BY SonTarih DESC;
+          `;
+          const oRes = await axios.post(API_URL, { query: ordQ }, { timeout: 8000 });
+          const latestOrd = oRes.data?.data?.[0];
+          if (latestOrd?.sip_evrakno_sira) {
+            const orderKey = `${(latestOrd.sip_evrakno_seri || '').trim()}-${latestOrd.sip_evrakno_sira}`;
+            if (lastKnownOrderKeyRef.current === null) {
+              lastKnownOrderKeyRef.current = orderKey;
+            } else if (lastKnownOrderKeyRef.current !== orderKey) {
+              lastKnownOrderKeyRef.current = orderKey;
+              setLiveBanner({
+                type: 'order',
+                title: '📦 Mikro: Yeni Sipariş Geldi (038003)!',
+                subtitle: `No: ${orderKey} • ${latestOrd.CariUnvan} (${latestOrd.KalemSayisi} Kalem - ${formatPrice(latestOrd.ToplamTutar || 0)} TL)`,
+                time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+              });
+              if (notifSoundActive) playSound('order');
+            }
+          }
+        }
+      } catch (err) {
+        // sessizce geç
+      }
+    };
+
+    checkMikroLiveAlerts();
+    timer = setInterval(checkMikroLiveAlerts, 35000);
+    return () => clearInterval(timer);
+  }, [isConnected, notifNewProducts, notifNewOrders, notifSoundActive]);
+
+  // Canlı Banner Otomatik Kapanma
+  useEffect(() => {
+    if (liveBanner) {
+      const t = setTimeout(() => setLiveBanner(null), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [liveBanner]);
 
   const saveUserName = async () => {
     if (userNameInput.trim().length < 2) { Alert.alert('Hata', 'Lütfen en az 2 karakter girin.'); return; }
@@ -3239,13 +3347,67 @@ export default function App() {
     );
   };
 
+  const renderLiveNotificationBanner = () => {
+    if (!liveBanner) return null;
+    return (
+      <View
+        style={{
+          position: 'absolute',
+          top: Platform.OS === 'ios' ? 52 : 36,
+          left: 12,
+          right: 12,
+          zIndex: 999999,
+          backgroundColor: liveBanner.type === 'order' ? '#0051D5' : '#00AE78',
+          borderRadius: 14,
+          padding: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          elevation: 12,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.3)',
+        }}
+      >
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={() => {
+            if (liveBanner.type === 'order') {
+              setAppMode('siparisler');
+            }
+            setLiveBanner(null);
+          }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        >
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={liveBanner.type === 'order' ? 'cart' : 'cube'} size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>{liveBanner.title}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' }}>{liveBanner.time}</Text>
+            </View>
+            <Text style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 2, fontWeight: '600' }} numberOfLines={2}>
+              {liveBanner.subtitle}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setLiveBanner(null)} style={{ padding: 6 }}>
+            <Ionicons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const renderUpdatePromptModal = () => (
-    <Modal
-      isVisible={showUpdateModal}
-      onBackdropPress={() => setShowUpdateModal(false)}
-      style={styles.modal}
-      avoidKeyboard={true}
-    >
+    <>
+      {renderLiveNotificationBanner()}
+      <Modal
+        isVisible={showUpdateModal}
+        onBackdropPress={() => setShowUpdateModal(false)}
+        style={styles.modal}
+        avoidKeyboard={true}
+      >
       <View style={[styles.modalContent, { maxHeight: '82%' }]}>
         <View style={styles.modalHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -3405,6 +3567,7 @@ export default function App() {
         </TouchableOpacity>
       </View>
     </Modal>
+  </>
   );
 
   const renderUserSelectModal = () => null;
@@ -4332,6 +4495,59 @@ export default function App() {
                 <TouchableOpacity onPress={() => setManualTheme(prev => prev === 'dark' ? 'light' : 'dark')}>
                   <Ionicons name={isDark ? 'toggle' : 'toggle-outline'} size={38} color={isDark ? '#00AE78' : '#ccc'} />
                 </TouchableOpacity>
+              </View>
+
+              {/* CANLI MİKRO BİLDİRİMLERİ BÖLÜMÜ */}
+              <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderColor: styles.colors.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Ionicons name="notifications" size={17} color="#FF6B00" />
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: styles.colors.text }}>CANLI MİKRO BİLDİRİMLERİ</Text>
+                </View>
+
+                {/* YENİ ÜRÜN BİLDİRİMİ */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ color: styles.colors.text, fontSize: 14, fontWeight: '600' }}>Yeni Stok / Ürün Bildirimi</Text>
+                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, marginTop: 1 }}>Mikro ERP'ye yeni ürün açıldığında anlık bildir</Text>
+                  </View>
+                  <TouchableOpacity onPress={async () => {
+                    const newVal = !notifNewProducts;
+                    setNotifNewProducts(newVal);
+                    await AsyncStorage.setItem('notif_new_products', newVal ? 'true' : 'false');
+                  }}>
+                    <Ionicons name={notifNewProducts ? 'toggle' : 'toggle-outline'} size={38} color={notifNewProducts ? '#00AE78' : '#ccc'} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* YENİ SİPARİŞ BİLDİRİMİ */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ color: styles.colors.text, fontSize: 14, fontWeight: '600' }}>Yeni Alınan Sipariş Bildirimi (038003)</Text>
+                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, marginTop: 1 }}>Mikro ERP'ye yeni sipariş girildiğinde anlık bildir</Text>
+                  </View>
+                  <TouchableOpacity onPress={async () => {
+                    const newVal = !notifNewOrders;
+                    setNotifNewOrders(newVal);
+                    await AsyncStorage.setItem('notif_new_orders', newVal ? 'true' : 'false');
+                  }}>
+                    <Ionicons name={notifNewOrders ? 'toggle' : 'toggle-outline'} size={38} color={notifNewOrders ? '#00AE78' : '#ccc'} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* BİLDİRİM SESLİ UYARI */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: styles.colors.border }}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={{ color: styles.colors.text, fontSize: 14, fontWeight: '600' }}>Bildirim Sesli Uyarı</Text>
+                    <Text style={{ color: styles.colors.textMuted, fontSize: 11, marginTop: 1 }}>Yeni sipariş ve ürün bildiriminde ses çal</Text>
+                  </View>
+                  <TouchableOpacity onPress={async () => {
+                    const newVal = !notifSoundActive;
+                    setNotifSoundActive(newVal);
+                    await AsyncStorage.setItem('notif_sound_active', newVal ? 'true' : 'false');
+                  }}>
+                    <Ionicons name={notifSoundActive ? 'toggle' : 'toggle-outline'} size={38} color={notifSoundActive ? '#00AE78' : '#ccc'} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* UYGULAMA GÜNCELLEMESİ */}

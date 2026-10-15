@@ -1,6 +1,6 @@
 {
-  "version": "1.0.48",
-  "versionCode": 48,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.48/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.48\n• Depolar Arası Sevk / Transfer Fişi (012500) Entegrasyonu:\n  - Mikro ERP standartlarına tam uyumlu Depolar Arası Sevk Fişi (012500) entegre edildi.\n  - Çıkış Deposu ⇄ Giriş Deposu çift seçim kartı ve anlık yön değiştirme (Swap) özelliği eklendi.\n  - Mikro canlı veritabanından seriye ('1', 'RG', '2', 'SM') göre otomatik sonraki sayaç ve evrak sıra no çekme sağlandı.\n  - Çıkış deposu anlık ürün stoğu gösterimi ve eksiye düşme güvenlik kontrolü eklendi.\n  - Mikro ERP birim fiyat ve satır tutarı otomatik hesaplama entegre edildi.\n  - Şubeler Arası Transfer, Mağaza Sevkiyatı vb. hızlı açıklama çipleri ve matbu belge no desteği eklendi.\n  - Geçmiş Fişler ekranında Sevk, Çıkış, Giriş ve Virman filtreleme butonları eklendi."
+  "version": "1.0.49",
+  "versionCode": 49,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.49/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.49\n• Yenilenmiş Doğal ve Profesyonel Ses Sistemi:\n  - Barkod Tarama: Gerçek perakende ve optik el terminali lazer okuma bipi entegre edildi.\n  - Başarı / Fiş Kaydı: Apple Pay tarzı zarif ve modern onay tınısı (Success Chime) entegre edildi.\n  - Hata / Uyarı: Robotik olmayan yumuşak üç tonlu ters uyarı efekti (Zap Three Tone) entegre edildi.\n  - Yeni Sipariş / Kart Bildirimi: Gerçek otel resepsiyon sipariş çanı (Hotel Service Bell) entegre edildi.\n• Canlı Mikro ERP Bildirimleri & Ayarlar:\n  - Mikro ERP'ye yeni müşteri siparişi (038003) veya yeni stok kartı açıldığında mobil ekranda canlı kayar bildirim çubuğu gösterimi eklendi.\n  - Bildirime tıklandığında doğrudan Siparişler modülünü açma özelliği eklendi.\n  - Ayarlar ekranına Yeni Ürün Bildirimi, Yeni Sipariş Bildirimi ve Sesli Uyarı açma/kapatma anahtarları eklendi."
 }
