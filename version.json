@@ -1,6 +1,6 @@
 {
-  "version": "1.0.35",
-  "versionCode": 35,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.35/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.35\n• SİPARİŞTEN FATURALAŞTIRMA HATASI DÜZELTİLDİ:\n• Alınan siparişleri faturalaştırırken karşılaşılan 'cha_kdv_toplam hesaplanmış kolon değiştirilemez' hatası giderildi.\n• Mikro ERP CARI_HESAP_HAREKETLERI ve STOK_HAREKETLERI vergi pointerları (cha_vergi1-5, sth_vergi, sth_vergi_pntr) ile tam uyumlu hale getirildi.\n• İskonto ve KDV matrah hesaplamaları satır ve fatura toplamı bazında standardize edildi."
+  "version": "1.0.36",
+  "versionCode": 36,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.36/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.36\n• SİPARİŞTEN FATURALAŞTIRMA MİKRO TETİKLEYİCİ (TRIGGER) HATASI GİDERİLDİ:\n• Mikro ERP'nin STOK_HAREKETLERI_OZET tablosu tetikleyicisinde (mye_STOK_HAREKETLERI_Trigger) ortaya çıkan 'NDX_STOK_HAREKETLERI_OZET_01 duplicate key' hatası çözüldü.\n• Stok ve cari hareket kayıtları (sth_proje_kodu, sth_exim_kodu, sth_parti_kodu, sth_aciklama, cha_projekodu vb.) Mikro ERP standartlarına uygun varsayılan alanlarla zenginleştirildi."
 }

@@ -728,6 +728,7 @@ export default function SiparislerView({
                   cha_tarihi, cha_tip, cha_cinsi, cha_normal_Iade, cha_tpoz, cha_ticaret_turu, cha_belge_no, cha_belge_tarih,
                   cha_aciklama, cha_satici_kodu, cha_cari_cins, cha_kod, cha_ciro_cari_kodu, cha_d_cins, cha_d_kur, cha_altd_kur,
                   cha_grupno, cha_srmrkkodu, cha_meblag, cha_aratoplam, cha_vade,
+                  cha_projekodu, cha_EXIMkodu, cha_yat_tes_kodu, cha_kasa_hizkod, cha_karsisrmrkkodu,
                   cha_ft_iskonto1, cha_ft_iskonto2,
                   cha_vergi1, cha_vergi2, cha_vergi3, cha_vergi4, cha_vergi5
                 ) VALUES (
@@ -738,6 +739,7 @@ export default function SiparislerView({
                   @Tarih, 0, 6, 0, 0, 0, '', @Tarih,
                   'Mobil Sipariş Faturalaştırma', '${(selectedItems[0]?.SaticiKod || '').replace(/'/g, "''")}', 0, '${cariKod}', '${cariKod}', 0, 1, 49.25,
                   0, '${(selectedItems[0]?.SormerkKod || '').replace(/'/g, "''")}', ${totalNet.toFixed(2)}, ${totalBrut.toFixed(2)}, 0,
+                  '', '', '', '', '',
                   ${totalIskonto.toFixed(2)}, 0,
                   ${(taxesByPntr[1] || 0).toFixed(2)}, ${(taxesByPntr[2] || 0).toFixed(2)}, ${(taxesByPntr[3] || 0).toFixed(2)}, ${(taxesByPntr[4] || 0).toFixed(2)}, ${(taxesByPntr[5] || 0).toFixed(2)}
                 );
@@ -769,6 +771,7 @@ export default function SiparislerView({
                     sth_iskonto1, sth_vergi_pntr, sth_vergi,
                     sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
                     sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_cari_kodu, sth_plasiyer_kodu,
+                    sth_proje_kodu, sth_exim_kodu, sth_parti_kodu, sth_aciklama,
                     sth_sip_uid, sth_fat_uid, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
                   ) VALUES (
                     NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
@@ -780,6 +783,7 @@ export default function SiparislerView({
                     ${satirIsk.toFixed(2)}, ${kdvPntr}, ${satirKdv.toFixed(2)},
                     ${depoNo}, ${depoNo}, @Tarih,
                     '${(it.SormerkKod || '').replace(/'/g, "''")}', '${(it.SormerkKod || '').replace(/'/g, "''")}', '${cariKod}', '${(it.SaticiKod || '').replace(/'/g, "''")}',
+                    '', '', '', '',
                     ${sipGuidStr ? `'${sipGuidStr}'` : '00000000-0000-0000-0000-000000000000'}, @FatGuid, 0, 1, 49.25, 0, 1
                   );
                 `;
