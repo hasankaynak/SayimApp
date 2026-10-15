@@ -1,6 +1,6 @@
 {
-  "version": "1.0.46",
-  "versionCode": 46,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.46/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.46\n• MİKRO DEPO VE STOK FİŞLERİ MODÜLÜ ENTEGRASYONU:\n• 012160 - Sayım Çıkışı Depo Fişi: Eksik çıkan, fire/hasarlı veya zayi ürünlerin depodan canlı resmi çıkışı.\n• 012250 - Sayım Girişi Depo Fişi: Fazla çıkan, devir veya depoya eklenen ürünlerin resmi girişi.\n• 012810 - Stok Virman Fişi: Aynı depoda kaynak üründen düşüp hedef ürüne aktaran çift satırlı atomik virman eşleştirme mimarisi.\n• Canlı Depo Stoğu Göstergesi: Çıkış veya virman yapılırken ürünün depodaki güncel stok adedinin anlık gösterimi.\n• Mikro Canlı Sayaç: Otomatik seri & sıra numarası çekme, hazır açıklama çipleri ve kamera ile seri barkod okuma.\n• Geçmiş Fişler: Mikro ERP'de kesilmiş son çıkış, giriş ve virman fişlerinin kalem bazında detaylı incelenmesi."
+  "version": "1.0.47",
+  "versionCode": 47,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.47/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.47\n• Son İncelenen Ürünler Temizleme Desteği:\n  - Sayım ve Fiyat Gör ekranlarında 'Son İncelenen Ürünler' başlığına onay uyarılı 'Temizle' butonu eklendi.\n  - Her ürün satırının yanına tekil kaldırma butonu eklenerek listenin kolayca yönetilmesi sağlandı.\n  - Liste temizleme ve silme işlemleri yerel depolama (AsyncStorage) ile anında senkronize edildi."
 }
