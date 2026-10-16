@@ -1,6 +1,6 @@
 {
-  "version": "1.0.50",
-  "versionCode": 50,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.50/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.50\n• Canlı Güncelleme Bildirimi ve Ses Entegrasyonu:\n  - Uygulama açıkken yeni sürüm yayınlandığında otomatik canlı kayar bildirim çubuğu (banner) ve sesli ikaz (Hotel Bell) ile haber verilmesi sağlandı.\n  - Bildirime dokunulduğunda doğrudan güncelleme ve yükleme penceresi açılır.\n  - Arka planda periyodik olarak yeni sürüm kontrolü eklendi.\n• Veritabanı Yükü Optimizasyonu:\n  - Kullanıcı talebi doğrultusunda 'Yeni Sipariş Bildirimi' ve SIPARISLER tablosu arka plan sorgusu tamamen iptal edildi.\n  - Ayarlar ekranına 'Yeni Güncelleme Bildirimi' açma/kapatma anahtarı eklendi."
+  "version": "1.0.51",
+  "versionCode": 51,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.51/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.51\n• Hızlı Güncelleme ve Paket Ayrıştırma Düzeltmesi:\n  - Android v1 (JAR) ve v2 imza şeması eksiksiz tanımlanarak 'Paket ayrıştırma hatası' giderildi.\n  - APK boyutu 108 MB'tan ~35 MB'a (%70 küçültülerek) indirildi, indirme süresi saniyelere düşürüldü.\n  - İndirme sonrası dosya boyutu ve bütünlük doğrulaması eklendi.\n  - Barkod okuyucu ve sayım iyileştirmeleri güncellendi."
 }
