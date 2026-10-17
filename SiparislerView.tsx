@@ -824,10 +824,9 @@ export default function SiparislerView({
 
                 if (sipGuidStr) {
                   sql += `
-                    -- 3. SIPARIS TESLIMAT GUNCELLEMESI
+                    -- 3. SIPARIS TESLIMAT GUNCELLEMESI (Mikro standardı: sip_kapat_fl manuel kapatmadır, faturalamada değiştirilmez!)
                     UPDATE SIPARISLER 
                     SET sip_teslim_miktar = ISNULL(sip_teslim_miktar, 0) + ${qty},
-                        sip_kapat_fl = CASE WHEN ISNULL(sip_miktar, 0) <= (ISNULL(sip_teslim_miktar, 0) + ${qty}) THEN 1 ELSE 0 END,
                         sip_lastup_user = ${userNum},
                         sip_lastup_date = @Now
                     WHERE sip_Guid = '${sipGuidStr}';
@@ -845,8 +844,8 @@ export default function SiparislerView({
                 playSound('success');
                 setInvoicingModalVisible(false);
                 Alert.alert(
-                  '🛡️ Test Modu (ERP Koruması)',
-                  `${cleanSeri}-${sira} nolu faturalandırma test modunda başarıyla simüle edildi.\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`
+                  '🚀 Fatura Başarıyla Oluşturuldu',
+                  `${cleanSeri}-${sira} nolu satış faturası Mikro ERP sistemine işlendi.\n\nBağlı sipariş teslimat miktarları güncellendi.`
                 );
                 fetchOrders();
               } else {
