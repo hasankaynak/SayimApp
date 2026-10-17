@@ -11,8 +11,8 @@ import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
  * Sadece salt-okunur (SELECT) sorguların geçişine izin verilir.
  */
 
-// Global Safe Mode bayrağı - Test ortamında her zaman TRUE
-export const SAFE_TEST_MODE_ACTIVE = true;
+// Global Safe Mode bayrağı - Kullanıcı onayıyla canlı Mikro ERP aktarımı aktif
+export const SAFE_TEST_MODE_ACTIVE = false;
 
 /**
  * SQL sorgusunun veri yazma veya şema değiştirme içerip içermediğini kontrol eder.

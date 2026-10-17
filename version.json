@@ -1,6 +1,6 @@
 {
-  "version": "1.0.51",
-  "versionCode": 51,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.51/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.51\n• Hızlı Güncelleme ve Paket Ayrıştırma Düzeltmesi:\n  - Android v1 (JAR) ve v2 imza şeması eksiksiz tanımlanarak 'Paket ayrıştırma hatası' giderildi.\n  - APK boyutu 108 MB'tan ~35 MB'a (%70 küçültülerek) indirildi, indirme süresi saniyelere düşürüldü.\n  - İndirme sonrası dosya boyutu ve bütünlük doğrulaması eklendi.\n  - Barkod okuyucu ve sayım iyileştirmeleri güncellendi."
+  "version": "1.0.52",
+  "versionCode": 52,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.52/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.52\n• Canlı Mikro ERP Aktarımı Aktifleştirildi:\n  - Depo sayım fişleri (STOK_HAREKETLERI 012810 & SAYIM_SONUCLARI 071100) ve sevk fişleri (012500) doğrudan Mikro ERP sistemine kaydedilebilir.\n  - Çoklu sürüm atlama desteği ile eski sürümler doğrudan en güncel sürüme yükseltilir.\n  - Responsive güncelleme modalı ve indirme ilerleme göstergesi optimize edildi."
 }
