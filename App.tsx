@@ -18,6 +18,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  useWindowDimensions,
   useColorScheme,
   Image,
   ToastAndroid,
@@ -128,6 +129,31 @@ const isNewerVersion = (latest: string, current: string): boolean => {
   return false;
 };
 
+const calculateVersionJump = (latest: string, current: string): { isNewer: boolean; diffCount: number; jumpLabel: string } => {
+  const isNewer = isNewerVersion(latest, current);
+  if (!isNewer) {
+    return { isNewer: false, diffCount: 0, jumpLabel: 'Güncel' };
+  }
+  const l = parseVersion(latest);
+  const c = parseVersion(current);
+
+  // Sürüm farkını hesapla (örn: 1.0.48 -> 1.0.51 = 3 sürüm farkı)
+  let diff = 1;
+  if (l[0] === c[0] && l[1] === c[1]) {
+    diff = Math.max(1, (l[2] || 0) - (c[2] || 0));
+  } else if (l[0] === c[0]) {
+    diff = Math.max(1, ((l[1] || 0) - (c[1] || 0)) * 10 + Math.max(0, (l[2] || 0) - (c[2] || 0)));
+  } else {
+    diff = Math.max(1, (l[0] - c[0]) * 50);
+  }
+
+  const jumpLabel = diff > 1
+    ? `${diff} Sürüm Geridesiniz • Doğrudan En Son Sürüm Kurulacak`
+    : `En Son Sürüm Kurulacak`;
+
+  return { isNewer, diffCount: diff, jumpLabel };
+};
+
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
@@ -181,6 +207,11 @@ export default function App() {
   const [cameraActive, setCameraActive] = useState(false);
   const [hasInitialSync, setHasInitialSync] = useState(false);
   const [userName, setUserName] = useState<string>('');
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isSmallScreen = windowWidth < 380 || windowHeight < 680;
+  const isTablet = windowWidth >= 768;
+  const isLandscape = windowWidth > windowHeight;
+
   const [userNameInput, setUserNameInput] = useState('');
   const [showUserNameModal, setShowUserNameModal] = useState(false);
   const [isAppReady, setIsAppReady] = useState(false);
@@ -193,6 +224,8 @@ export default function App() {
     version: string;
     releaseNotes: string;
     downloadUrl: string;
+    diffCount?: number;
+    diffText?: string;
   } | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const downloadResumableRef = useRef<any>(null);
@@ -613,8 +646,10 @@ export default function App() {
         await FileSystem.deleteAsync(fileUri, { idempotent: true });
       } catch (delErr) {}
 
+      const downloadTargetUrl = url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/SayimApp.apk`;
+
       const downloadResumable = FileSystem.createDownloadResumable(
-        url,
+        downloadTargetUrl,
         fileUri,
         {},
         (progress) => {
@@ -768,8 +803,10 @@ export default function App() {
       let newVersionStr = '';
       let downloadUrl = '';
       let releaseNotes = '';
+      let diffCount = 1;
+      let diffText = 'En Son Sürüm Kurulacak';
 
-      // 1. GitHub Releases API kontrolü
+      // 1. GitHub Releases API kontrolü (Doğrudan en güncel yayın)
       try {
         const ghResponse = await axios.get(GITHUB_RELEASES_API, {
           timeout: 7000,
@@ -780,10 +817,13 @@ export default function App() {
         });
         if (ghResponse.data && ghResponse.data.tag_name) {
           const remoteTag = ghResponse.data.tag_name.replace(/^v/i, '').trim();
-          if (isNewerVersion(remoteTag, CURRENT_VERSION)) {
+          const jumpInfo = calculateVersionJump(remoteTag, CURRENT_VERSION);
+          if (jumpInfo.isNewer) {
             updateFound = true;
             newVersionStr = remoteTag;
-            releaseNotes = ghResponse.data.body || 'GitHub üzerinden yeni sürüm yayınlandı.';
+            diffCount = jumpInfo.diffCount;
+            diffText = jumpInfo.jumpLabel;
+            releaseNotes = ghResponse.data.body || 'En güncel kararlı sürüm yayınlandı.';
             const apkAsset = Array.isArray(ghResponse.data.assets)
               ? ghResponse.data.assets.find((a: any) => a.name && a.name.toLowerCase().endsWith('.apk'))
               : null;
@@ -803,13 +843,16 @@ export default function App() {
           });
           const serverVersion = rawResponse.data;
           if (serverVersion) {
+            const remoteVer = serverVersion.version || `1.0.${serverVersion.versionCode || 51}`;
+            const jumpInfo = calculateVersionJump(remoteVer, CURRENT_VERSION);
             const hasNewerCode = Boolean(serverVersion.versionCode && serverVersion.versionCode > CURRENT_VERSION_CODE);
-            const hasNewerVer = Boolean(serverVersion.version && isNewerVersion(serverVersion.version, CURRENT_VERSION));
-            if (hasNewerCode || hasNewerVer) {
+            if (jumpInfo.isNewer || hasNewerCode) {
               updateFound = true;
-              newVersionStr = serverVersion.version || `v${serverVersion.versionCode}`;
-              downloadUrl = serverVersion.url || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/SayimApp.apk`;
-              releaseNotes = serverVersion.releaseNotes || 'Yeni sürüm yayınlandı.';
+              newVersionStr = remoteVer;
+              diffCount = jumpInfo.diffCount;
+              diffText = jumpInfo.jumpLabel;
+              downloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/SayimApp.apk`;
+              releaseNotes = serverVersion.releaseNotes || 'En güncel kararlı sürüm yayınlandı.';
             }
           }
         } catch (rawErr) {
@@ -817,10 +860,14 @@ export default function App() {
           try {
             const localResponse = await axios.get(`${FALLBACK_UPDATE_URL}?_t=${Date.now()}`, { timeout: 4000 });
             const sVer = localResponse.data;
-            if (sVer && sVer.versionCode > CURRENT_VERSION_CODE) {
+            if (sVer && (sVer.versionCode > CURRENT_VERSION_CODE || (sVer.version && isNewerVersion(sVer.version, CURRENT_VERSION)))) {
+              const remoteVer = sVer.version || `1.0.${sVer.versionCode || 51}`;
+              const jumpInfo = calculateVersionJump(remoteVer, CURRENT_VERSION);
               updateFound = true;
-              newVersionStr = sVer.version || `v${sVer.versionCode}`;
-              downloadUrl = sVer.url;
+              newVersionStr = remoteVer;
+              diffCount = jumpInfo.diffCount;
+              diffText = jumpInfo.jumpLabel;
+              downloadUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/SayimApp.apk`;
               releaseNotes = sVer.releaseNotes || '';
             }
           } catch (e) {}
@@ -832,6 +879,8 @@ export default function App() {
           version: newVersionStr,
           releaseNotes: releaseNotes,
           downloadUrl: downloadUrl,
+          diffCount: diffCount,
+          diffText: diffText,
         });
         setShowUpdateModal(true);
 
@@ -840,10 +889,17 @@ export default function App() {
           const firstNote = releaseNotes
             ? releaseNotes.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('MD Ticaret'))[0] || 'Yeni sürüm yayınlandı.'
             : 'Yeni sürümü yüklemek için dokunun.';
+          const bannerTitle = diffCount > 1
+            ? `🚀 Yeni Sürüm (${newVersionStr}) Yayında! (${diffCount} Sürüm Geridesiniz)`
+            : `🚀 Yeni Güncelleme Yayında (${newVersionStr})!`;
+          const bannerSubtitle = diffCount > 1
+            ? `Ara sürümler atlanarak doğrudan en son sürüm kurulacaktır. Dokunup yükleyin.`
+            : `${firstNote} — Dokunup yükleyebilirsiniz.`;
+
           setLiveBanner({
             type: 'update',
-            title: `🚀 Yeni Güncelleme Yayında (${newVersionStr})!`,
-            subtitle: `${firstNote} — Dokunup yükleyebilirsiniz.`,
+            title: bannerTitle,
+            subtitle: bannerSubtitle,
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
           });
           if (notifSoundActive) playSound('order');
@@ -2179,125 +2235,164 @@ export default function App() {
     const writtenMB = (downloadWrittenBytes / (1024 * 1024)).toFixed(1);
     const totalMB = (downloadTotalBytes / (1024 * 1024)).toFixed(1);
     const pct = Math.round(downloadProgress * 100);
+    const cardMaxWidth = Math.min(windowWidth - 32, 480);
+    const iconBoxSize = isSmallScreen ? 68 : 88;
 
     return (
-      <View style={[styles.centered, { backgroundColor: isDark ? '#0B1C30' : '#F4F6FB', paddingHorizontal: 24 }]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0B1C30' : '#F4F6FB' }}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: isSmallScreen ? 16 : 24,
+            paddingVertical: isSmallScreen ? 16 : 28,
+          }}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* GLOWING ICON BOX */}
+          <View style={{
+            width: iconBoxSize,
+            height: iconBoxSize,
+            borderRadius: iconBoxSize / 2,
+            backgroundColor: isDark ? 'rgba(255,107,0,0.15)' : 'rgba(255,107,0,0.1)',
+            borderWidth: 2,
+            borderColor: '#FF6B00',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: isSmallScreen ? 12 : 18,
+          }}>
+            <Ionicons name="cloud-download" size={isSmallScreen ? 34 : 44} color="#FF6B00" />
+          </View>
 
-        {/* GLOWING ICON BOX */}
-        <View style={{
-          width: 96,
-          height: 96,
-          borderRadius: 48,
-          backgroundColor: isDark ? 'rgba(255,107,0,0.15)' : 'rgba(255,107,0,0.1)',
-          borderWidth: 2,
-          borderColor: '#FF6B00',
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginBottom: 18,
-        }}>
-          <Ionicons name="cloud-download" size={48} color="#FF6B00" />
-        </View>
-
-        <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#fff' : '#0F172A', textAlign: 'center' }}>
-          GÜNCELLEME İNDİRİLİYOR
-        </Text>
-
-        <Text style={{ fontSize: 13, color: isDark ? '#8A9AB5' : '#64748B', marginTop: 4, textAlign: 'center' }}>
-          {updateStatusText}
-        </Text>
-
-        {/* PROGRESS CARD */}
-        <View style={{
-          width: '100%',
-          backgroundColor: isDark ? '#14273E' : '#FFFFFF',
-          borderRadius: 20,
-          padding: 20,
-          marginTop: 22,
-          borderWidth: 1,
-          borderColor: isDark ? '#223854' : '#E2E8F0',
-          alignItems: 'center',
-        }}>
-          {/* BIG PERCENTAGE */}
-          <Text style={{ fontSize: 38, fontWeight: '900', color: '#FF6B00' }}>
-            %{pct}
+          <Text style={{ fontSize: isSmallScreen ? 18 : 22, fontWeight: '800', color: isDark ? '#fff' : '#0F172A', textAlign: 'center' }}>
+            EN GÜNCEL SÜRÜM İNDİRİLİYOR
           </Text>
 
-          {/* PROGRESS BAR */}
+          <Text style={{ fontSize: isSmallScreen ? 12 : 13, color: isDark ? '#8A9AB5' : '#64748B', marginTop: 4, textAlign: 'center', maxWidth: 360 }}>
+            {updateStatusText}
+          </Text>
+
+          {/* TARGET VERSION PILL */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: isDark ? '#1C334D' : '#E2E8F0',
+            paddingHorizontal: 12,
+            paddingVertical: 5,
+            borderRadius: 16,
+            marginTop: 10,
+          }}>
+            <Ionicons name="checkmark-done" size={14} color="#FF6B00" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#E2E8F0' : '#1E293B' }}>
+              Hedef: v{availableUpdate?.version || '1.0.51'} (En Son Sürüm)
+            </Text>
+          </View>
+
+          {/* PROGRESS CARD */}
           <View style={{
             width: '100%',
-            height: 12,
-            backgroundColor: isDark ? '#1C334D' : '#E2E8F0',
-            borderRadius: 6,
-            marginTop: 12,
-            overflow: 'hidden',
-          }}>
-            <View style={{
-              width: `${pct}%`,
-              height: '100%',
-              backgroundColor: '#FF6B00',
-              borderRadius: 6,
-            }} />
-          </View>
-
-          {/* MB STATS */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
-              İndirilen: {downloadTotalBytes > 0 ? `${writtenMB} MB` : 'Hesaplanıyor...'}
-            </Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
-              Toplam: {downloadTotalBytes > 0 ? `${totalMB} MB` : ''}
-            </Text>
-          </View>
-        </View>
-
-        {/* KEEP AWAKE NOTICE PILL */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 8,
-          backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-          borderRadius: 25,
-          marginTop: 20,
-          borderWidth: 1,
-          borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
-        }}>
-          <Ionicons name="sunny" size={18} color="#00AE78" />
-          <Text style={{ fontSize: 12, fontWeight: '700', color: '#00AE78' }}>
-            Ekran Kilidi Devre Dışı • Güncelleme süresince açık
-          </Text>
-        </View>
-
-        {/* CANCEL BUTTON */}
-        <TouchableOpacity
-          onPress={async () => {
-            try {
-              if (downloadResumableRef.current) {
-                await downloadResumableRef.current.cancelAsync();
-              }
-            } catch(e) {}
-            setIsDownloading(false);
-            try {
-              await deactivateKeepAwake('sayimapp_update_keepawake');
-            } catch(e) {}
-          }}
-          style={{
-            marginTop: 22,
-            paddingVertical: 10,
-            paddingHorizontal: 20,
-            borderRadius: 12,
+            maxWidth: cardMaxWidth,
+            backgroundColor: isDark ? '#14273E' : '#FFFFFF',
+            borderRadius: 20,
+            padding: isSmallScreen ? 16 : 20,
+            marginTop: isSmallScreen ? 14 : 20,
             borderWidth: 1,
-            borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
-            backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
-          }}
-        >
-          <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 13 }}>
-            İndirmeyi İptal Et
-          </Text>
-        </TouchableOpacity>
-      </View>
+            borderColor: isDark ? '#223854' : '#E2E8F0',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 4,
+          }}>
+            {/* BIG PERCENTAGE */}
+            <Text style={{ fontSize: isSmallScreen ? 32 : 40, fontWeight: '900', color: '#FF6B00' }}>
+              %{pct}
+            </Text>
+
+            {/* PROGRESS BAR */}
+            <View style={{
+              width: '100%',
+              height: 12,
+              backgroundColor: isDark ? '#1C334D' : '#E2E8F0',
+              borderRadius: 6,
+              marginTop: 12,
+              overflow: 'hidden',
+            }}>
+              <View style={{
+                width: `${pct}%`,
+                height: '100%',
+                backgroundColor: '#FF6B00',
+                borderRadius: 6,
+              }} />
+            </View>
+
+            {/* MB STATS */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10 }}>
+              <Text style={{ fontSize: isSmallScreen ? 11 : 12, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
+                İndirilen: {downloadTotalBytes > 0 ? `${writtenMB} MB` : 'Hesaplanıyor...'}
+              </Text>
+              <Text style={{ fontSize: isSmallScreen ? 11 : 12, fontWeight: '700', color: isDark ? '#8A9AB5' : '#64748B' }}>
+                Toplam: {downloadTotalBytes > 0 ? `${totalMB} MB` : ''}
+              </Text>
+            </View>
+          </View>
+
+          {/* KEEP AWAKE NOTICE PILL */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 25,
+            marginTop: 16,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+            maxWidth: cardMaxWidth,
+          }}>
+            <Ionicons name="sunny" size={16} color="#00AE78" />
+            <Text style={{ fontSize: isSmallScreen ? 11 : 12, fontWeight: '700', color: '#00AE78', textAlign: 'center', flex: 1 }}>
+              Ekran Kilidi Devre Dışı • Güncelleme süresince açık
+            </Text>
+          </View>
+
+          {/* CANCEL BUTTON */}
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                if (downloadResumableRef.current) {
+                  await downloadResumableRef.current.cancelAsync();
+                }
+              } catch(e) {}
+              setIsDownloading(false);
+              try {
+                await deactivateKeepAwake('sayimapp_update_keepawake');
+              } catch(e) {}
+            }}
+            style={{
+              marginTop: 16,
+              paddingVertical: 10,
+              paddingHorizontal: 20,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
+              backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2',
+              minHeight: 42,
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: '#EF4444', fontSize: isSmallScreen ? 12 : 13, fontWeight: '700' }}>
+              İndirmeyi İptal Et
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -3379,13 +3474,13 @@ export default function App() {
       <View
         style={{
           position: 'absolute',
-          top: Platform.OS === 'ios' ? 52 : 36,
-          left: 12,
-          right: 12,
+          top: Platform.OS === 'ios' ? 52 : (isSmallScreen ? 28 : 36),
+          left: isSmallScreen ? 8 : 16,
+          right: isSmallScreen ? 8 : 16,
           zIndex: 999999,
           backgroundColor: liveBanner.type === 'update' ? '#EA580C' : liveBanner.type === 'order' ? '#0051D5' : '#00AE78',
           borderRadius: 14,
-          padding: 12,
+          padding: isSmallScreen ? 10 : 12,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.35,
@@ -3407,196 +3502,314 @@ export default function App() {
           }}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
         >
-          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={liveBanner.type === 'update' ? 'cloud-download' : liveBanner.type === 'order' ? 'cart' : 'cube'} size={20} color="#fff" />
+          <View style={{
+            width: isSmallScreen ? 34 : 38,
+            height: isSmallScreen ? 34 : 38,
+            borderRadius: 19,
+            backgroundColor: 'rgba(255,255,255,0.22)',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Ionicons name={liveBanner.type === 'update' ? 'cloud-download' : liveBanner.type === 'order' ? 'cart' : 'cube'} size={isSmallScreen ? 18 : 20} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>{liveBanner.title}</Text>
+              <Text style={{ color: '#fff', fontSize: isSmallScreen ? 12 : 13, fontWeight: '900', flex: 1, marginRight: 4 }} numberOfLines={1}>
+                {liveBanner.title}
+              </Text>
               <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' }}>{liveBanner.time}</Text>
             </View>
-            <Text style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 2, fontWeight: '600' }} numberOfLines={2}>
+            <Text style={{ color: 'rgba(255,255,255,0.95)', fontSize: isSmallScreen ? 11 : 12, marginTop: 2, fontWeight: '600' }} numberOfLines={2}>
               {liveBanner.subtitle}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setLiveBanner(null)} style={{ padding: 6 }}>
-            <Ionicons name="close" size={20} color="#fff" />
+            <Ionicons name="close" size={isSmallScreen ? 18 : 20} color="#fff" />
           </TouchableOpacity>
         </TouchableOpacity>
       </View>
     );
   };
 
-  const renderUpdatePromptModal = () => (
-    <>
-      {renderLiveNotificationBanner()}
-      <Modal
-        isVisible={showUpdateModal}
-        onBackdropPress={() => setShowUpdateModal(false)}
-        style={styles.modal}
-        avoidKeyboard={true}
-      >
-      <View style={[styles.modalContent, { maxHeight: '82%' }]}>
-        <View style={styles.modalHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              backgroundColor: 'rgba(255,107,0,0.15)',
+  const renderUpdatePromptModal = () => {
+    const isMultiVersionBehind = (availableUpdate?.diffCount || 0) > 1;
+    const modalWidth = Math.min(windowWidth - (isSmallScreen ? 16 : 32), 480);
+    const modalMaxHeight = Math.min(windowHeight * 0.90, 720);
+    const targetVersion = availableUpdate?.version
+      ? (availableUpdate.version.startsWith('v') ? availableUpdate.version : `v${availableUpdate.version}`)
+      : 'Yeni';
+
+    return (
+      <>
+        {renderLiveNotificationBanner()}
+        <Modal
+          isVisible={showUpdateModal}
+          onBackdropPress={() => setShowUpdateModal(false)}
+          style={[
+            styles.modal,
+            {
               justifyContent: 'center',
               alignItems: 'center',
-            }}>
-              <Ionicons name="rocket" size={22} color="#FF6B00" />
-            </View>
-            <View>
-              <Text style={styles.modalTitle}>Yeni Sürüm Hazır!</Text>
-              <Text style={{ fontSize: 12, color: styles.colors.textMuted }}>Sayım & Stok Mobil Güncellemesi</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity onPress={() => setShowUpdateModal(false)}>
-            <Ionicons name="close-circle" size={26} color={styles.colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* VERSION COMPARISON BADGE */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          backgroundColor: isDark ? '#1C334D' : '#F1F5F9',
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          borderRadius: 14,
-          marginVertical: 12,
-        }}>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, color: styles.colors.textMuted, fontWeight: '700' }}>MEVCUT</Text>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: styles.colors.text }}>v{CURRENT_VERSION}</Text>
-          </View>
-
-          <Ionicons name="arrow-forward" size={20} color="#FF6B00" />
-
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, color: '#00AE78', fontWeight: '700' }}>YENİ SÜRÜM</Text>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#00AE78' }}>
-              {availableUpdate?.version ? (availableUpdate.version.startsWith('v') ? availableUpdate.version : `v${availableUpdate.version}`) : 'Yeni'}
-            </Text>
-          </View>
-        </View>
-
-        {/* RELEASE NOTES */}
-        <Text style={{ fontSize: 13, fontWeight: '800', color: styles.colors.text, marginBottom: 6 }}>
-          Neler Yeni? / Değişiklik Notları:
-        </Text>
-        <ScrollView style={{
-          maxHeight: 180,
-          backgroundColor: isDark ? '#102236' : '#F8FAFC',
-          borderRadius: 12,
-          padding: 12,
-          borderWidth: 1,
-          borderColor: styles.colors.border,
-        }}>
-          <Text style={{ color: styles.colors.text, fontSize: 13, lineHeight: 20 }}>
-            {availableUpdate?.releaseNotes || 'Performans iyileştirmeleri ve hata düzeltmeleri yapıldı.'}
-          </Text>
-        </ScrollView>
-
-        {/* KEEP AWAKE NOTICE */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 8,
-          backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderRadius: 10,
-          marginTop: 12,
-          borderWidth: 1,
-          borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
-        }}>
-          <Ionicons name="sunny" size={16} color="#00AE78" />
-          <Text style={{ fontSize: 12, color: '#00AE78', fontWeight: '700', flex: 1 }}>
-            İndirme sırasında ekranınız otomatik olarak açık tutulacaktır.
-          </Text>
-        </View>
-
-        {/* ACTION BUTTONS */}
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-          <TouchableOpacity
-            onPress={() => setShowUpdateModal(false)}
-            style={{
-              flex: 1,
-              paddingVertical: 14,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: styles.colors.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ color: styles.colors.textMuted, fontWeight: '700', fontSize: 14 }}>Daha Sonra</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              if (availableUpdate?.downloadUrl) {
-                handleUpdateDownload(availableUpdate.downloadUrl);
-              }
-            }}
-            style={{
-              flex: 2,
-              backgroundColor: '#FF6B00',
-              paddingVertical: 14,
-              borderRadius: 14,
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'row',
-              gap: 8,
-              shadowColor: '#FF6B00',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 4,
-            }}
-          >
-            <Ionicons name="cloud-download" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Şimdi Güncelle</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* BROWSER DIRECT DOWNLOAD OPTION */}
-        <TouchableOpacity
-          onPress={async () => {
-            if (availableUpdate?.downloadUrl) {
-              setShowUpdateModal(false);
-              try {
-                await Linking.openURL(availableUpdate.downloadUrl);
-              } catch (e) {
-                Alert.alert('Hata', 'Tarayıcı açılamadı.');
-              }
+              margin: 0,
+              padding: isSmallScreen ? 8 : 16,
             }
-          }}
-          style={{
-            marginTop: 12,
-            paddingVertical: 8,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-            gap: 6,
-          }}
+          ]}
+          avoidKeyboard={true}
+          statusBarTranslucent
         >
-          <Ionicons name="globe-outline" size={15} color={styles.colors.textMuted} />
-          <Text style={{ color: styles.colors.textMuted, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
-            Sorun yaşarsanız tarayıcıdan doğrudan indirin
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  </>
-  );
+          <View style={{
+            width: modalWidth,
+            maxHeight: modalMaxHeight,
+            backgroundColor: isDark ? '#14273E' : '#FFFFFF',
+            borderRadius: isSmallScreen ? 18 : 24,
+            padding: isSmallScreen ? 14 : 20,
+            borderWidth: 1,
+            borderColor: isDark ? '#223854' : '#E2E8F0',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.35,
+            shadowRadius: 18,
+            elevation: 16,
+          }}>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 4 }}
+            >
+              {/* MODAL HEADER */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+                  <View style={{
+                    width: isSmallScreen ? 34 : 40,
+                    height: isSmallScreen ? 34 : 40,
+                    borderRadius: 12,
+                    backgroundColor: 'rgba(255,107,0,0.15)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <Ionicons name="rocket" size={isSmallScreen ? 18 : 22} color="#FF6B00" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: styles.colors.text, fontSize: isSmallScreen ? 16 : 18, fontWeight: '900', letterSpacing: -0.3 }} numberOfLines={1}>
+                      Yeni Sürüm Hazır!
+                    </Text>
+                    <Text style={{ fontSize: isSmallScreen ? 11 : 12, color: styles.colors.textMuted }} numberOfLines={1}>
+                      Sayım & Stok Mobil Güncellemesi
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setShowUpdateModal(false)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Ionicons name="close-circle" size={isSmallScreen ? 24 : 28} color={styles.colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* MULTI-VERSION JUMP BADGE (ARA SÜRÜM ATLATMA) */}
+              {isMultiVersionBehind ? (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: isDark ? 'rgba(255,107,0,0.18)' : '#FFF7ED',
+                  borderWidth: 1.5,
+                  borderColor: '#FF6B00',
+                  paddingHorizontal: isSmallScreen ? 10 : 14,
+                  paddingVertical: isSmallScreen ? 8 : 10,
+                  borderRadius: 12,
+                  marginBottom: 10,
+                }}>
+                  <Ionicons name="flash" size={isSmallScreen ? 18 : 20} color="#FF6B00" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: isSmallScreen ? 12 : 13, fontWeight: '900', color: isDark ? '#FFA04D' : '#C2410C' }}>
+                      {availableUpdate?.diffCount} Sürüm Geridesiniz!
+                    </Text>
+                    <Text style={{ fontSize: isSmallScreen ? 11 : 12, color: isDark ? '#CBD5E1' : '#7C2D12', marginTop: 2, fontWeight: '600', lineHeight: 16 }}>
+                      Ara sürümler atlanarak doğrudan en son ve kararlı sürüm ({targetVersion}) kurulacaktır.
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#F0FDF4',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#86EFAC',
+                  paddingHorizontal: isSmallScreen ? 10 : 12,
+                  paddingVertical: 6,
+                  borderRadius: 10,
+                  marginBottom: 10,
+                }}>
+                  <Ionicons name="checkmark-circle" size={16} color="#00AE78" />
+                  <Text style={{ fontSize: isSmallScreen ? 11 : 12, color: '#00AE78', fontWeight: '700', flex: 1 }}>
+                    En son sürüm doğrudan kurulacaktır.
+                  </Text>
+                </View>
+              )}
+
+              {/* VERSION COMPARISON BADGE */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-around',
+                backgroundColor: isDark ? '#1C334D' : '#F1F5F9',
+                paddingVertical: isSmallScreen ? 10 : 12,
+                paddingHorizontal: 12,
+                borderRadius: 14,
+                marginBottom: 12,
+              }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: isSmallScreen ? 10 : 11, color: styles.colors.textMuted, fontWeight: '700' }}>MEVCUT</Text>
+                  <Text style={{ fontSize: isSmallScreen ? 14 : 16, fontWeight: '800', color: styles.colors.text }}>v{CURRENT_VERSION}</Text>
+                </View>
+
+                <View style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(255,107,0,0.15)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  <Ionicons name="arrow-forward" size={16} color="#FF6B00" />
+                </View>
+
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: isSmallScreen ? 10 : 11, color: '#00AE78', fontWeight: '700' }}>EN YENİ SÜRÜM</Text>
+                  <Text style={{ fontSize: isSmallScreen ? 15 : 17, fontWeight: '900', color: '#00AE78' }}>
+                    {targetVersion}
+                  </Text>
+                </View>
+              </View>
+
+              {/* RELEASE NOTES */}
+              <Text style={{ fontSize: isSmallScreen ? 12 : 13, fontWeight: '800', color: styles.colors.text, marginBottom: 6 }}>
+                Neler Yeni? / Değişiklik Notları:
+              </Text>
+              <ScrollView
+                style={{
+                  maxHeight: isSmallScreen ? 100 : 140,
+                  backgroundColor: isDark ? '#102236' : '#F8FAFC',
+                  borderRadius: 12,
+                  padding: 10,
+                  borderWidth: 1,
+                  borderColor: styles.colors.border,
+                }}
+                nestedScrollEnabled={true}
+              >
+                <Text style={{ color: styles.colors.text, fontSize: isSmallScreen ? 12 : 13, lineHeight: 18 }}>
+                  {availableUpdate?.releaseNotes || 'Performans iyileştirmeleri ve hata düzeltmeleri yapıldı.'}
+                </Text>
+              </ScrollView>
+
+              {/* KEEP AWAKE NOTICE */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                backgroundColor: isDark ? 'rgba(0,174,120,0.12)' : '#E6F7F2',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 10,
+                marginTop: 10,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(0,174,120,0.3)' : '#A7F3D0',
+              }}>
+                <Ionicons name="sunny" size={16} color="#00AE78" />
+                <Text style={{ fontSize: isSmallScreen ? 11 : 12, color: '#00AE78', fontWeight: '700', flex: 1 }}>
+                  İndirme sırasında ekranınız otomatik açık tutulacaktır.
+                </Text>
+              </View>
+
+              {/* ACTION BUTTONS (RESPONSIVE STACK / ROW) */}
+              <View style={{
+                flexDirection: windowWidth < 340 ? 'column' : 'row',
+                gap: 10,
+                marginTop: 14,
+              }}>
+                <TouchableOpacity
+                  onPress={() => setShowUpdateModal(false)}
+                  style={{
+                    flex: windowWidth < 340 ? undefined : 1,
+                    paddingVertical: isSmallScreen ? 11 : 13,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: styles.colors.border,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 46,
+                  }}
+                >
+                  <Text style={{ color: styles.colors.textMuted, fontWeight: '700', fontSize: isSmallScreen ? 13 : 14 }}>Daha Sonra</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (availableUpdate?.downloadUrl) {
+                      handleUpdateDownload(availableUpdate.downloadUrl);
+                    }
+                  }}
+                  style={{
+                    flex: windowWidth < 340 ? undefined : 2,
+                    backgroundColor: '#FF6B00',
+                    paddingVertical: isSmallScreen ? 11 : 13,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    gap: 8,
+                    shadowColor: '#FF6B00',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 4,
+                    minHeight: 46,
+                  }}
+                >
+                  <Ionicons name="cloud-download" size={isSmallScreen ? 18 : 20} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: isSmallScreen ? 14 : 15 }}>
+                    Son Sürümü Kur
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* BROWSER DIRECT DOWNLOAD OPTION */}
+              <TouchableOpacity
+                onPress={async () => {
+                  if (availableUpdate?.downloadUrl) {
+                    setShowUpdateModal(false);
+                    try {
+                      await Linking.openURL(availableUpdate.downloadUrl);
+                    } catch (e) {
+                      Alert.alert('Hata', 'Tarayıcı açılamadı.');
+                    }
+                  }
+                }}
+                style={{
+                  marginTop: 10,
+                  paddingVertical: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 6,
+                }}
+              >
+                <Ionicons name="globe-outline" size={14} color={styles.colors.textMuted} />
+                <Text style={{ color: styles.colors.textMuted, fontSize: 11, fontWeight: '600', textDecorationLine: 'underline' }}>
+                  Sorun yaşarsanız tarayıcıdan doğrudan indirin
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
+      </>
+    );
+  };
 
   const renderUserSelectModal = () => null;
 
