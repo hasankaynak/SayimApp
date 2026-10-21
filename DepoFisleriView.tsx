@@ -13,14 +13,14 @@ import {
   Platform,
   ScrollView,
   Dimensions,
+  BackHandler,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Modal from 'react-native-modal';
 import axios from 'axios';
 import { executeSqlSafe } from './safeApi';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export type FisType = 'sevk' | 'cikis' | 'giris' | 'virman' | 'gecmis';
 
@@ -86,6 +86,12 @@ export default function DepoFisleriView({
   mikroUsersList = [],
   initialTab,
 }: DepoFisleriViewProps) {
+  // Dinamik Pencere Boyutları & Responsive Breakpoint'ler
+  const { width: windowWidth } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
+  const isSmallScreen = windowWidth < 380;
+  const isExtraSmall = windowWidth < 340;
+
   // Aktif Sekme (012500 Sevk, 012160 Çıkış, 012250 Giriş, 012810 Virman, Geçmiş)
   const [activeTab, setActiveTab] = useState<FisType>(initialTab || 'sevk');
 
@@ -808,6 +814,72 @@ export default function DepoFisleriView({
     }
   };
 
+  // Güvenli ve Ergonomik Geri Dönüş
+  const handleSafeBack = () => {
+    if (isCameraActive) {
+      setIsCameraActive(false);
+      return;
+    }
+    if (showDepoModal) {
+      setShowDepoModal(false);
+      setSelectingDepoField(null);
+      return;
+    }
+    if (showEvrakDetailModal) {
+      setShowEvrakDetailModal(false);
+      return;
+    }
+    if (selectedProduct) {
+      setSelectedProduct(null);
+      return;
+    }
+    if (searchResults.length > 0) {
+      setSearchResults([]);
+      return;
+    }
+
+    const hasUnsavedItems =
+      activeTab === 'virman' ? virmanPairs.length > 0 : cartItems.length > 0;
+
+    if (hasUnsavedItems) {
+      const count = activeTab === 'virman' ? virmanPairs.length : cartItems.length;
+      Alert.alert(
+        'Kaydedilmemiş Kalemler Var',
+        `Listede henüz Mikro ERP'ye kaydedilmemiş ${count} kalem bulunmaktadır. Çıkmak istediğinize emin misiniz? (Kaydedilmeyen veriler silinecektir)`,
+        [
+          { text: 'Vazgeç', style: 'cancel' },
+          {
+            text: 'Çıkış Yap',
+            style: 'destructive',
+            onPress: () => onBackToMenu(),
+          },
+        ]
+      );
+      return;
+    }
+
+    onBackToMenu();
+  };
+
+  // Android Donanım / Hareket Geri Tuşu Dinleyicisi
+  useEffect(() => {
+    const onBackPress = () => {
+      handleSafeBack();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [
+    isCameraActive,
+    showDepoModal,
+    showEvrakDetailModal,
+    selectedProduct,
+    searchResults.length,
+    cartItems.length,
+    virmanPairs.length,
+    activeTab,
+  ]);
+
   // Renk ve Tema Paleti
   const themeColors = {
     bg: isDark ? '#0B1326' : '#F9F9FF',
@@ -826,16 +898,23 @@ export default function DepoFisleriView({
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       {/* 1. TOP BAR (STITCH INDUSTRIAL HEADER) */}
       <View style={[styles.topBar, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBackToMenu}>
+        <TouchableOpacity
+          style={[styles.backBtn, { backgroundColor: themeColors.cardLow, borderColor: themeColors.border }]}
+          onPress={handleSafeBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Ionicons name="arrow-back" size={22} color={themeColors.text} />
         </TouchableOpacity>
 
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={[styles.liveDot, { backgroundColor: isConnected ? '#10B981' : '#EF4444' }]} />
-            <Text style={[styles.topBarTitle, { color: themeColors.text }]}>STOK & DEPO FİŞLERİ</Text>
+            <Text style={[styles.topBarTitle, { color: themeColors.text }]} numberOfLines={1}>
+              {activeTab === 'sevk' ? 'DEPOLAR ARASI SEVK' : 'STOK & DEPO FİŞLERİ'}
+            </Text>
           </View>
-          <Text style={[styles.topBarSub, { color: themeColors.textMuted }]}>
+          <Text style={[styles.topBarSub, { color: themeColors.textMuted }]} numberOfLines={1}>
             {activeTab === 'sevk' ? 'Depolar Arası Sevk / Transfer Fişi (012500)'
              : activeTab === 'cikis' ? 'Sayım Çıkışı Depo Fişi (012160)'
              : activeTab === 'giris' ? 'Sayım Girişi Depo Fişi (012250)'
@@ -844,8 +923,17 @@ export default function DepoFisleriView({
           </Text>
         </View>
 
-        {/* Depo Seçim Rozeti (Sevk harici sekmelerde aktif depoyu gösterir) */}
-        {activeTab !== 'sevk' && (
+        {/* Depo / Sepet Rozeti */}
+        {activeTab === 'sevk' ? (
+          cartItems.length > 0 && (
+            <View style={[styles.sevkCartBadge, { backgroundColor: 'rgba(0, 174, 120, 0.12)', borderColor: themeColors.sevkColor }]}>
+              <Ionicons name="cart" size={13} color={themeColors.sevkColor} />
+              <Text style={[styles.sevkCartBadgeText, { color: themeColors.sevkColor }]}>
+                {cartItems.length} Kalem
+              </Text>
+            </View>
+          )
+        ) : (
           <TouchableOpacity
             style={[styles.depoPill, { backgroundColor: themeColors.cardLow, borderColor: themeColors.border }]}
             onPress={() => {
@@ -997,7 +1085,7 @@ export default function DepoFisleriView({
             {/* SEVK (012500) İÇİN ÇİFT DEPO SEÇİM KARTI (ÇIKIŞ ⇄ GİRİŞ) */}
             {activeTab === 'sevk' && (
               <View style={[styles.sevkDualDepoCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={styles.sevkDepoRow}>
                   {/* ÇIKIŞ DEPOSU (KAYNAK) */}
                   <TouchableOpacity
                     style={[styles.sevkDepoBox, { backgroundColor: themeColors.cardLow, borderColor: '#EF4444' }]}
@@ -1005,21 +1093,30 @@ export default function DepoFisleriView({
                       setSelectingDepoField('sevkSource');
                       setShowDepoModal(true);
                     }}
+                    activeOpacity={0.7}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="log-out-outline" size={14} color="#EF4444" />
                       <Text style={[styles.sevkDepoRole, { color: '#EF4444' }]}>ÇIKIŞ DEPOSU</Text>
                     </View>
-                    <Text style={[styles.sevkDepoName, { color: themeColors.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.sevkDepoName, { color: themeColors.text, fontSize: isExtraSmall ? 11 : isSmallScreen ? 12 : 13 }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {sevkSourceDepo?.depo_adi || `Depo ${sevkSourceDepo?.depo_no || 1}`}
                     </Text>
-                    <Text style={{ fontSize: 10, color: themeColors.textMuted }}>Kodu: {sevkSourceDepo?.depo_no || 1}</Text>
+                    <View style={styles.depoCodeBadge}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: themeColors.textMuted }}>KOD: {sevkSourceDepo?.depo_no || 1}</Text>
+                    </View>
                   </TouchableOpacity>
 
                   {/* SWAP BUTONU */}
                   <TouchableOpacity
                     style={[styles.swapBtn, { backgroundColor: themeColors.sevkColor }]}
                     onPress={handleSwapDepolar}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Ionicons name="swap-horizontal" size={20} color="#fff" />
                   </TouchableOpacity>
@@ -1031,15 +1128,22 @@ export default function DepoFisleriView({
                       setSelectingDepoField('sevkTarget');
                       setShowDepoModal(true);
                     }}
+                    activeOpacity={0.7}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="log-in-outline" size={14} color="#10B981" />
                       <Text style={[styles.sevkDepoRole, { color: '#10B981' }]}>GİRİŞ DEPOSU</Text>
                     </View>
-                    <Text style={[styles.sevkDepoName, { color: themeColors.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.sevkDepoName, { color: themeColors.text, fontSize: isExtraSmall ? 11 : isSmallScreen ? 12 : 13 }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {sevkTargetDepo?.depo_adi || `Depo ${sevkTargetDepo?.depo_no || 2}`}
                     </Text>
-                    <Text style={{ fontSize: 10, color: themeColors.textMuted }}>Kodu: {sevkTargetDepo?.depo_no || 2}</Text>
+                    <View style={styles.depoCodeBadge}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: themeColors.textMuted }}>KOD: {sevkTargetDepo?.depo_no || 2}</Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
 
@@ -1054,8 +1158,8 @@ export default function DepoFisleriView({
 
             {/* Evrak Üst Bilgi Kartı */}
             <View style={[styles.headerCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-              <View style={styles.headerCardRow}>
-                <View style={{ flex: 1 }}>
+              <View style={[styles.headerCardRow, isSmallScreen && { flexDirection: 'column', alignItems: 'stretch', gap: 8 }]}>
+                <View style={{ flex: isSmallScreen ? undefined : 1.2 }}>
                   <Text style={[styles.miniLabel, { color: themeColors.textMuted }]}>EVRAK SERİ & SIRA</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     <TextInput
@@ -1084,7 +1188,7 @@ export default function DepoFisleriView({
 
                   {/* Sevk Hızlı Seri Butonları */}
                   {activeTab === 'sevk' && (
-                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                       {['1', 'RG', '2', 'SM'].map(s => (
                         <TouchableOpacity
                           key={s}
@@ -1109,7 +1213,7 @@ export default function DepoFisleriView({
                   )}
                 </View>
 
-                <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flex: isSmallScreen ? undefined : 1, marginLeft: isSmallScreen ? 0 : 10 }}>
                   <Text style={[styles.miniLabel, { color: themeColors.textMuted }]}>İŞLEM TARİHİ</Text>
                   <TextInput
                     style={[styles.dateInput, { backgroundColor: themeColors.cardLow, color: themeColors.text, borderColor: themeColors.border, marginTop: 4 }]}
@@ -1286,50 +1390,93 @@ export default function DepoFisleriView({
                     <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={[styles.selectedProductCode, { color: themeColors.text }]}>{selectedProduct.stock_code}</Text>
                       <Text style={[styles.selectedProductName, { color: themeColors.textMuted }]} numberOfLines={2}>{selectedProduct.name}</Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                        <Text style={{ fontSize: 11, color: '#FF6B00', fontWeight: '700' }}>Barkod: {selectedProduct.barcode || '-'}</Text>
-                        <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700' }}>
-                          {activeTab === 'sevk'
-                            ? `Kaynak Depo (${sevkSourceDepo?.depo_no || 1}) Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`
-                            : `Mevcut Depo Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`}
-                        </Text>
+                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <View style={[styles.stockBadgePill, { backgroundColor: 'rgba(255, 107, 0, 0.12)', borderColor: 'rgba(255, 107, 0, 0.3)' }]}>
+                          <Ionicons name="barcode-outline" size={12} color="#FF6B00" />
+                          <Text style={{ fontSize: 11, color: '#FF6B00', fontWeight: '800' }}>
+                            {selectedProduct.barcode || 'Barkodsuz'}
+                          </Text>
+                        </View>
+                        <View style={[styles.stockBadgePill, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                          <Ionicons name="cube" size={12} color="#10B981" />
+                          <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '800' }}>
+                            {activeTab === 'sevk'
+                              ? `Çıkış Depo (${sevkSourceDepo?.depo_no || 1}) Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`
+                              : `Mevcut Depo Stoğu: ${selectedProduct.current_stok ?? 0} ${selectedProduct.unit || 'ADET'}`}
+                          </Text>
+                        </View>
                       </View>
                     </View>
-                    <TouchableOpacity onPress={() => setSelectedProduct(null)}>
-                      <Ionicons name="close-circle" size={22} color={themeColors.textMuted} />
+                    <TouchableOpacity
+                      onPress={() => setSelectedProduct(null)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close-circle" size={24} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Adet Seçim Barı */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                    <Text style={[styles.miniLabel, { color: themeColors.textMuted }]}>MİKTAR:</Text>
-                    <TextInput
-                      style={[styles.qtyInput, { backgroundColor: themeColors.card, color: themeColors.text, borderColor: themeColors.border }]}
-                      keyboardType="numeric"
-                      value={inputMiktar}
-                      onChangeText={setInputMiktar}
-                    />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: themeColors.textMuted }}>{selectedProduct.unit || 'ADET'}</Text>
+                  {/* Adet Seçim Barı (Ergonomik Stepper + Hızlı Çipler) */}
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.miniLabel, { color: themeColors.textMuted, marginBottom: 6 }]}>MİKTAR:</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.stepperBtn, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                          onPress={() => {
+                            const curr = parseFloat(inputMiktar.replace(',', '.')) || 1;
+                            setInputMiktar(String(Math.max(1, Math.round(curr - 1))));
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="remove" size={18} color={themeColors.text} />
+                        </TouchableOpacity>
 
-                    {/* Hızlı Çipler */}
-                    {['+1', '+5', '+10'].map((plus, pIdx) => (
-                      <TouchableOpacity
-                        key={pIdx}
-                        style={[styles.plusChip, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-                        onPress={() => {
-                          const curr = parseFloat(inputMiktar) || 0;
-                          const add = parseInt(plus.replace('+', ''), 10);
-                          setInputMiktar(String(curr + add));
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: themeColors.text }}>{plus}</Text>
-                      </TouchableOpacity>
-                    ))}
+                        <TextInput
+                          style={[styles.qtyInput, { backgroundColor: themeColors.card, color: themeColors.text, borderColor: themeColors.border }]}
+                          keyboardType="numeric"
+                          value={inputMiktar}
+                          onChangeText={setInputMiktar}
+                          selectTextOnFocus
+                        />
+
+                        <TouchableOpacity
+                          style={[styles.stepperBtn, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                          onPress={() => {
+                            const curr = parseFloat(inputMiktar.replace(',', '.')) || 0;
+                            setInputMiktar(String(Math.round(curr + 1)));
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={18} color={themeColors.text} />
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: themeColors.textMuted, marginHorizontal: 4 }}>
+                        {selectedProduct.unit || 'ADET'}
+                      </Text>
+
+                      {/* Hızlı Çipler */}
+                      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                        {['+1', '+5', '+10', '+25', '+50'].map((plus, pIdx) => (
+                          <TouchableOpacity
+                            key={pIdx}
+                            style={[styles.plusChip, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                            onPress={() => {
+                              const curr = parseFloat(inputMiktar.replace(',', '.')) || 0;
+                              const add = parseInt(plus.replace('+', ''), 10);
+                              setInputMiktar(String(curr + add));
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: themeColors.text }}>{plus}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
                   </View>
 
                   {/* Kaleme Özel Açıklama */}
                   <TextInput
-                    style={[styles.itemDescInput, { backgroundColor: themeColors.card, color: themeColors.text, borderColor: themeColors.border, marginTop: 8 }]}
+                    style={[styles.itemDescInput, { backgroundColor: themeColors.card, color: themeColors.text, borderColor: themeColors.border, marginTop: 10 }]}
                     placeholder="Kalem açıklaması (isteğe bağlı)..."
                     placeholderTextColor={themeColors.textMuted}
                     value={itemAciklama}
@@ -1348,8 +1495,9 @@ export default function DepoFisleriView({
                       }
                     ]}
                     onPress={handleAddCartItem}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
                     <Text style={styles.addBtnText}>
                       {activeTab === 'sevk' ? 'SEVK LİSTESİNE EKLE'
                        : activeTab === 'cikis' ? 'ÇIKIŞ LİSTESİNE EKLE'
@@ -1362,14 +1510,35 @@ export default function DepoFisleriView({
 
             {/* Eklenen Kalemler Listesi */}
             <View style={{ marginTop: 14 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.sectionHeading, { color: themeColors.text }]}>
-                  {activeTab === 'sevk' ? 'SEVK EDİLECEK KALEMLER'
-                   : activeTab === 'cikis' ? 'ÇIKILACAK KALEMLER'
-                   : 'GİRİLECEK KALEMLER'} ({cartItems.length})
-                </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={[styles.sectionHeading, { color: themeColors.text }]}>
+                    {activeTab === 'sevk' ? 'SEVK EDİLECEK KALEMLER'
+                     : activeTab === 'cikis' ? 'ÇIKILACAK KALEMLER'
+                     : 'GİRİLECEK KALEMLER'} ({cartItems.length})
+                  </Text>
+                  {cartItems.length > 0 && (
+                    <View style={[styles.totalQtyBadge, { backgroundColor: themeColors.cardLow, borderColor: themeColors.border }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: activeTab === 'sevk' ? themeColors.sevkColor : themeColors.text }}>
+                        Top: {cartItems.reduce((acc, it) => acc + (it.miktar || 0), 0)} Adet
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 {cartItems.length > 0 && (
-                  <TouchableOpacity onPress={() => setCartItems([])}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Alert.alert(
+                        'Listeyi Temizle',
+                        'Eklenen tüm kalemler silinecektir. Emin misiniz?',
+                        [
+                          { text: 'Vazgeç', style: 'cancel' },
+                          { text: 'Temizle', style: 'destructive', onPress: () => setCartItems([]) }
+                        ]
+                      );
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700' }}>Listeyi Temizle</Text>
                   </TouchableOpacity>
                 )}
@@ -1384,7 +1553,21 @@ export default function DepoFisleriView({
                 </View>
               ) : (
                 cartItems.map((item, idx) => (
-                  <View key={item.id || idx} style={[styles.cartItemRow, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                  <View
+                    key={item.id || idx}
+                    style={[
+                      styles.cartItemRow,
+                      {
+                        backgroundColor: themeColors.card,
+                        borderColor: themeColors.border,
+                        borderLeftWidth: 4,
+                        borderLeftColor:
+                          activeTab === 'sevk' ? themeColors.sevkColor
+                          : activeTab === 'cikis' ? themeColors.cikisColor
+                          : themeColors.girisColor
+                      }
+                    ]}
+                  >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.cartItemCode, { color: themeColors.text }]}>{item.stock_code}</Text>
                       <Text style={[styles.cartItemName, { color: themeColors.textMuted }]} numberOfLines={1}>{item.name}</Text>
@@ -1409,6 +1592,7 @@ export default function DepoFisleriView({
                       <TouchableOpacity
                         onPress={() => setCartItems(cartItems.filter((_, i) => i !== idx))}
                         style={{ marginTop: 4, padding: 4 }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <Ionicons name="trash-outline" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -1432,13 +1616,14 @@ export default function DepoFisleriView({
                 ]}
                 onPress={handleSubmitFisToMikro}
                 disabled={isSubmitting}
+                activeOpacity={0.8}
               >
                 {isSubmitting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <>
                     <Ionicons name="cloud-upload" size={20} color="#fff" />
-                    <Text style={styles.submitBtnText}>
+                    <Text style={[styles.submitBtnText, { fontSize: isSmallScreen ? 12 : 14 }]} numberOfLines={1}>
                       {activeTab === 'sevk'
                         ? `MİKRO ERP'YE KAYDET (012500 SEVK FİŞİ)`
                         : activeTab === 'cikis'
@@ -2055,13 +2240,70 @@ export default function DepoFisleriView({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: {
-    height: 52,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     borderBottomWidth: 1,
   },
-  backBtn: { padding: 6, borderRadius: 8 },
+  backBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sevkCartBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  sevkCartBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  sevkDepoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  depoCodeBadge: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+  },
+  stockBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  stepperBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  totalQtyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
   topBarTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
   topBarSub: { fontSize: 11, fontWeight: '600' },
   liveDot: { width: 8, height: 8, borderRadius: 4 },

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MD Ticaret Sayım-Stok Sistemi",
     "slug": "SayimApp",
-    "version": "1.0.56",
+    "version": "1.0.57",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.antigravity.sayimapp",
-      "versionCode": 56,
+      "versionCode": 57,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
