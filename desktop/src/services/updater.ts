@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { GitHubRelease } from '../types';
 
-export const CURRENT_DESKTOP_VERSION = '1.0.0';
+export const CURRENT_DESKTOP_VERSION = '1.0.57';
 export const GITHUB_OWNER = 'hasankaynak';
 export const GITHUB_REPO = 'SayimApp';
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
@@ -65,7 +65,10 @@ export class UpdateService {
         } else if (data.status === 'downloaded') {
           this.setStatus({ state: 'downloaded', version: data.version });
         } else if (data.status === 'error') {
-          this.setStatus({ state: 'error', error: data.message });
+          // If autoUpdater reports error, don't break if we already have GitHub release info
+          if (this.currentStatus.state !== 'available') {
+            this.setStatus({ state: 'error', error: data.message });
+          }
         }
       });
     }
@@ -88,24 +91,12 @@ export class UpdateService {
     return this.currentStatus;
   }
 
-  /**
-   * Check for updates both via Electron AutoUpdater and direct GitHub Releases API
-   */
   public async checkForUpdates(): Promise<UpdateStatus> {
     this.setStatus({ state: 'checking', error: undefined });
 
     const electronAPI = (window as any).electronAPI;
 
-    // 1. If running inside Electron, trigger electron-updater
-    if (electronAPI?.checkForUpdates) {
-      try {
-        await electronAPI.checkForUpdates();
-      } catch (err: any) {
-        console.warn('[Updater] electronAPI.checkForUpdates failed, falling back to GitHub API:', err);
-      }
-    }
-
-    // 2. Also check GitHub API directly to ensure instant detection & changelog details
+    // 1. Check GitHub API directly
     try {
       const res = await axios.get<GitHubRelease>(GITHUB_RELEASES_API, {
         headers: { Accept: 'application/vnd.github.v3+json' },
@@ -117,15 +108,24 @@ export class UpdateService {
       const hasNewer = isNewerVersion(latestTag, CURRENT_DESKTOP_VERSION);
 
       // Find Windows executable asset if any
-      const exeAsset = release.assets?.find(a => a.name.endsWith('.exe'));
+      const exeAsset = release.assets?.find(a => 
+        a.name.toLowerCase().includes('setup') && a.name.endsWith('.exe')
+      ) || release.assets?.find(a => a.name.endsWith('.exe'));
+
+      const downloadUrl = exeAsset ? exeAsset.browser_download_url : release.html_url;
 
       if (hasNewer) {
+        // Trigger autoUpdater in background if electron
+        if (electronAPI?.checkForUpdates) {
+          electronAPI.checkForUpdates().catch(() => {});
+        }
+
         const updateInfo: UpdateStatus = {
           state: 'available',
           version: latestTag,
           releaseDate: release.published_at,
           releaseNotes: release.body,
-          downloadUrl: exeAsset ? exeAsset.browser_download_url : release.html_url,
+          downloadUrl: downloadUrl,
         };
         this.setStatus(updateInfo);
         return updateInfo;
@@ -147,16 +147,24 @@ export class UpdateService {
 
   public async downloadUpdate(): Promise<void> {
     const electronAPI = (window as any).electronAPI;
+    
+    // If we have a direct download URL, try electronAPI or open URL
+    if (this.currentStatus.downloadUrl) {
+      this.openExternal(this.currentStatus.downloadUrl);
+      return;
+    }
+
     if (electronAPI?.downloadUpdate) {
       this.setStatus({ state: 'downloading', percent: 0 });
       try {
-        await electronAPI.downloadUpdate();
+        const res = await electronAPI.downloadUpdate();
+        if (!res.success && res.error) {
+          // Fallback to release page
+          this.openExternal(`https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`);
+        }
       } catch (err: any) {
-        this.setStatus({ state: 'error', error: err.message });
+        this.openExternal(`https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`);
       }
-    } else if (this.currentStatus.downloadUrl) {
-      // In browser or fallback mode, open download URL
-      this.openExternal(this.currentStatus.downloadUrl);
     }
   }
 

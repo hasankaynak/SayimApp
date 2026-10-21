@@ -11,11 +11,10 @@ import {
   Trash2, 
   FileDown, 
   CheckCircle, 
-  AlertTriangle, 
   ArrowUpDown,
   RefreshCw,
-  PlusCircle,
-  MinusCircle
+  Package,
+  X
 } from 'lucide-react';
 
 export const SayimView: React.FC = () => {
@@ -32,6 +31,12 @@ export const SayimView: React.FC = () => {
   const [evrakSeri, setEvrakSeri] = useState('SY');
   const [evrakSira, setEvrakSira] = useState<number>(1);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Product Catalog Modal
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogResults, setCatalogResults] = useState<Product[]>([]);
+  const [isSearchingCatalog, setIsSearchingCatalog] = useState(false);
 
   // Save to localStorage
   useEffect(() => {
@@ -52,6 +57,59 @@ export const SayimView: React.FC = () => {
     fetchNextSira();
   }, [evrakSeri]);
 
+  // Catalog search debouncer
+  useEffect(() => {
+    if (!showCatalogModal) return;
+    const timer = setTimeout(async () => {
+      setIsSearchingCatalog(true);
+      try {
+        const res = await api.searchProducts(catalogSearch, 30);
+        setCatalogResults(res);
+      } catch (err) {
+        console.error('Catalog search err:', err);
+      } finally {
+        setIsSearchingCatalog(false);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [catalogSearch, showCatalogModal]);
+
+  // Add product to count list
+  const addProductToCount = async (product: Product) => {
+    const depoNo = activeWarehouse?.dep_no || 1;
+    const existingIndex = items.findIndex(i => i.stock_code.toUpperCase() === product.sto_kod.toUpperCase());
+
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      updated[existingIndex].counted_quantity += 1;
+      updated[existingIndex].difference = 
+        updated[existingIndex].counted_quantity - updated[existingIndex].current_stock;
+      updated[existingIndex].total_price = 
+        updated[existingIndex].counted_quantity * updated[existingIndex].price;
+      setItems(updated);
+      sounds.playScanBeep();
+    } else {
+      const currentStock = await api.getSingleWarehouseStock(product.sto_kod, depoNo);
+
+      const newItem: CountItem = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        stock_code: product.sto_kod,
+        stock_name: product.sto_isim,
+        barcode: product.bar_kodu || '',
+        counted_quantity: 1,
+        current_stock: currentStock,
+        difference: 1 - currentStock,
+        unit: product.sto_birim1_ad || 'ADET',
+        price: product.fiyat || 0,
+        total_price: product.fiyat || 0,
+        timestamp: new Date().toLocaleTimeString('tr-TR'),
+      };
+
+      setItems(prev => [newItem, ...prev]);
+      sounds.playSuccess();
+    }
+  };
+
   // Handle scanned or entered barcode
   const handleProcessBarcode = async (rawCode: string) => {
     const code = rawCode.trim();
@@ -59,13 +117,11 @@ export const SayimView: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // 1. Check if already in list
       const existingIndex = items.findIndex(
         i => i.barcode === code || i.stock_code.toUpperCase() === code.toUpperCase()
       );
 
       if (existingIndex >= 0) {
-        // Increment quantity
         const updated = [...items];
         updated[existingIndex].counted_quantity += 1;
         updated[existingIndex].difference = 
@@ -75,7 +131,6 @@ export const SayimView: React.FC = () => {
         setItems(updated);
         sounds.playScanBeep();
       } else {
-        // Query Mikro ERP
         let product: Product | null = await api.getProductByBarcode(code);
         if (!product) {
           const list = await api.searchProducts(code, 1);
@@ -83,25 +138,7 @@ export const SayimView: React.FC = () => {
         }
 
         if (product) {
-          const depoNo = activeWarehouse?.dep_no || 1;
-          const currentStock = await api.getSingleWarehouseStock(product.sto_kod, depoNo);
-
-          const newItem: CountItem = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            stock_code: product.sto_kod,
-            stock_name: product.sto_isim,
-            barcode: product.bar_kodu || code,
-            counted_quantity: 1,
-            current_stock: currentStock,
-            difference: 1 - currentStock,
-            unit: product.sto_birim1_ad || 'ADET',
-            price: product.fiyat || 0,
-            total_price: product.fiyat || 0,
-            timestamp: new Date().toLocaleTimeString('tr-TR'),
-          };
-
-          setItems(prev => [newItem, ...prev]);
-          sounds.playSuccess();
+          await addProductToCount(product);
         } else {
           sounds.playError();
           alert(`Ürün bulunamadı: ${code}`);
@@ -117,7 +154,6 @@ export const SayimView: React.FC = () => {
     }
   };
 
-  // Register global barcode gun handler
   useEffect(() => {
     const unregister = registerBarcodeHandler((code) => {
       handleProcessBarcode(code);
@@ -125,7 +161,6 @@ export const SayimView: React.FC = () => {
     return unregister;
   }, [items, activeWarehouse]);
 
-  // Quantity helpers
   const handleUpdateQuantity = (id: string, delta: number) => {
     setItems(prev =>
       prev.map(item => {
@@ -172,7 +207,6 @@ export const SayimView: React.FC = () => {
     }
   };
 
-  // Export to Excel
   const handleExportExcel = () => {
     const exportData = items.map((i, idx) => ({
       Sıra: idx + 1,
@@ -190,7 +224,6 @@ export const SayimView: React.FC = () => {
     exportToExcel(exportData, `Depo_${activeWarehouse?.dep_no || 1}_Sayim_${new Date().toISOString().slice(0, 10)}`);
   };
 
-  // Kesinleştir (Finalize stock count into Mikro ERP)
   const handleFinalizeCount = async () => {
     if (items.length === 0) {
       alert('Sayım listesi boş.');
@@ -261,7 +294,6 @@ export const SayimView: React.FC = () => {
     }
   };
 
-  // Filtered items
   const filteredItems = items.filter(i => {
     if (!filterText) return true;
     const q = filterText.toLowerCase();
@@ -272,7 +304,6 @@ export const SayimView: React.FC = () => {
     );
   });
 
-  // Calculation Stats
   const totalCounted = items.reduce((acc, curr) => acc + curr.counted_quantity, 0);
   const totalDifference = items.reduce((acc, curr) => acc + curr.difference, 0);
   const totalAmount = items.reduce((acc, curr) => acc + curr.total_price, 0);
@@ -283,7 +314,7 @@ export const SayimView: React.FC = () => {
       {/* Top Action Bar */}
       <div className="p-4 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
         
-        {/* Left: Barcode Scanner Input */}
+        {/* Left: Barcode Scanner Input & Catalog Search Trigger */}
         <div className="flex items-center space-x-3 flex-1 max-w-xl">
           <div className="relative flex-1">
             <Barcode className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -310,6 +341,15 @@ export const SayimView: React.FC = () => {
           >
             {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             <span>Ekle</span>
+          </button>
+          
+          <button
+            onClick={() => setShowCatalogModal(true)}
+            className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors"
+            title="Mikro Stok Kataloğundan Ürün Ara & Ekle"
+          >
+            <Search className="w-4 h-4 text-orange-400" />
+            <span>Katalog</span>
           </button>
         </div>
 
@@ -389,7 +429,6 @@ export const SayimView: React.FC = () => {
 
       {/* Table & List View */}
       <div className="flex-1 flex flex-col p-6 overflow-hidden">
-        {/* Table Filter Input */}
         <div className="mb-3 flex items-center justify-between">
           <div className="relative w-72">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -430,17 +469,14 @@ export const SayimView: React.FC = () => {
                     <td colSpan={10} className="py-16 text-center text-slate-500 font-sans">
                       <Barcode className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
                       <p className="text-sm">Henüz ürün okutulmadı.</p>
-                      <p className="text-xs text-slate-600 mt-1">Barkod okutarak veya yukarıdaki alana stok kodu girerek sayıma başlayın.</p>
+                      <p className="text-xs text-slate-600 mt-1">Barkod tabancası ile okutun veya yukarıdaki "Katalog" butonundan arayarak ekleyin.</p>
                     </td>
                   </tr>
                 ) : (
                   filteredItems.map((item, idx) => {
                     const diff = item.difference;
                     return (
-                      <tr 
-                        key={item.id} 
-                        className="hover:bg-slate-800/50 transition-colors group"
-                      >
+                      <tr key={item.id} className="hover:bg-slate-800/50 transition-colors group">
                         <td className="py-2.5 px-3 text-center text-slate-500 font-sans">{idx + 1}</td>
                         <td className="py-2.5 px-4 font-bold text-blue-400 font-mono">{item.stock_code}</td>
                         <td className="py-2.5 px-4 font-sans text-slate-200 max-w-xs truncate" title={item.stock_name}>
@@ -487,7 +523,6 @@ export const SayimView: React.FC = () => {
                           <button
                             onClick={() => handleRemoveItem(item.id)}
                             className="p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors"
-                            title="Kalemi Sil"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -500,8 +535,82 @@ export const SayimView: React.FC = () => {
             </table>
           </div>
         </div>
-
       </div>
+
+      {/* Catalog Search Modal */}
+      {showCatalogModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-850">
+              <div className="flex items-center space-x-2">
+                <Package className="w-5 h-5 text-orange-400" />
+                <h3 className="font-semibold text-white text-sm">Mikro ERP Stok Kataloğundan Ürün Ekle</h3>
+              </div>
+              <button
+                onClick={() => setShowCatalogModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-slate-800 bg-slate-900/60">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  placeholder="Ürün adı, barkod veya stok kodu yazarak arayın..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2">
+              {isSearchingCatalog ? (
+                <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center space-x-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-orange-400" />
+                  <span>Ürünler aranıyor...</span>
+                </div>
+              ) : catalogResults.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  Sonuç bulunamadı
+                </div>
+              ) : (
+                catalogResults.map((p) => (
+                  <div
+                    key={p.sto_kod}
+                    className="p-3 hover:bg-slate-800/60 rounded-xl transition-colors flex items-center justify-between group"
+                  >
+                    <div className="min-w-0 pr-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-bold text-xs text-blue-400">{p.sto_kod}</span>
+                        {p.bar_kodu && (
+                          <span className="font-mono text-[10px] text-slate-500">({p.bar_kodu})</span>
+                        )}
+                      </div>
+                      <div className="text-xs font-medium text-slate-200 truncate mt-0.5">{p.sto_isim}</div>
+                      <div className="text-[11px] text-emerald-400 font-mono mt-0.5">{p.fiyat?.toFixed(2)} ₺</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        addProductToCount(p);
+                        setShowCatalogModal(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-colors shrink-0 shadow"
+                    >
+                      Sayım Listesine Ekle
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

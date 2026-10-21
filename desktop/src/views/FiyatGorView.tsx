@@ -9,10 +9,10 @@ import {
   Search, 
   Building2, 
   Receipt, 
-  Clock, 
-  Layers, 
   RefreshCw,
-  History
+  History,
+  Package,
+  Layers
 } from 'lucide-react';
 
 export const FiyatGorView: React.FC = () => {
@@ -23,8 +23,42 @@ export const FiyatGorView: React.FC = () => {
   const [depoStocks, setDepoStocks] = useState<DepoStokItem[]>([]);
   const [lastInvoice, setLastInvoice] = useState<InvoiceItem | null>(null);
   const [history, setHistory] = useState<Product[]>([]);
+  const [initialProducts, setInitialProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Load initial catalog on mount
+  useEffect(() => {
+    const loadInit = async () => {
+      try {
+        const list = await api.getInitialProducts(15);
+        setInitialProducts(list);
+        if (list.length > 0 && !product) {
+          // Select first product by default so data is immediately visible!
+          handleSelectProduct(list[0]);
+        }
+      } catch (err) {
+        console.error('Initial products error:', err);
+      }
+    };
+    loadInit();
+  }, []);
+
+  const handleSelectProduct = async (prod: Product) => {
+    setProduct(prod);
+    setHistory(prev => [prod, ...prev.filter(p => p.sto_kod !== prod.sto_kod)].slice(0, 10));
+
+    try {
+      const [stocks, invoices] = await Promise.all([
+        api.getDepoStock(prod.sto_kod),
+        api.getInvoices(prod.sto_kod),
+      ]);
+      setDepoStocks(stocks);
+      setLastInvoice(invoices.length > 0 ? invoices[0] : null);
+    } catch {
+      // error
+    }
+  };
 
   const handleLookup = async (rawCode: string) => {
     const code = rawCode.trim();
@@ -39,19 +73,8 @@ export const FiyatGorView: React.FC = () => {
       }
 
       if (prod) {
-        setProduct(prod);
         sounds.playSuccess();
-
-        // Add to history
-        setHistory(prev => [prod!, ...prev.filter(p => p.sto_kod !== prod!.sto_kod)].slice(0, 10));
-
-        // Fetch stocks & last purchase
-        const [stocks, invoices] = await Promise.all([
-          api.getDepoStock(prod.sto_kod),
-          api.getInvoices(prod.sto_kod),
-        ]);
-        setDepoStocks(stocks);
-        setLastInvoice(invoices.length > 0 ? invoices[0] : null);
+        await handleSelectProduct(prod);
       } else {
         sounds.playError();
         alert(`Ürün bulunamadı: ${code}`);
@@ -258,22 +281,27 @@ export const FiyatGorView: React.FC = () => {
           </>
         )}
 
-        {/* Son Sorgulanan Ürünler Geçmişi */}
-        {history.length > 0 && (
+        {/* Hızlı Katalog / Ürün Listesi */}
+        {initialProducts.length > 0 && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
             <div className="flex items-center space-x-2 text-xs font-semibold text-slate-400 mb-2">
-              <History className="w-3.5 h-3.5" />
-              <span>Son Sorgulananlar</span>
+              <Package className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Mikro Stok Listesinden Hızlı Seçim (İlk {initialProducts.length} Ürün)</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {history.map((h) => (
+              {initialProducts.map((p) => (
                 <button
-                  key={h.sto_kod}
-                  onClick={() => handleLookup(h.sto_kod)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition-colors flex items-center space-x-1.5"
+                  key={p.sto_kod}
+                  onClick={() => handleSelectProduct(p)}
+                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors flex items-center space-x-2 ${
+                    product?.sto_kod === p.sto_kod
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 font-bold'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
                 >
-                  <span className="font-mono font-bold text-cyan-400">{h.sto_kod}</span>
-                  <span className="truncate max-w-[120px]">{h.sto_isim}</span>
+                  <span className="font-mono">{p.sto_kod}</span>
+                  <span className="truncate max-w-[140px]">{p.sto_isim}</span>
+                  <span className="text-emerald-400 font-mono font-bold">{p.fiyat?.toFixed(2)} ₺</span>
                 </button>
               ))}
             </div>

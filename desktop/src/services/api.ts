@@ -44,10 +44,20 @@ class ApiService {
       return [{ success: 1, CreatedSira: 1, simulated: true }] as any;
     }
 
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI?.executeSql) {
+      const res = await electronAPI.executeSql(this.apiUrl, sql);
+      if (!res.success) {
+        throw new Error(res.error || 'SQL sorgusu başarısız oldu.');
+      }
+      return res.data || [];
+    }
+
+    // Direct browser fallback
     const res = await axios.post(
       this.apiUrl,
       { query: sql },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+      { headers: { 'Content-Type': 'application/json' }, timeout: 35000 }
     );
 
     if (res.data && res.data.success && Array.isArray(res.data.data)) {
@@ -87,7 +97,7 @@ class ApiService {
       }
       return { success: false, message: 'Sunucudan yanıt alınamadı.' };
     } catch (err: any) {
-      return { success: false, message: err.response?.data?.error || err.message || 'Bağlantı hatası' };
+      return { success: false, message: err.message || 'Bağlantı hatası' };
     }
   }
 
@@ -101,9 +111,33 @@ class ApiService {
     return this.executeSql<Warehouse>(q);
   }
 
-  public async searchProducts(query: string, limit = 40): Promise<Product[]> {
+  public async getInitialProducts(limit = 50): Promise<Product[]> {
+    const q = `
+      SELECT TOP ${limit}
+        s.sto_kod,
+        s.sto_isim,
+        s.sto_kisa_ismi,
+        s.sto_birim1_ad,
+        ISNULL(s.sto_perakende_vergi, 0) as sto_perakende_vergi,
+        ISNULL(s.sto_toptan_vergi, 0) as sto_toptan_vergi,
+        ISNULL(bt.bar_kodu, '') as bar_kodu,
+        ISNULL(sfl.sfiyat_fiyati, 0) as fiyat,
+        ISNULL(sfl2.sfiyat_fiyati, 0) as fiyat_toptan,
+        ROUND(ISNULL(sfl.sfiyat_fiyati, 0) * (1 + ISNULL(s.sto_perakende_vergi, 0) / 100.0), 2) as kdv_dahil_fiyat,
+        ISNULL(CONVERT(varchar, sfl.sfiyat_lastup_date, 104), '') as lastup_date
+      FROM STOKLAR s WITH (NOLOCK)
+      LEFT JOIN BARKOD_TANIMLARI bt WITH (NOLOCK) ON bt.bar_stokkodu = s.sto_kod AND bt.bar_iptal = 0
+      LEFT JOIN STOK_SATIS_FIYAT_LISTELERI sfl WITH (NOLOCK) ON s.sto_kod = sfl.sfiyat_stokkod AND sfl.sfiyat_listesirano = 1
+      LEFT JOIN STOK_SATIS_FIYAT_LISTELERI sfl2 WITH (NOLOCK) ON s.sto_kod = sfl2.sfiyat_stokkod AND sfl2.sfiyat_listesirano = 2
+      WHERE s.sto_iptal = 0
+      ORDER BY s.sto_kod ASC
+    `;
+    return this.executeSql<Product>(q);
+  }
+
+  public async searchProducts(query: string, limit = 50): Promise<Product[]> {
     const clean = query.trim().replace(/'/g, "''");
-    if (!clean) return [];
+    if (!clean) return this.getInitialProducts(limit);
 
     const isBarcode = /^\d{5,18}$/.test(clean);
     let condition = '';

@@ -3,8 +3,13 @@ import { Warehouse, ActiveTab } from '../types';
 import { api } from '../services/api';
 import { updateService, UpdateStatus } from '../services/updater';
 import { sounds } from '../services/sound';
+import { AuthSessionData } from '../views/LoginView';
 
 interface AppContextType {
+  authSession: AuthSessionData | null;
+  setAuthSession: (session: AuthSessionData | null) => void;
+  logout: () => void;
+  hasPerm: (permCode: string) => boolean;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   warehouses: Warehouse[];
@@ -23,6 +28,16 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Auth Session State
+  const [authSession, setAuthSessionState] = useState<AuthSessionData | null>(() => {
+    try {
+      const saved = localStorage.getItem('@sayimapp_auth_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('sayim');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [activeWarehouse, setActiveWarehouse] = useState<Warehouse | null>(null);
@@ -30,6 +45,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [serverDetails, setServerDetails] = useState<any>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(updateService.getStatus());
+
+  const setAuthSession = (session: AuthSessionData | null) => {
+    setAuthSessionState(session);
+    if (session) {
+      localStorage.setItem('@sayimapp_auth_session', JSON.stringify(session));
+      // Re-check connection and load warehouses for this user
+      checkConnection();
+    } else {
+      localStorage.removeItem('@sayimapp_auth_session');
+    }
+  };
+
+  const logout = () => {
+    if (confirm('Oturumu kapatmak istediğinize emin misiniz?')) {
+      setAuthSession(null);
+      sounds.playWarning();
+    }
+  };
+
+  const hasPerm = (permCode: string): boolean => {
+    if (!authSession) return false;
+    if (authSession.user.role_code === 'ADMIN') return true;
+    return authSession.permissions?.includes(permCode) ?? false;
+  };
 
   // Barcode Handlers stack
   const barcodeHandlersRef = React.useRef<((code: string) => void)[]>([]);
@@ -48,9 +87,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setServerDetails(res.details || null);
     if (res.success) {
       try {
-        const whList = await api.getWarehouses();
+        let whList = await api.getWarehouses();
+
+        // Filter by user restrictions if any
+        if (authSession?.restrictions?.allowed_depo_nos) {
+          const allowedNos = authSession.restrictions.allowed_depo_nos
+            .split(',')
+            .map(s => Number(s.trim()))
+            .filter(n => !isNaN(n));
+          if (allowedNos.length > 0) {
+            whList = whList.filter(w => allowedNos.includes(w.dep_no));
+          }
+        }
+
         setWarehouses(whList);
-        if (whList.length > 0 && !activeWarehouse) {
+        if (whList.length > 0) {
           const savedDepoNo = localStorage.getItem('sayimapp_default_depo');
           const matched = savedDepoNo ? whList.find(w => w.dep_no === Number(savedDepoNo)) : null;
           setActiveWarehouse(matched || whList[0]);
@@ -80,24 +131,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Check updates silently after 2 seconds
+    // Check updates silently after 3 seconds
     const updateTimer = setTimeout(() => {
       updateService.checkForUpdates().catch(() => {});
-    }, 2000);
+    }, 3000);
 
     return () => {
       unsubUpdates();
       clearTimeout(updateTimer);
     };
-  }, []);
+  }, [authSession]);
 
-  // Global USB Barcode Gun Listener (Fast Keyboard Input Detector)
+  // Global USB Barcode Gun Listener
   useEffect(() => {
     let buffer = '';
     let lastKeyTime = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if inside a text input or textarea AND user is typing slowly
       const target = e.target as HTMLElement;
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
 
@@ -105,15 +155,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const timeDiff = now - lastKeyTime;
       lastKeyTime = now;
 
-      // Handle Enter (Barcode guns send Enter after scanning string)
       if (e.key === 'Enter') {
         if (buffer.length >= 3 && timeDiff < 100) {
-          // It was a fast barcode scan!
           const code = buffer.trim();
           buffer = '';
           sounds.playScanBeep();
 
-          // Dispatch to active handler
           if (barcodeHandlersRef.current.length > 0) {
             const topHandler = barcodeHandlersRef.current[barcodeHandlersRef.current.length - 1];
             topHandler(code);
@@ -127,7 +174,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      // If keys come with > 80ms gap, it is likely human typing, clear buffer
       if (timeDiff > 80 && buffer.length > 0) {
         buffer = '';
       }
@@ -141,7 +187,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Save selected warehouse
   const handleSetActiveWarehouse = (w: Warehouse | null) => {
     setActiveWarehouse(w);
     if (w) {
@@ -152,6 +197,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        authSession,
+        setAuthSession,
+        logout,
+        hasPerm,
         activeTab,
         setActiveTab,
         warehouses,

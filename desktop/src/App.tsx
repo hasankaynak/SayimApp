@@ -3,6 +3,7 @@ import { useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { UpdateModal } from './components/UpdateModal';
+import { LoginView } from './views/LoginView';
 
 // Views
 import { SayimView } from './views/SayimView';
@@ -14,19 +15,46 @@ import { SiparislerView } from './views/SiparislerView';
 import { SettingsView } from './views/SettingsView';
 
 export const App: React.FC = () => {
-  const { activeTab } = useApp();
+  const { authSession, setAuthSession, activeTab, hasPerm } = useApp();
 
+  // 1. OTURUM AÇILMAMIŞSA -> GİRİŞ EKRANI (Hızlı PIN / Şifre)
+  if (!authSession) {
+    return <LoginView onLoginSuccess={setAuthSession} />;
+  }
+
+  // 2. Modül İzin Kontrolü ile Görünüm Seçimi
   const renderActiveView = () => {
     switch (activeTab) {
       case 'sayim':
+        if (!hasPerm('MODULE_SAYIM')) {
+          return (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              Bu modüle erişim yetkiniz bulunmamaktadır (MODULE_SAYIM).
+            </div>
+          );
+        }
         return <SayimView />;
       case 'sevk':
+        if (!hasPerm('MODULE_SEVK')) {
+          return (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              Bu modüle erişim yetkiniz bulunmamaktadır (MODULE_SEVK).
+            </div>
+          );
+        }
         return <SevkView />;
       case 'fisler':
         return <DepoFisleriView />;
       case 'alis-faturalari':
         return <UrunAlisFaturalariView />;
       case 'fiyat-gor':
+        if (!hasPerm('MODULE_FIYAT_GOR')) {
+          return (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              Bu modüle erişim yetkiniz bulunmamaktadır (MODULE_FIYAT_GOR).
+            </div>
+          );
+        }
         return <FiyatGorView />;
       case 'siparisler':
         return <SiparislerView />;

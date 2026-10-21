@@ -5,6 +5,8 @@ export interface IElectronAPI {
   minimize: () => void;
   maximize: () => void;
   close: () => void;
+  executeSql: (url: string, query: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+  authLogin: (payload: any) => Promise<any>;
   checkForUpdates: () => Promise<{ success: boolean; result?: any; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   installUpdate: () => void;
@@ -17,6 +19,8 @@ const api: IElectronAPI = {
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
+  executeSql: (url: string, query: string) => ipcRenderer.invoke('api:execute-sql', { url, query }),
+  authLogin: (payload: any) => ipcRenderer.invoke('api:auth-login', payload),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),

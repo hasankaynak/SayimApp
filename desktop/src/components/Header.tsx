@@ -9,12 +9,15 @@ import {
   Sparkles, 
   RefreshCw, 
   Clock, 
-  HelpCircle,
+  User,
+  LogOut,
   Download
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { 
+    authSession,
+    logout,
     warehouses, 
     activeWarehouse, 
     setActiveWarehouse, 
@@ -49,13 +52,13 @@ export const Header: React.FC = () => {
     <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between select-none shadow-md z-20">
       {/* Sol: Logo ve Uygulama Adı */}
       <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-bold text-xl tracking-wider">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/20 text-white font-bold text-xl tracking-wider">
           MD
         </div>
         <div>
           <div className="flex items-center space-x-2">
             <h1 className="font-semibold text-slate-100 text-base leading-tight">MD Ticaret</h1>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
               Desktop ERP
             </span>
           </div>
@@ -65,7 +68,7 @@ export const Header: React.FC = () => {
 
       {/* Orta: Aktif Depo Seçimi */}
       <div className="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-inner">
-        <Building2 className="w-4 h-4 text-blue-400" />
+        <Building2 className="w-4 h-4 text-orange-400" />
         <span className="text-xs text-slate-400 font-medium">Aktif Depo:</span>
         <select
           value={activeWarehouse?.dep_no || ''}
@@ -84,12 +87,29 @@ export const Header: React.FC = () => {
         </select>
       </div>
 
-      {/* Sağ: Durum Göstergeleri, Güncelleme & Saat */}
-      <div className="flex items-center space-x-4">
+      {/* Sağ: Giriş Yapan Kullanıcı, Durum Göstergeleri, Güncelleme & Çıkış */}
+      <div className="flex items-center space-x-3">
+        {/* Kullanıcı Profili */}
+        {authSession && (
+          <div className="flex items-center space-x-2 bg-slate-800/60 px-3 py-1 rounded-lg border border-slate-700/50">
+            <div className="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-bold border border-orange-500/30">
+              <User className="w-3.5 h-3.5" />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-semibold text-slate-200 leading-tight">
+                {authSession.user.display_name || authSession.user.username}
+              </div>
+              <div className="text-[10px] text-orange-400/80 font-mono">
+                {authSession.user.role_name} {authSession.user.mikro_user_no ? `(Mikro: ${authSession.user.mikro_user_no})` : ''}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* USB Barkod Tabancası Durumu */}
         <div className="flex items-center space-x-1.5 bg-slate-800/60 px-2.5 py-1 rounded-md border border-slate-700/40" title="USB Barkod Okuyucu hazır (Otomatik dinleme devrede)">
           <Barcode className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs text-slate-300 font-mono hidden md:inline">Barkod Hazır</span>
+          <span className="text-xs text-slate-300 font-mono hidden md:inline">Barkod Aktif</span>
         </div>
 
         {/* Mikro ERP Sunucu Durumu */}
@@ -133,7 +153,7 @@ export const Header: React.FC = () => {
             </>
           ) : (
             <>
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
               <span>v{CURRENT_DESKTOP_VERSION}</span>
             </>
           )}
@@ -144,6 +164,17 @@ export const Header: React.FC = () => {
           <Clock className="w-3.5 h-3.5 text-slate-500" />
           <span>{time}</span>
         </div>
+
+        {/* Çıkış Yap Butonu */}
+        {authSession && (
+          <button
+            onClick={logout}
+            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 transition-colors"
+            title="Oturumu Kapat"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </header>
   );
