@@ -1,0 +1,536 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useApp } from '../context/AppContext';
+import { DepoFisItem, Warehouse, Product } from '../types';
+import { api } from '../services/api';
+import { sounds } from '../services/sound';
+import { exportToExcel } from '../services/excel';
+import { 
+  FileSpreadsheet, 
+  Barcode, 
+  Plus, 
+  Trash2, 
+  FileDown, 
+  Send, 
+  RefreshCw,
+  ArrowRightCircle,
+  ArrowLeftCircle,
+  Shuffle
+} from 'lucide-react';
+
+type FisType = 'cikis' | 'giris' | 'virman';
+
+export const DepoFisleriView: React.FC = () => {
+  const { warehouses, activeWarehouse, registerBarcodeHandler } = useApp();
+
+  const [fisType, setFisType] = useState<FisType>('cikis');
+  const [sourceDepo, setSourceDepo] = useState<Warehouse | null>(activeWarehouse);
+  const [targetDepo, setTargetDepo] = useState<Warehouse | null>(null);
+  const [evrakSeri, setEvrakSeri] = useState('DF');
+  const [evrakSira, setEvrakSira] = useState<number>(1);
+  const [belgeNo, setBelgeNo] = useState('');
+  const [genelAciklama, setGenelAciklama] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [items, setItems] = useState<DepoFisItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (warehouses.length > 0) {
+      if (!sourceDepo) setSourceDepo(warehouses[0]);
+      if (!targetDepo) setTargetDepo(warehouses.length > 1 ? warehouses[1] : warehouses[0]);
+    }
+  }, [warehouses]);
+
+  const fetchNextSira = async () => {
+    try {
+      const next = await api.getNextSira(1, evrakSeri);
+      setEvrakSira(next);
+    } catch {
+      // fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchNextSira();
+  }, [evrakSeri, fisType]);
+
+  const handleAddProduct = async (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+
+    if (!sourceDepo) {
+      alert('Lütfen depo seçiniz.');
+      return;
+    }
+
+    if (fisType === 'virman' && (!targetDepo || targetDepo.dep_no === sourceDepo.dep_no)) {
+      alert('Virman için farklı bir hedef depo seçmelisiniz.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const existingIdx = items.findIndex(
+        i => i.barcode === code || i.stock_code.toUpperCase() === code.toUpperCase()
+      );
+
+      if (existingIdx >= 0) {
+        const updated = [...items];
+        updated[existingIdx].miktar += 1;
+        updated[existingIdx].tutar = updated[existingIdx].miktar * updated[existingIdx].price;
+        setItems(updated);
+        sounds.playScanBeep();
+      } else {
+        let product: Product | null = await api.getProductByBarcode(code);
+        if (!product) {
+          const list = await api.searchProducts(code, 1);
+          if (list.length > 0) product = list[0];
+        }
+
+        if (product) {
+          const currentStock = await api.getSingleWarehouseStock(product.sto_kod, sourceDepo.dep_no);
+
+          const newItem: DepoFisItem = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            stock_code: product.sto_kod,
+            stock_name: product.sto_isim,
+            barcode: product.bar_kodu || code,
+            miktar: 1,
+            current_stock: currentStock,
+            unit: product.sto_birim1_ad || 'ADET',
+            price: product.fiyat || 0,
+            tutar: product.fiyat || 0,
+            description: '',
+          };
+
+          setItems(prev => [newItem, ...prev]);
+          sounds.playSuccess();
+        } else {
+          sounds.playError();
+          alert(`Ürün bulunamadı: ${code}`);
+        }
+      }
+    } catch (err: any) {
+      sounds.playError();
+      alert(`Sorgu hatası: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setBarcodeInput('');
+      barcodeInputRef.current?.focus();
+    }
+  };
+
+  useEffect(() => {
+    const unregister = registerBarcodeHandler((code) => {
+      handleAddProduct(code);
+    });
+    return unregister;
+  }, [items, sourceDepo, targetDepo, fisType]);
+
+  const handleUpdateQuantity = (id: string, delta: number) => {
+    setItems(prev =>
+      prev.map(i => {
+        if (i.id === id) {
+          const newQty = Math.max(1, i.miktar + delta);
+          return { ...i, miktar: newQty, tutar: newQty * i.price };
+        }
+        return i;
+      })
+    );
+  };
+
+  const handleSetExactQuantity = (id: string, val: string) => {
+    const qty = Math.max(1, parseFloat(val) || 1);
+    setItems(prev =>
+      prev.map(i => {
+        if (i.id === id) {
+          return { ...i, miktar: qty, tutar: qty * i.price };
+        }
+        return i;
+      })
+    );
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleClearAll = () => {
+    if (items.length === 0) return;
+    if (confirm('Listeyi temizlemek istediğinizden emin misiniz?')) {
+      setItems([]);
+    }
+  };
+
+  const handleExportExcel = () => {
+    const typeLabel = fisType === 'cikis' ? 'Depo Cikis 012160' : fisType === 'giris' ? 'Depo Giris 012250' : 'Virman 012810';
+    const exportData = items.map((i, idx) => ({
+      Sıra: idx + 1,
+      'Stok Kodu': i.stock_code,
+      'Stok Adı': i.stock_name,
+      Barkod: i.barcode || '',
+      Depo: `[${sourceDepo?.dep_no}] ${sourceDepo?.dep_adi}`,
+      'Mevcut Stok': i.current_stock,
+      Miktar: i.miktar,
+      Birim: i.unit,
+      'Birim Fiyat': i.price,
+      Tutar: i.tutar,
+      Açıklama: i.description || '',
+    }));
+    exportToExcel(exportData, `${typeLabel}_${evrakSeri}_${evrakSira}`);
+  };
+
+  const handleSaveFis = async () => {
+    if (items.length === 0) {
+      alert('Fişte ürün bulunmuyor.');
+      return;
+    }
+    if (!sourceDepo) {
+      alert('Depo seçilmelidir.');
+      return;
+    }
+
+    const fisLabel = fisType === 'cikis' ? 'Depo Çıkış Fişi (012160)' : fisType === 'giris' ? 'Depo Giriş Fişi (012250)' : 'Depolar Arası Virman (012810)';
+    if (!confirm(`${items.length} kalem ${fisLabel} kaydedilecek. Onaylıyor musunuz?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const targetSeri = (evrakSeri || 'DF').trim().replace(/'/g, "''");
+      const bNo = (belgeNo || '').trim().replace(/'/g, "''");
+      const userNum = 1;
+
+      // Type mapping
+      const sthTip = fisType === 'cikis' ? 1 : fisType === 'giris' ? 0 : 2;
+      const menuNo = fisType === 'cikis' ? '12160' : fisType === 'giris' ? '12250' : '12810';
+
+      let sql = `
+        BEGIN TRANSACTION;
+        DECLARE @Tarih DATETIME = CAST(CONVERT(VARCHAR(10), GETDATE(), 120) AS DATETIME);
+        DECLARE @SiraNo INT = ${evrakSira};
+      `;
+
+      items.forEach((item, index) => {
+        const sKod = item.stock_code.replace(/'/g, "''");
+        const miktar = item.miktar;
+        const birimFiyat = item.price || 0;
+        const tutar = item.tutar || (miktar * birimFiyat);
+        const aciklama = (item.description || genelAciklama || fisLabel).replace(/'/g, "''");
+
+        const girisDepo = fisType === 'giris' ? sourceDepo.dep_no : fisType === 'virman' ? (targetDepo?.dep_no || 2) : 0;
+        const cikisDepo = fisType === 'cikis' ? sourceDepo.dep_no : fisType === 'virman' ? sourceDepo.dep_no : 0;
+
+        sql += `
+          INSERT INTO STOK_HAREKETLERI (
+            sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
+            sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
+            sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
+            sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
+            sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
+            sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+            sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+            sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
+            sth_aciklama
+          ) VALUES (
+            NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
+            ${userNum}, GETDATE(), ${userNum}, GETDATE(),
+            '', '', '', 21, '17.05d', '${menuNo}',
+            '', '', '', 0, '', 0,
+            0, 0, @Tarih, ${sthTip}, 6, 0, 1, '${targetSeri}',
+            @SiraNo, ${index}, '${bNo}', @Tarih, '${sKod}',
+            ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+            ${girisDepo}, ${cikisDepo}, @Tarih,
+            '${aciklama}'
+          );
+        `;
+      });
+
+      sql += `
+        COMMIT TRANSACTION;
+        SELECT 1 AS success, @SiraNo AS CreatedSira;
+      `;
+
+      await api.executeSql(sql);
+      sounds.playSuccess();
+      alert(`${fisLabel} Mikro ERP'ye başarıyla kaydedildi!\nEvrak No: ${targetSeri}-${evrakSira}\nKalem Sayısı: ${items.length}`);
+      setItems([]);
+      setBelgeNo('');
+      setGenelAciklama('');
+      fetchNextSira();
+    } catch (err: any) {
+      sounds.playError();
+      alert(`Fiş Kayıt Hatası: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const totalMiktar = items.reduce((acc, curr) => acc + curr.miktar, 0);
+  const totalTutar = items.reduce((acc, curr) => acc + curr.tutar, 0);
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden select-none">
+      
+      {/* Top Header Bar */}
+      <div className="p-4 bg-slate-900 border-b border-slate-800 space-y-3">
+        
+        {/* Fis Type Selector Tabs */}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setFisType('cikis')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              fisType === 'cikis'
+                ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30'
+                : 'bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <ArrowRightCircle className="w-4 h-4" />
+            <span>Depo Çıkış Fişi (012160)</span>
+          </button>
+
+          <button
+            onClick={() => setFisType('giris')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              fisType === 'giris'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                : 'bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <ArrowLeftCircle className="w-4 h-4" />
+            <span>Depo Giriş Fişi (012250)</span>
+          </button>
+
+          <button
+            onClick={() => setFisType('virman')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              fisType === 'virman'
+                ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30'
+                : 'bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <Shuffle className="w-4 h-4" />
+            <span>Depolar Arası Virman (012810)</span>
+          </button>
+        </div>
+
+        {/* Depo Seçimi & Evrak Bilgileri */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 bg-slate-950 p-2 rounded-xl border border-slate-800">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400 font-medium">Depo:</span>
+              <select
+                value={sourceDepo?.dep_no || ''}
+                onChange={(e) => {
+                  const s = warehouses.find(w => w.dep_no === Number(e.target.value));
+                  if (s) setSourceDepo(s);
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-semibold text-slate-200 outline-none"
+              >
+                {warehouses.map(w => (
+                  <option key={w.dep_no} value={w.dep_no}>[{w.dep_no}] {w.dep_adi}</option>
+                ))}
+              </select>
+            </div>
+
+            {fisType === 'virman' && (
+              <div className="flex items-center space-x-2 border-l border-slate-800 pl-3">
+                <span className="text-xs text-slate-400 font-medium">Hedef Depo:</span>
+                <select
+                  value={targetDepo?.dep_no || ''}
+                  onChange={(e) => {
+                    const s = warehouses.find(w => w.dep_no === Number(e.target.value));
+                    if (s) setTargetDepo(s);
+                  }}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-semibold text-slate-200 outline-none"
+                >
+                  {warehouses.map(w => (
+                    <option key={w.dep_no} value={w.dep_no}>[{w.dep_no}] {w.dep_adi}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
+            <span className="text-slate-400 font-medium">Seri:</span>
+            <input
+              type="text"
+              value={evrakSeri}
+              onChange={(e) => setEvrakSeri(e.target.value.toUpperCase())}
+              className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold font-mono text-white outline-none"
+            />
+            <span className="text-slate-400 font-medium">Sıra:</span>
+            <input
+              type="number"
+              value={evrakSira}
+              onChange={(e) => setEvrakSira(Number(e.target.value))}
+              className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold font-mono text-white outline-none"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleExportExcel}
+              disabled={items.length === 0}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition-colors disabled:opacity-40"
+            >
+              <FileDown className="w-4 h-4 text-emerald-400" />
+              <span>Excel</span>
+            </button>
+            <button
+              onClick={handleClearAll}
+              disabled={items.length === 0}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Temizle</span>
+            </button>
+            <button
+              onClick={handleSaveFis}
+              disabled={items.length === 0 || isSubmitting}
+              className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-violet-600/20 disabled:opacity-40"
+            >
+              <Send className="w-4 h-4" />
+              <span>{isSubmitting ? 'Kaydediliyor...' : 'Fişi Mikro’ya Kaydet'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Barkod Okuma */}
+        <div className="flex items-center space-x-3">
+          <div className="relative flex-1">
+            <Barcode className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={barcodeInputRef}
+              type="text"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddProduct(barcodeInput);
+                }
+              }}
+              placeholder="Fişe eklenecek ürünün barkodunu okutun veya stok kodu girin..."
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 transition-colors shadow-inner"
+              autoFocus
+            />
+          </div>
+          <button
+            onClick={() => handleAddProduct(barcodeInput)}
+            disabled={isLoading || !barcodeInput.trim()}
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium text-sm transition-colors shadow-md disabled:opacity-50"
+          >
+            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <span>Ekle</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Bar */}
+      <div className="px-6 py-2.5 bg-slate-900/60 border-b border-slate-800/80 grid grid-cols-3 gap-4">
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Kalem</div>
+          <div className="text-base font-bold font-mono text-white">{items.length} Kalem</div>
+        </div>
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Miktar</div>
+          <div className="text-base font-bold font-mono text-violet-400">{totalMiktar.toLocaleString('tr-TR')}</div>
+        </div>
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Tutar</div>
+          <div className="text-base font-bold font-mono text-amber-400">
+            {totalTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 p-6 overflow-hidden flex flex-col">
+        <div className="flex-1 bg-slate-900/80 rounded-xl border border-slate-800 overflow-hidden flex flex-col shadow-inner">
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-850 border-b border-slate-800 sticky top-0 z-10 text-slate-400 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-3 w-12 text-center">#</th>
+                  <th className="py-3 px-4">Stok Kodu</th>
+                  <th className="py-3 px-4">Ürün Adı</th>
+                  <th className="py-3 px-3">Barkod</th>
+                  <th className="py-3 px-3 text-right">Depo Stok</th>
+                  <th className="py-3 px-4 text-center w-36">Miktar</th>
+                  <th className="py-3 px-3 text-right">Birim Fiyat</th>
+                  <th className="py-3 px-3 text-right">Tutar</th>
+                  <th className="py-3 px-3 text-center w-16">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-16 text-center text-slate-500 font-sans">
+                      <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
+                      <p className="text-sm">Fiş listesi boş.</p>
+                      <p className="text-xs text-slate-600 mt-1">Barkod okutarak veya stok kodu girerek fişe ürün ekleyin.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2.5 px-3 text-center text-slate-500 font-sans">{idx + 1}</td>
+                      <td className="py-2.5 px-4 font-bold text-violet-400 font-mono">{item.stock_code}</td>
+                      <td className="py-2.5 px-4 font-sans text-slate-200 max-w-xs truncate" title={item.stock_name}>
+                        {item.stock_name}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-400 font-mono">{item.barcode || '-'}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-300 font-bold">
+                        {item.current_stock} <span className="text-[10px] text-slate-500 font-normal">{item.unit}</span>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, -1)}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            value={item.miktar}
+                            onChange={(e) => handleSetExactQuantity(item.id, e.target.value)}
+                            className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-bold text-white text-xs outline-none focus:border-violet-500"
+                          />
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, 1)}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-300">
+                        {item.price.toFixed(2)} ₺
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-amber-300 font-bold">
+                        {item.tutar.toFixed(2)} ₺
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+};

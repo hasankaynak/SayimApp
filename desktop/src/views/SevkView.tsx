@@ -1,0 +1,553 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useApp } from '../context/AppContext';
+import { TransferItem, Warehouse, Product } from '../types';
+import { api } from '../services/api';
+import { sounds } from '../services/sound';
+import { exportToExcel } from '../services/excel';
+import { 
+  Truck, 
+  Barcode, 
+  ArrowRightLeft, 
+  Plus, 
+  Trash2, 
+  FileDown, 
+  Send, 
+  RefreshCw,
+  Search,
+  Building2,
+  Calendar,
+  FileText
+} from 'lucide-react';
+
+export const SevkView: React.FC = () => {
+  const { warehouses, activeWarehouse, registerBarcodeHandler } = useApp();
+
+  const [sourceDepo, setSourceDepo] = useState<Warehouse | null>(activeWarehouse);
+  const [targetDepo, setTargetDepo] = useState<Warehouse | null>(null);
+  const [evrakSeri, setEvrakSeri] = useState('SK');
+  const [evrakSira, setEvrakSira] = useState<number>(1);
+  const [belgeNo, setBelgeNo] = useState('');
+  const [genelAciklama, setGenelAciklama] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [items, setItems] = useState<TransferItem[]>(() => {
+    const saved = localStorage.getItem('sayimapp_desktop_sevk_items');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync default warehouses
+  useEffect(() => {
+    if (warehouses.length > 0) {
+      if (!sourceDepo) setSourceDepo(warehouses[0]);
+      if (!targetDepo) setTargetDepo(warehouses.length > 1 ? warehouses[1] : warehouses[0]);
+    }
+  }, [warehouses]);
+
+  // Persist items
+  useEffect(() => {
+    localStorage.setItem('sayimapp_desktop_sevk_items', JSON.stringify(items));
+  }, [items]);
+
+  // Fetch sequence for 012500
+  const fetchNextSira = async () => {
+    try {
+      const next = await api.getNextSira(2, evrakSeri);
+      setEvrakSira(next);
+    } catch {
+      // fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchNextSira();
+  }, [evrakSeri]);
+
+  // Swap warehouses
+  const handleSwapWarehouses = () => {
+    const temp = sourceDepo;
+    setSourceDepo(targetDepo);
+    setTargetDepo(temp);
+    sounds.playScanBeep();
+  };
+
+  // Add product
+  const handleAddProduct = async (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+
+    if (!sourceDepo || !targetDepo) {
+      alert('Lütfen çıkış ve giriş depolarını seçiniz.');
+      return;
+    }
+
+    if (sourceDepo.dep_no === targetDepo.dep_no) {
+      alert('Çıkış deposu ile giriş deposu aynı olamaz!');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Check if already in list
+      const existingIdx = items.findIndex(
+        i => i.barcode === code || i.stock_code.toUpperCase() === code.toUpperCase()
+      );
+
+      if (existingIdx >= 0) {
+        const updated = [...items];
+        updated[existingIdx].miktar += 1;
+        updated[existingIdx].tutar = updated[existingIdx].miktar * updated[existingIdx].price;
+        setItems(updated);
+        sounds.playScanBeep();
+      } else {
+        let product: Product | null = await api.getProductByBarcode(code);
+        if (!product) {
+          const list = await api.searchProducts(code, 1);
+          if (list.length > 0) product = list[0];
+        }
+
+        if (product) {
+          const [sourceStock, targetStock] = await Promise.all([
+            api.getSingleWarehouseStock(product.sto_kod, sourceDepo.dep_no),
+            api.getSingleWarehouseStock(product.sto_kod, targetDepo.dep_no),
+          ]);
+
+          const newItem: TransferItem = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            stock_code: product.sto_kod,
+            stock_name: product.sto_isim,
+            barcode: product.bar_kodu || code,
+            miktar: 1,
+            source_stock: sourceStock,
+            target_stock: targetStock,
+            unit: product.sto_birim1_ad || 'ADET',
+            price: product.fiyat || 0,
+            tutar: product.fiyat || 0,
+            description: '',
+          };
+
+          setItems(prev => [newItem, ...prev]);
+          sounds.playSuccess();
+        } else {
+          sounds.playError();
+          alert(`Ürün bulunamadı: ${code}`);
+        }
+      }
+    } catch (err: any) {
+      sounds.playError();
+      alert(`Sorgu hatası: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setBarcodeInput('');
+      barcodeInputRef.current?.focus();
+    }
+  };
+
+  // Global barcode listener
+  useEffect(() => {
+    const unregister = registerBarcodeHandler((code) => {
+      handleAddProduct(code);
+    });
+    return unregister;
+  }, [items, sourceDepo, targetDepo]);
+
+  const handleUpdateQuantity = (id: string, delta: number) => {
+    setItems(prev =>
+      prev.map(i => {
+        if (i.id === id) {
+          const newQty = Math.max(1, i.miktar + delta);
+          return { ...i, miktar: newQty, tutar: newQty * i.price };
+        }
+        return i;
+      })
+    );
+  };
+
+  const handleSetExactQuantity = (id: string, val: string) => {
+    const qty = Math.max(1, parseFloat(val) || 1);
+    setItems(prev =>
+      prev.map(i => {
+        if (i.id === id) {
+          return { ...i, miktar: qty, tutar: qty * i.price };
+        }
+        return i;
+      })
+    );
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleClearAll = () => {
+    if (items.length === 0) return;
+    if (confirm('Sevk listesini temizlemek istediğinizden emin misiniz?')) {
+      setItems([]);
+      localStorage.removeItem('sayimapp_desktop_sevk_items');
+    }
+  };
+
+  // Export to Excel
+  const handleExportExcel = () => {
+    const exportData = items.map((i, idx) => ({
+      Sıra: idx + 1,
+      'Stok Kodu': i.stock_code,
+      'Stok Adı': i.stock_name,
+      Barkod: i.barcode || '',
+      'Çıkış Depo': `[${sourceDepo?.dep_no}] ${sourceDepo?.dep_adi}`,
+      'Giriş Depo': `[${targetDepo?.dep_no}] ${targetDepo?.dep_adi}`,
+      'Çıkış Depo Stok': i.source_stock,
+      'Sevk Miktarı': i.miktar,
+      Birim: i.unit,
+      'Birim Fiyat': i.price,
+      Tutar: i.tutar,
+      Açıklama: i.description || '',
+    }));
+    exportToExcel(exportData, `Depolar_Arasi_Sevk_${evrakSeri}_${evrakSira}`);
+  };
+
+  // Save Sevk Fişi (012500) to Mikro ERP
+  const handleSaveSevk = async () => {
+    if (items.length === 0) {
+      alert('Sevk listesinde hiç ürün yok.');
+      return;
+    }
+    if (!sourceDepo || !targetDepo) {
+      alert('Depolar seçilmelidir.');
+      return;
+    }
+    if (sourceDepo.dep_no === targetDepo.dep_no) {
+      alert('Çıkış ve giriş depoları farklı olmalıdır.');
+      return;
+    }
+
+    if (!confirm(`${items.length} kalem ürün [${sourceDepo.dep_adi}] -> [${targetDepo.dep_adi}] arasına sevk edilecek. Onaylıyor musunuz?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const targetSeri = (evrakSeri || 'SK').trim().replace(/'/g, "''");
+      const bNo = (belgeNo || '').trim().replace(/'/g, "''");
+      const userNum = 1;
+
+      let sql = `
+        BEGIN TRANSACTION;
+        DECLARE @Tarih DATETIME = CAST(CONVERT(VARCHAR(10), GETDATE(), 120) AS DATETIME);
+        DECLARE @SiraNo INT = ${evrakSira};
+      `;
+
+      items.forEach((item, index) => {
+        const sKod = item.stock_code.replace(/'/g, "''");
+        const miktar = item.miktar;
+        const birimFiyat = item.price || 0;
+        const tutar = item.tutar || (miktar * birimFiyat);
+        const aciklama = (item.description || genelAciklama || 'Depolar Arası Sevk (012500)').replace(/'/g, "''");
+
+        sql += `
+          INSERT INTO STOK_HAREKETLERI (
+            sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
+            sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
+            sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
+            sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
+            sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
+            sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+            sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+            sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+            sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+            sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
+            sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+            sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
+            sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
+            sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+            sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_aciklama
+          ) VALUES (
+            NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
+            ${userNum}, GETDATE(), ${userNum}, GETDATE(),
+            '', '', '', 21, '17.05d', '12500',
+            '', '', '', 0, '', 0,
+            0, 0, @Tarih, 2, 6, 0, 2, '${targetSeri}',
+            @SiraNo, ${index}, '${bNo}', @Tarih, '${sKod}',
+            0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, '', 0, '', '',
+            0, 1, 1, 0, 1,
+            ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+            ${targetDepo.dep_no}, ${sourceDepo.dep_no}, @Tarih,
+            '', '', '',
+            '1899-12-30', 0, 0,
+            ${tutar}, 0, 0, 1, '${aciklama}'
+          );
+        `;
+      });
+
+      sql += `
+        COMMIT TRANSACTION;
+        SELECT 1 AS success, @SiraNo AS CreatedSira;
+      `;
+
+      await api.executeSql(sql);
+      sounds.playSuccess();
+      alert(`Depolar Arası Sevk Fişi (012500) Mikro ERP'ye başarıyla kaydedildi!\nEvrak No: ${targetSeri}-${evrakSira}\nKalem: ${items.length}`);
+      setItems([]);
+      setBelgeNo('');
+      setGenelAciklama('');
+      fetchNextSira();
+    } catch (err: any) {
+      sounds.playError();
+      alert(`Sevk Kayıt Hatası: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const totalMiktar = items.reduce((acc, curr) => acc + curr.miktar, 0);
+  const totalTutar = items.reduce((acc, curr) => acc + curr.tutar, 0);
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden select-none">
+      
+      {/* Top Warehouse Selection & Document Details Bar */}
+      <div className="p-4 bg-slate-900 border-b border-slate-800 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          
+          {/* Dual Warehouse Selector with Swap */}
+          <div className="flex items-center space-x-3 bg-slate-950 p-2 rounded-xl border border-slate-800">
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] uppercase font-bold text-rose-400">Çıkış Depo:</span>
+              <select
+                value={sourceDepo?.dep_no || ''}
+                onChange={(e) => {
+                  const s = warehouses.find(w => w.dep_no === Number(e.target.value));
+                  if (s) setSourceDepo(s);
+                }}
+                className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 outline-none"
+              >
+                {warehouses.map(w => (
+                  <option key={w.dep_no} value={w.dep_no}>[{w.dep_no}] {w.dep_adi}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleSwapWarehouses}
+              className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 flex items-center justify-center transition-colors border border-slate-700 shadow"
+              title="Depoları Değiştir"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] uppercase font-bold text-emerald-400">Giriş Depo:</span>
+              <select
+                value={targetDepo?.dep_no || ''}
+                onChange={(e) => {
+                  const s = warehouses.find(w => w.dep_no === Number(e.target.value));
+                  if (s) setTargetDepo(s);
+                }}
+                className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 outline-none"
+              >
+                {warehouses.map(w => (
+                  <option key={w.dep_no} value={w.dep_no}>[{w.dep_no}] {w.dep_adi}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Document Header Fields */}
+          <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-800 text-xs">
+            <span className="text-slate-400 font-medium">Seri:</span>
+            <input
+              type="text"
+              value={evrakSeri}
+              onChange={(e) => setEvrakSeri(e.target.value.toUpperCase())}
+              className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold font-mono text-white outline-none"
+            />
+            <span className="text-slate-400 font-medium">Sıra:</span>
+            <input
+              type="number"
+              value={evrakSira}
+              onChange={(e) => setEvrakSira(Number(e.target.value))}
+              className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-center font-bold font-mono text-white outline-none"
+            />
+            <span className="text-slate-400 font-medium ml-1">Belge No:</span>
+            <input
+              type="text"
+              value={belgeNo}
+              onChange={(e) => setBelgeNo(e.target.value)}
+              placeholder="Opsiyonel"
+              className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 placeholder-slate-600 outline-none"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleExportExcel}
+              disabled={items.length === 0}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition-colors disabled:opacity-40"
+            >
+              <FileDown className="w-4 h-4 text-emerald-400" />
+              <span>Excel</span>
+            </button>
+            <button
+              onClick={handleClearAll}
+              disabled={items.length === 0}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Temizle</span>
+            </button>
+            <button
+              onClick={handleSaveSevk}
+              disabled={items.length === 0 || isSubmitting}
+              className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 disabled:opacity-40"
+            >
+              <Send className="w-4 h-4" />
+              <span>{isSubmitting ? 'Kaydediliyor...' : 'Mikro’ya Kaydet (012500)'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Barcode Search Row */}
+        <div className="flex items-center space-x-3">
+          <div className="relative flex-1">
+            <Barcode className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={barcodeInputRef}
+              type="text"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddProduct(barcodeInput);
+                }
+              }}
+              placeholder="Sevk edilecek ürünün barkodunu okutun veya stok kodu girin..."
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-11 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
+              autoFocus
+            />
+          </div>
+          <button
+            onClick={() => handleAddProduct(barcodeInput)}
+            disabled={isLoading || !barcodeInput.trim()}
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors shadow-md disabled:opacity-50"
+          >
+            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <span>Ekle</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Bar */}
+      <div className="px-6 py-2.5 bg-slate-900/60 border-b border-slate-800/80 grid grid-cols-3 gap-4">
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Kalem</div>
+          <div className="text-base font-bold font-mono text-white">{items.length} Kalem</div>
+        </div>
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Sevk Adedi</div>
+          <div className="text-base font-bold font-mono text-emerald-400">{totalMiktar.toLocaleString('tr-TR')}</div>
+        </div>
+        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="text-[11px] text-slate-400 font-medium">Toplam Tutar</div>
+          <div className="text-base font-bold font-mono text-amber-400">
+            {totalTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+          </div>
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <div className="flex-1 p-6 overflow-hidden flex flex-col">
+        <div className="flex-1 bg-slate-900/80 rounded-xl border border-slate-800 overflow-hidden flex flex-col shadow-inner">
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-850 border-b border-slate-800 sticky top-0 z-10 text-slate-400 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-3 w-12 text-center">#</th>
+                  <th className="py-3 px-4">Stok Kodu</th>
+                  <th className="py-3 px-4">Ürün Adı</th>
+                  <th className="py-3 px-3">Barkod</th>
+                  <th className="py-3 px-3 text-right">Çıkış Depo Stok</th>
+                  <th className="py-3 px-3 text-right">Giriş Depo Stok</th>
+                  <th className="py-3 px-4 text-center w-36">Sevk Miktarı</th>
+                  <th className="py-3 px-3 text-right">Birim Fiyat</th>
+                  <th className="py-3 px-3 text-right">Tutar</th>
+                  <th className="py-3 px-3 text-center w-16">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-16 text-center text-slate-500 font-sans">
+                      <Truck className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
+                      <p className="text-sm">Sevk listesi boş.</p>
+                      <p className="text-xs text-slate-600 mt-1">Barkod okutarak iki depo arasında transfer edilecek ürünleri ekleyin.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2.5 px-3 text-center text-slate-500 font-sans">{idx + 1}</td>
+                      <td className="py-2.5 px-4 font-bold text-emerald-400 font-mono">{item.stock_code}</td>
+                      <td className="py-2.5 px-4 font-sans text-slate-200 max-w-xs truncate" title={item.stock_name}>
+                        {item.stock_name}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-400 font-mono">{item.barcode || '-'}</td>
+                      <td className="py-2.5 px-3 text-right text-rose-300 font-bold">
+                        {item.source_stock} <span className="text-[10px] text-slate-500 font-normal">{item.unit}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-teal-300 font-bold">
+                        {item.target_stock} <span className="text-[10px] text-slate-500 font-normal">{item.unit}</span>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, -1)}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            value={item.miktar}
+                            onChange={(e) => handleSetExactQuantity(item.id, e.target.value)}
+                            className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-bold text-white text-xs outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            onClick={() => handleUpdateQuantity(item.id, 1)}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-slate-300">
+                        {item.price.toFixed(2)} ₺
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-amber-300 font-bold">
+                        {item.tutar.toFixed(2)} ₺
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors"
+                          title="Kalemi Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+};
