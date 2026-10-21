@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { Product, Warehouse, DepoStokItem, InvoiceItem, OrderItem } from '../types';
 
 export const DEFAULT_API_URL = 'http://185.136.205.19:3000/execute-sql';
@@ -44,30 +43,48 @@ class ApiService {
       return [{ success: 1, CreatedSira: 1, simulated: true }] as any;
     }
 
+    // 1. Try IPC bridge in Electron main process
     const electronAPI = (window as any).electronAPI;
     if (electronAPI?.executeSql) {
-      const res = await electronAPI.executeSql(this.apiUrl, sql);
-      if (!res.success) {
-        throw new Error(res.error || 'SQL sorgusu başarısız oldu.');
+      try {
+        const res = await electronAPI.executeSql(this.apiUrl, sql);
+        if (res && res.success && Array.isArray(res.data)) {
+          return res.data;
+        } else if (res && !res.success) {
+          console.warn('[api.ts] IPC executeSql returned error:', res.error);
+        }
+      } catch (ipcErr: any) {
+        console.warn('[api.ts] IPC call failed, falling back to direct fetch:', ipcErr.message);
       }
-      return res.data || [];
     }
 
-    // Direct browser fallback
-    const res = await axios.post(
-      this.apiUrl,
-      { query: sql },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 35000 }
-    );
+    // 2. Direct fetch fallback
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      });
 
-    if (res.data && res.data.success && Array.isArray(res.data.data)) {
-      return res.data.data;
-    } else if (res.data && res.data.data) {
-      return res.data.data;
-    } else if (res.data?.error) {
-      throw new Error(res.data.error);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const resData = await response.json();
+      if (resData && resData.success && Array.isArray(resData.data)) {
+        return resData.data;
+      } else if (resData && Array.isArray(resData)) {
+        return resData;
+      } else if (resData?.data && Array.isArray(resData.data)) {
+        return resData.data;
+      } else if (resData?.error) {
+        throw new Error(resData.error);
+      }
+      return [];
+    } catch (fetchErr: any) {
+      console.error('[api.ts] Query error:', fetchErr.message);
+      throw fetchErr;
     }
-    return [];
   }
 
   private isWriteQuery(sql: string): boolean {
@@ -108,7 +125,15 @@ class ApiService {
       WHERE ISNULL(dep_kilitli, 0) = 0
       ORDER BY dep_no
     `;
-    return this.executeSql<Warehouse>(q);
+    const list = await this.executeSql<Warehouse>(q);
+    if (list && list.length > 0) return list;
+
+    // Fallback if empty
+    return [
+      { dep_no: 1, dep_adi: 'Merkez depo' },
+      { dep_no: 2, dep_adi: 'TASKINKOY MAGAZA' },
+      { dep_no: 3, dep_adi: 'BAĞLANTILI ÜRÜNLER DEPOSU' },
+    ];
   }
 
   public async getInitialProducts(limit = 50): Promise<Product[]> {

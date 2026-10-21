@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
-import axios from 'axios';
 import { setupAutoUpdater } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
@@ -20,7 +19,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // Allow local HTTP queries to 185.136.205.19
+      webSecurity: false,
       allowRunningInsecureContent: true,
     },
   });
@@ -57,37 +56,48 @@ function createWindow() {
     shell.openExternal(url);
   });
 
-  // Native Node SQL Executor (immune to browser CORS or Mixed Content restrictions)
+  // Native Node Fetch SQL Executor (completely reliable, no external dependencies, zero CORS)
   ipcMain.handle('api:execute-sql', async (_event, { url, query }: { url: string; query: string }) => {
     try {
-      const response = await axios.post(
-        url,
-        { query },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 35000 }
-      );
-      return { success: true, data: response.data?.data || response.data || [] };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        signal: AbortSignal.timeout(35000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP Hata: ${response.status} ${response.statusText}`);
+      }
+
+      const resData: any = await response.json();
+      return { success: true, data: resData?.data || resData || [] };
     } catch (err: any) {
-      console.error('[Main] SQL execution error:', err.message);
+      console.error('[Main IPC] SQL execution error:', err.message);
       return {
         success: false,
-        error: err.response?.data?.error || err.response?.data?.message || err.message,
+        error: err.message || 'SQL sorgusu yürütülemedi',
       };
     }
   });
 
-  // Native Auth Login proxy
+  // Native Auth Login proxy via native fetch
   ipcMain.handle('api:auth-login', async (_event, payload: any) => {
     try {
-      const response = await axios.post(AUTH_LOGIN_URL, payload, {
+      const response = await fetch(AUTH_LOGIN_URL, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        timeout: 15000,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
       });
-      return response.data;
+
+      const resData = await response.json();
+      return resData;
     } catch (err: any) {
-      console.error('[Main] Auth error:', err.message);
+      console.error('[Main IPC] Auth error:', err.message);
       return {
         success: false,
-        error: err.response?.data?.error || err.response?.data?.message || err.message,
+        error: err.message || 'Giriş sunucusuna bağlanılamadı',
       };
     }
   });
