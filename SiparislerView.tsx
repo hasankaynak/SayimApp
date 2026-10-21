@@ -437,8 +437,8 @@ export default function SiparislerView({
     try {
       if (dbRef.current) {
         const localProd: any = await dbRef.current.getFirstAsync(
-          'SELECT stock_code FROM products WHERE barcode = ?',
-          [data]
+          'SELECT stock_code FROM products WHERE barcode = ? OR UPPER(stock_code) = ?',
+          [data, data.toUpperCase()]
         );
         if (localProd && localProd.stock_code) {
           setSearchQuery(localProd.stock_code);

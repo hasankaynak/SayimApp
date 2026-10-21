@@ -1,6 +1,6 @@
 {
-  "version": "1.0.53",
-  "versionCode": 53,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.53/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.53\n• Mikro ERP Sipariş-Fatura Entegrasyon Düzeltmesi:\n  - Alınan siparişler faturalaştırıldığında sip_kapat_fl bayrağının kalıcı kapatılması engellendi (Mikro standart teslimat eşlemesine dönüştürüldü).\n  - Fatura Mikro'dan silindiğinde ilgili siparişin otomatik olarak tekrar 'Alınan Siparişler' listesine dönmesi sağlandı.\n  - UI/UX responsive hizalamaları ve tablet ortalama optimizasyonları tamamlandı."
+  "version": "1.0.54",
+  "versionCode": 54,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.54/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.54\n• Mikro ERP Sayım Entegrasyon & Kesinleştirme Düzeltmeleri:\n  - Sayım aktarımında STOK_HAREKETLERI çift giriş hatası kaldırıldı; ham sayımlar yalnızca SAYIM_SONUCLARI (071100) tablosuna aktarılacak şekilde standartlaştırıldı.\n  - Sayım sonuçları değerlendirme (071300) esnasında stok fazlası/virman hatası giderildi.\n  - Evrak numarası ilgili depo ve tarih bazında 1'den sıralı hesaplanacak şekilde düzeltildi.\n• Barkodsuz/Tanımsız Ürün Desteği:\n  - BARKOD_TANIMLARI tablosunda kaydı olmayan ürünler (REGAL.0148, REGAL.0152 vb.) için stok kodu otomatik barkod kabul edilerek tüm ekranlarda listelenmesi sağlandı.\n  - Arama alanlarına çoklu kelime, barkod ve stok kodu desteği entegre edildi."
 }

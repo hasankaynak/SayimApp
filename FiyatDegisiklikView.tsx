@@ -203,8 +203,8 @@ export default function FiyatDegisiklikView({
     if (db) {
       try {
         const res = await db.getAllAsync(
-          `SELECT barcode, stock_code, name, price, unit FROM products WHERE barcode = ? LIMIT 1`,
-          [scannedBarcode]
+          `SELECT barcode, stock_code, name, price, unit FROM products WHERE barcode = ? OR UPPER(stock_code) = ? LIMIT 1`,
+          [scannedBarcode, scannedBarcode.toUpperCase()]
         );
         if (res && res.length > 0) foundItem = res[0];
       } catch (e) {}
@@ -214,16 +214,16 @@ export default function FiyatDegisiklikView({
       try {
         const sql = `
           SELECT TOP 1 
-            ISNULL(bt.bar_kodu, '${scannedBarcode}') as barcode,
+            ISNULL(NULLIF(bt.bar_kodu, ''), s.sto_kod) as barcode,
             s.sto_kod as stock_code,
             s.sto_isim as name,
             s.sto_birim1_ad as unit,
             ISNULL(sfl.sfiyat_fiyati, 0) as price
-          FROM BARKOD_TANIMLARI bt WITH (NOLOCK)
-          INNER JOIN STOKLAR s WITH (NOLOCK) ON bt.bar_stokkodu = s.sto_kod
+          FROM STOKLAR s WITH (NOLOCK)
+          LEFT OUTER JOIN BARKOD_TANIMLARI bt WITH (NOLOCK) ON bt.bar_stokkodu = s.sto_kod AND bt.bar_iptal = 0
           LEFT OUTER JOIN STOK_SATIS_FIYAT_LISTELERI sfl WITH (NOLOCK) 
             ON s.sto_kod = sfl.sfiyat_stokkod AND sfl.sfiyat_listesirano = ${selectedFiyatNo}
-          WHERE bt.bar_kodu = '${scannedBarcode.replace(/'/g, "''")}'
+          WHERE bt.bar_kodu = '${scannedBarcode.replace(/'/g, "''")}' OR s.sto_kod = '${scannedBarcode.replace(/'/g, "''")}'
         `;
         const res = await axios.post(API_URL, { query: sql }, { timeout: 6000 });
         if (res.data?.data && res.data.data.length > 0) {

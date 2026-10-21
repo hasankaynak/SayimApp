@@ -233,7 +233,7 @@ export default function AlisFaturasiView({
       let foundProduct: any = null;
 
       if (db) {
-        foundProduct = await db.getFirstAsync('SELECT * FROM products WHERE barcode = ?', [clean]);
+        foundProduct = await db.getFirstAsync('SELECT * FROM products WHERE barcode = ? OR UPPER(stock_code) = ?', [clean, clean.toUpperCase()]);
       }
 
       // SQLite'ta bulunamazsa Mikro ERP'ye sor
@@ -241,15 +241,15 @@ export default function AlisFaturasiView({
         try {
           const q = `
             SELECT TOP 1 
-              bt.bar_kodu AS barcode,
+              ISNULL(NULLIF(bt.bar_kodu, ''), s.sto_kod) AS barcode,
               s.sto_kod AS stock_code,
               s.sto_isim AS name,
               ISNULL(sf.sfiyat_fiyati, 0) AS price,
               s.sto_birim1_ad AS unit
-            FROM BARKOD_TANIMLARI bt WITH (NOLOCK)
-            INNER JOIN STOKLAR s WITH (NOLOCK) ON s.sto_kod = bt.bar_stokkodu
+            FROM STOKLAR s WITH (NOLOCK)
+            LEFT JOIN BARKOD_TANIMLARI bt WITH (NOLOCK) ON s.sto_kod = bt.bar_stokkodu AND bt.bar_iptal = 0
             LEFT JOIN STOK_SATIS_FIYAT_LISTELERI sf WITH (NOLOCK) ON sf.sfiyat_stokkod = s.sto_kod AND sf.sfiyat_listesirano = 1
-            WHERE bt.bar_kodu = '${clean.replace(/'/g, "''")}';
+            WHERE bt.bar_kodu = '${clean.replace(/'/g, "''")}' OR s.sto_kod = '${clean.replace(/'/g, "''")}';
           `;
           const res = await axios.post(API_URL, { query: q }, { timeout: 8000 });
           if (res.data?.data?.[0]) {
