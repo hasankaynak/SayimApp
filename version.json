@@ -1,6 +1,6 @@
 {
-  "version": "1.0.55",
-  "versionCode": 55,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.55/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.55\n• Canlı Mikro ERP Yedek Barkod & Ürün Sorgulama:\n  - Sayım ve Fiyat Gör ekranlarında taranan veya yazılan barkod/stok kodu SQLite hafızasında bulunamazsa anında canlı olarak Mikro ERP'den sorgulanır ve otomatik hafızaya kaydedilir.\n  - Barkod tanımı yapılmamış veya sonradan eklenmiş ürünler de dahil tüm ürünler eksiksiz şekilde sayıma dahil edilir.\n• Sayım Kesinleştirme & Evrak Düzeltmeleri:\n  - Sayım sonuçları (071100) ham kayıtları korunarak Mikro ERP 071300 menüsünde çift hareket ve stok virman hatası tamamen engellendi.\n  - Evrak numaraları depo ve tarih bazında 1'den sıralı oluşturulur.\n• Otomatik Güncelleme İyileştirmesi:\n  - Android paket kurulumu için alternatif yükleyiciler ve doğrudan tarayıcı indirme desteği eklendi."
+  "version": "1.0.56",
+  "versionCode": 56,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.56/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.56\n📦 YENİ MODÜL: ÜRÜN ALIŞ FATURALARI & GÜNCEL STOKLAR\n• Ürün Seçimi & Kamera / Lazer Barkod Okuma:\n  - Barkod okutarak veya stok kodu/ürün adı aratarak doğrudan ilgili ürünün geçmiş alış faturalarına ulaşabilme.\n• Sağda Canlı Depo Stokları:\n  - Ürün kartının sağ tarafında tüm depoların güncel stok miktarları ve toplam mevcut stok anlık olarak listelenir.\n• Detaylı Alış Faturası Hareketleri:\n  - Faturanın yanında kaç adet gelmiş (vurgulu yeşil/kırmızı rozet) ve ne kadara gelmiş (birim alış fiyatı, döviz türü, iskonto, net tutar) net şekilde görüntülenir.\n  - Fatura evrak seri/sıra, belge numarası, fatura tarihi, giriş yapılan depo ve tedarikçi cari ünvanı yer alır.\n• KPI İstatistikleri & Filtreler:\n  - Toplam gelen miktar, son alış fiyatı, ortalama maliyet özet kutuları ve liste içi arama/filtreleme özellikleri eklendi."
 }
