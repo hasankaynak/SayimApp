@@ -1,6 +1,6 @@
 {
-  "version": "1.0.57",
-  "versionCode": 57,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.57/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Sayım ve Stok Mobil v1.0.57\n📦 SEVK & DEPO FİŞLERİ MODÜLÜ GELİŞTİRMELERİ\n• Geri Tuşu (Back Button) İyileştirmesi:\n  - Sevk ve tüm fiş sayfalarında ergonomik, dokunmatik alanı genişletilmiş (42x42), dokunsal geri butonu eklendi.\n  - Android donanım/hareket geri tuşu desteği eklendi; kamera, modallar ve kaydedilmemiş kalemler için veri kaybını önleyici onay mekanizması getirildi.\n• Tam Responsive & Esnek Tasarım:\n  - Küçük ekranlar (320px-375px), standart telefonlar ve tabletler için tam duyarlı düzen.\n  - Çıkış/Giriş Depo seçim kartında metin taşmaları giderildi, kompakt kod rozetleri eklendi.\n  - Evrak seri, sıra ve tarih alanları küçük ekranlarda sıkışmayacak şekilde otomatik esnek yapıya kavuşturuldu.\n  - Seçili ürün kartına ergonomik [-] ve [+] miktar butonları ile hızlı adet artırma çipleri eklendi.\n  - Tabletlerde geniş ekran deneyimini artıran düzen optimizasyonları yapıldı."
+  "version": "1.0.58",
+  "versionCode": 58,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.58/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Yönetimi v1.0.58\n• Masaüstü ve Mobil Senkronizasyon Güncellemesi (v1.0.58)\n• Masaüstü uygulamasında depo seçimleri ve ürün katalog sorguları Node yerel fetch API ile güçlendirildi.\n• Depo izinleri ve çoklu yetkilendirme filtreleri optimize edildi.\n• Ağ bağlantısı ve doğrudan sorgu güvenliği artırıldı."
 }

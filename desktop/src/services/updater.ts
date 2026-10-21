@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { GitHubRelease } from '../types';
 
-export const CURRENT_DESKTOP_VERSION = '1.0.57';
+export const CURRENT_DESKTOP_VERSION = '1.0.58';
 export const GITHUB_OWNER = 'hasankaynak';
 export const GITHUB_REPO = 'SayimApp';
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
@@ -105,7 +105,15 @@ export class UpdateService {
 
       const release = res.data;
       const latestTag = release.tag_name || release.name || '';
-      const hasNewer = isNewerVersion(latestTag, CURRENT_DESKTOP_VERSION);
+      let runningVersion = CURRENT_DESKTOP_VERSION;
+      if (electronAPI?.getVersion) {
+        try {
+          const v = await electronAPI.getVersion();
+          if (v) runningVersion = v;
+        } catch (_) {}
+      }
+
+      const hasNewer = isNewerVersion(latestTag, runningVersion);
 
       // Find Windows executable asset if any
       const exeAsset = release.assets?.find(a => 
