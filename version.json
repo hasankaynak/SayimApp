@@ -1,6 +1,6 @@
 {
-  "version": "1.0.58",
-  "versionCode": 58,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.58/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Yönetimi v1.0.58\n• Masaüstü ve Mobil Senkronizasyon Güncellemesi (v1.0.58)\n• Masaüstü uygulamasında depo seçimleri ve ürün katalog sorguları Node yerel fetch API ile güçlendirildi.\n• Depo izinleri ve çoklu yetkilendirme filtreleri optimize edildi.\n• Ağ bağlantısı ve doğrudan sorgu güvenliği artırıldı."
+  "version": "1.0.59",
+  "versionCode": 59,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.59/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Mobil v1.0.59\n• APK Sürüm Senkronizasyonu ve Güncelleme Döngüsü Düzeltmesi (v1.0.59)\n• Android derleme paketi ve dahili sürüm kodu 59 olarak tamamen yenilendi.\n• Sürekli güncelleme isteme sorunu giderildi."
 }

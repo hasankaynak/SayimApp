@@ -171,7 +171,7 @@ class ApiService {
       condition = `(bt.bar_kodu = '${clean}' OR s.sto_kod = '${clean}')`;
     } else {
       const words = clean.split(/\s+/).filter(Boolean);
-      const parts = words.map(w => `(s.sto_isim LIKE '%${w}%' OR s.sto_kod LIKE '%${w}%' OR bt.bar_kodu LIKE '%${w}%')`);
+      const parts = words.map(w => `(s.sto_isim COLLATE Turkish_CI_AI LIKE '%${w}%' OR s.sto_kod COLLATE Turkish_CI_AI LIKE '%${w}%' OR bt.bar_kodu COLLATE Turkish_CI_AI LIKE '%${w}%')`);
       condition = parts.join(' AND ');
     }
 
@@ -220,7 +220,7 @@ class ApiService {
       LEFT JOIN BARKOD_TANIMLARI bt WITH (NOLOCK) ON bt.bar_stokkodu = s.sto_kod AND bt.bar_iptal = 0
       LEFT JOIN STOK_SATIS_FIYAT_LISTELERI sfl WITH (NOLOCK) ON s.sto_kod = sfl.sfiyat_stokkod AND sfl.sfiyat_listesirano = 1
       LEFT JOIN STOK_SATIS_FIYAT_LISTELERI sfl2 WITH (NOLOCK) ON s.sto_kod = sfl2.sfiyat_stokkod AND sfl2.sfiyat_listesirano = 2
-      WHERE s.sto_iptal = 0 AND (bt.bar_kodu = '${clean}' OR s.sto_kod = '${clean}')
+      WHERE s.sto_iptal = 0 AND (bt.bar_kodu COLLATE Turkish_CI_AI = '${clean}' OR s.sto_kod COLLATE Turkish_CI_AI = '${clean}')
     `;
 
     const rows = await this.executeSql<Product>(q);

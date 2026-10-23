@@ -1,7 +1,7 @@
 {
   "name": "sayimapp-desktop",
   "productName": "MD Ticaret Depo & Sayım Sistemi",
-  "version": "1.0.58",
+  "version": "1.0.59",
   "description": "MD Ticaret Masaüstü Sayım, Sevk, Depo Fişleri ve Stok Yönetim Sistemi",
   "main": "dist-electron/main.js",
   "author": "Hasan Kaynak",
