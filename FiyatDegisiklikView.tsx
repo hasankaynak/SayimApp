@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
 import { executeSqlSafe } from './safeApi';
+import { buildMikroSfiyatInsert } from './mikroSqlDefaults';
 
 interface FiyatDegisiklikViewProps {
   isDark: boolean;
@@ -386,17 +387,14 @@ export default function FiyatDegisiklikView({
                   END
                   ELSE
                   BEGIN
-                    INSERT INTO STOK_SATIS_FIYAT_LISTELERI (
-                      sfiyat_Guid, sfiyat_DBCno, sfiyat_create_date, sfiyat_create_user,
-                      sfiyat_lastup_date, sfiyat_lastup_user, sfiyat_fileid, sfiyat_MainProgramNo, sfiyat_VersionNo, sfiyat_MenuNo,
-                      sfiyat_stokkod, sfiyat_listesirano, sfiyat_deposirano, sfiyat_odemeplan,
-                      sfiyat_birim_pntr, sfiyat_fiyati, sfiyat_doviz, sfiyat_degisti
-                    ) VALUES (
-                      NEWID(), 0, @Now, ${userNum},
-                      @Now, ${userNum}, 228, 21, '17.05d', '31200',
-                      '${sKod}', ${item.fiyat_no}, 0, 0,
-                      1, ${item.yeni_fiyat}, 0, 0
-                    );
+                    ${buildMikroSfiyatInsert({
+                      sfiyat_stokkod: sKod,
+                      sfiyat_listesirano: item.fiyat_no,
+                      sfiyat_fiyati: item.yeni_fiyat,
+                      sfiyat_create_user: userNum,
+                      sfiyat_lastup_user: userNum,
+                      sfiyat_MenuNo: '31200'
+                    })}
                   END
                 `;
               });

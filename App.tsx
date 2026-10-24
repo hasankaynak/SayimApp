@@ -47,6 +47,7 @@ import UrunAlisFaturalariView from './UrunAlisFaturalariView';
 import LoginView, { AuthSessionData } from './LoginView';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { executeSqlSafe, isWriteQuery, SAFE_TEST_MODE_ACTIVE } from './safeApi';
+import { buildMikroSfiyatInsert } from './mikroSqlDefaults';
 import { exportSayimToExcel, sanitizeFormulaInjection } from './exportUtils';
 import { parseQuantitySafe, sanitizeBarcode, isDuplicateScanTrigger } from './sayimUtils';
 
@@ -89,7 +90,7 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.61';
+const CURRENT_VERSION = '1.0.62';
 const CURRENT_VERSION_CODE = 61;
 
 const STOKLAR_COLS = [
@@ -1729,16 +1730,16 @@ export default function App() {
             );
           END
 
-          -- 3. STOK_SATIS_FIYAT_LISTELERI
-          INSERT INTO STOK_SATIS_FIYAT_LISTELERI (
-            sfiyat_Guid, sfiyat_DBCno, sfiyat_create_date, sfiyat_create_user, sfiyat_lastup_date, sfiyat_lastup_user,
-            sfiyat_fileid, sfiyat_stokkod, sfiyat_listesirano, sfiyat_deposirano, sfiyat_odemeplan, sfiyat_birim_pntr,
-            sfiyat_fiyati, sfiyat_doviz, sfiyat_deg_nedeni, sfiyat_primyuzdesi
-          ) VALUES (
-            NEWID(), 0, GETDATE(), ${userNum}, GETDATE(), ${userNum},
-            228, '${escapedCode}', 1, 0, 0, 1,
-            ${priceNum}, ${dovizInt}, 0, 0
-          );
+          -- 3. STOK_SATIS_FIYAT_LISTELERI (37 Kolon - Sifir NULL)
+          ${buildMikroSfiyatInsert({
+            sfiyat_stokkod: escapedCode,
+            sfiyat_listesirano: 1,
+            sfiyat_fiyati: priceNum,
+            sfiyat_doviz: dovizInt,
+            sfiyat_create_user: userNum,
+            sfiyat_lastup_user: userNum,
+            sfiyat_MenuNo: '11500'
+          })}
 
           COMMIT TRANSACTION;
           SELECT 1 AS success, 'KAYIT BASARIYLA OLUSTURULDU' AS message;

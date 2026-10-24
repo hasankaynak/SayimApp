@@ -20,6 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import { executeSqlSafe } from './safeApi';
+import { buildMikroSthInsert, buildMikroChaInsert } from './mikroSqlDefaults';
 import XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -747,36 +748,45 @@ export default function SiparislerView({
                 taxesByPntr[kdvPntr] = (taxesByPntr[kdvPntr] || 0) + kdv;
               });
 
+              const chaSql = buildMikroChaInsert({
+                cha_Guid: '@FatGuid',
+                cha_create_user: userNum,
+                cha_lastup_user: userNum,
+                cha_special1: 'MOBIL',
+                cha_MenuNo: '61190',
+                cha_evrak_tip: 63, // Satış Faturası
+                cha_evrakno_seri: cleanSeri,
+                cha_evrakno_sira: sira,
+                cha_satir_no: 0,
+                cha_tarihi: '@Tarih',
+                cha_tip: 0, // Borç (Alıcı borçlanır)
+                cha_cinsi: 6, // Fatura
+                cha_belge_no: '',
+                cha_belge_tarih: '@Tarih',
+                cha_aciklama: '',
+                cha_satici_kodu: selectedItems[0]?.SaticiKod || '',
+                cha_cari_cins: 0,
+                cha_kod: cariKod,
+                cha_ciro_cari_kodu: cariKod,
+                cha_srmrkkodu: selectedItems[0]?.SormerkKod || '',
+                cha_meblag: totalNet,
+                cha_aratoplam: totalBrut,
+                cha_ft_iskonto1: totalIskonto,
+                cha_vergi1: taxesByPntr[1] || 0,
+                cha_vergi2: taxesByPntr[2] || 0,
+                cha_vergi3: taxesByPntr[3] || 0,
+                cha_vergi4: taxesByPntr[4] || 0,
+                cha_vergi5: taxesByPntr[5] || 0,
+              });
+
               let sql = `
                 BEGIN TRANSACTION;
                 DECLARE @Now datetime = GETDATE();
                 DECLARE @Tarih datetime = '${cleanDate}';
                 DECLARE @FatGuid UNIQUEIDENTIFIER = NEWID();
 
-                -- 1. CARI HESAP HAREKETI (Fatura - cha_evrak_tip = 63, cha_cinsi = 6)
-                INSERT INTO CARI_HESAP_HAREKETLERI (
-                  cha_Guid, cha_DBCno, cha_SpecRecNo, cha_iptal, cha_fileid, cha_hidden, cha_kilitli, cha_degisti, cha_CheckSum,
-                  cha_create_user, cha_create_date, cha_lastup_user, cha_lastup_date,
-                  cha_special1, cha_special2, cha_special3, cha_MainProgramNo, cha_VersionNo, cha_MenuNo,
-                  cha_firmano, cha_subeno, cha_evrak_tip, cha_evrakno_seri, cha_evrakno_sira, cha_satir_no,
-                  cha_tarihi, cha_tip, cha_cinsi, cha_normal_Iade, cha_tpoz, cha_ticaret_turu, cha_belge_no, cha_belge_tarih,
-                  cha_aciklama, cha_satici_kodu, cha_cari_cins, cha_kod, cha_ciro_cari_kodu, cha_d_cins, cha_d_kur, cha_altd_kur,
-                  cha_grupno, cha_srmrkkodu, cha_meblag, cha_aratoplam, cha_vade,
-                  cha_projekodu, cha_EXIMkodu, cha_yat_tes_kodu, cha_kasa_hizkod, cha_karsisrmrkkodu,
-                  cha_ft_iskonto1, cha_ft_iskonto2,
-                  cha_vergi1, cha_vergi2, cha_vergi3, cha_vergi4, cha_vergi5
-                ) VALUES (
-                  @FatGuid, 0, 0, 0, 51, 0, 0, 0, 0,
-                  ${userNum}, @Now, ${userNum}, @Now,
-                  'MOBIL', '', '', 21, '17.05d', '61190',
-                  0, 0, 63, '${cleanSeri.replace(/'/g, "''")}', ${sira}, 0,
-                  @Tarih, 0, 6, 0, 0, 0, '', @Tarih,
-                  'Mobil Sipariş Faturalaştırma', '${(selectedItems[0]?.SaticiKod || '').replace(/'/g, "''")}', 0, '${cariKod}', '${cariKod}', 0, 1, 49.25,
-                  0, '${(selectedItems[0]?.SormerkKod || '').replace(/'/g, "''")}', ${totalNet.toFixed(2)}, ${totalBrut.toFixed(2)}, 0,
-                  '', '', '', '', '',
-                  ${totalIskonto.toFixed(2)}, 0,
-                  ${(taxesByPntr[1] || 0).toFixed(2)}, ${(taxesByPntr[2] || 0).toFixed(2)}, ${(taxesByPntr[3] || 0).toFixed(2)}, ${(taxesByPntr[4] || 0).toFixed(2)}, ${(taxesByPntr[5] || 0).toFixed(2)}
-                );
+                -- 1. CARI HESAP HAREKETI (185 KOLON, SIFIR NULL)
+                ${chaSql}
               `;
 
               selectedItems.forEach((it, idx) => {
@@ -793,33 +803,46 @@ export default function SiparislerView({
                 const sKod = (it.StokKodu || '').replace(/'/g, "''");
                 const sipGuidStr = it.sipGuid || '';
 
+                const sthSql = buildMikroSthInsert({
+                  sth_Guid: 'NEWID()',
+                  sth_create_user: userNum,
+                  sth_lastup_user: userNum,
+                  sth_special1: 'MOBIL',
+                  sth_MenuNo: '61190',
+                  sth_tarih: '@Tarih',
+                  sth_tip: 1, // Çıkış
+                  sth_cins: 0, // Mal
+                  sth_normal_iade: 0,
+                  sth_evraktip: 4, // Toptan/Perakende Satış Faturası
+                  sth_evrakno_seri: cleanSeri,
+                  sth_evrakno_sira: sira,
+                  sth_satirno: idx + 1,
+                  sth_belge_no: '',
+                  sth_belge_tarih: '@Tarih',
+                  sth_stok_kod: sKod,
+                  sth_miktar: qty,
+                  sth_miktar2: qty,
+                  sth_birim_pntr: 1,
+                  sth_birimfiyat: bFiyat,
+                  sth_tutar: brut,
+                  sth_iskonto1: satirIsk,
+                  sth_vergi_pntr: kdvPntr,
+                  sth_vergi: satirKdv,
+                  sth_giris_depo_no: depoNo,
+                  sth_cikis_depo_no: depoNo,
+                  sth_malkbl_sevk_tarihi: '@Tarih',
+                  sth_cari_srm_merkezi: it.SormerkKod || '',
+                  sth_stok_srm_merkezi: it.SormerkKod || '',
+                  sth_cari_kodu: cariKod,
+                  sth_plasiyer_kodu: it.SaticiKod || '',
+                  sth_sip_uid: sipGuidStr ? `'${sipGuidStr}'` : "'00000000-0000-0000-0000-000000000000'",
+                  sth_fat_uid: '@FatGuid',
+                  sth_aciklama: '',
+                });
+
                 sql += `
-                  -- 2. STOK HAREKETI (Satır ${idx + 1} - sth_evraktip = 4, sth_tip = 1 Çıkış)
-                  INSERT INTO STOK_HAREKETLERI (
-                    sth_Guid, sth_DBCno, sth_SpecRECno, sth_iptal, sth_fileid, sth_hidden, sth_kilitli, sth_degisti, sth_checksum,
-                    sth_create_user, sth_create_date, sth_lastup_user, sth_lastup_date,
-                    sth_special1, sth_special2, sth_special3, sth_MainProgramNo, sth_VersionNo, sth_MenuNo,
-                    sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip,
-                    sth_evrakno_seri, sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
-                    sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
-                    sth_iskonto1, sth_vergi_pntr, sth_vergi,
-                    sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-                    sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_cari_kodu, sth_plasiyer_kodu,
-                    sth_proje_kodu, sth_exim_kodu, sth_parti_kodu, sth_aciklama,
-                    sth_sip_uid, sth_fat_uid, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru
-                  ) VALUES (
-                    NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
-                    ${userNum}, @Now, ${userNum}, @Now,
-                    'MOBIL', '', '', 21, '17.05d', '61190',
-                    0, 0, @Tarih, 1, 0, 0, 4,
-                    '${cleanSeri.replace(/'/g, "''")}', ${sira}, ${idx}, '', @Tarih, '${sKod}',
-                    ${qty}, ${qty}, 1, ${bFiyat.toFixed(4)}, ${brut.toFixed(2)},
-                    ${satirIsk.toFixed(2)}, ${kdvPntr}, ${satirKdv.toFixed(2)},
-                    ${depoNo}, ${depoNo}, @Tarih,
-                    '${(it.SormerkKod || '').replace(/'/g, "''")}', '${(it.SormerkKod || '').replace(/'/g, "''")}', '${cariKod}', '${(it.SaticiKod || '').replace(/'/g, "''")}',
-                    '', '', '', '',
-                    ${sipGuidStr ? `'${sipGuidStr}'` : '00000000-0000-0000-0000-000000000000'}, @FatGuid, 0, 1, 49.25, 0, 1
-                  );
+                  -- 2. STOK HAREKETI (148 KOLON, SIFIR NULL)
+                  ${sthSql}
                 `;
 
                 if (sipGuidStr) {

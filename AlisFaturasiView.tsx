@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Modal from 'react-native-modal';
 import axios from 'axios';
 import { executeSqlSafe } from './safeApi';
+import { buildMikroSthInsert, buildMikroChaInsert } from './mikroSqlDefaults';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView } from 'expo-camera';
 
@@ -483,27 +484,71 @@ export default function AlisFaturasiView({
           onPress: async () => {
             setIsSavingFatura(true);
             try {
-              const itemsSql = faturaCart.map((item, idx) => `
-                INSERT INTO STOK_HAREKETLERI (
-                  sth_Guid, sth_DBCno, sth_create_date, sth_create_user, sth_lastup_date, sth_lastup_user,
-                  sth_fileid, sth_MainProgramNo, sth_VersionNo, sth_MenuNo, sth_Hash,
-                  sth_tarih, sth_tip, sth_cins, sth_evraktip, sth_evrakno_seri, sth_evrakno_sira,
-                  sth_satirno, sth_belge_no, sth_belge_tarih, sth_cari_kodu, sth_stok_kod,
-                  sth_giris_depo_no, sth_cikis_depo_no, sth_miktar, sth_miktar2, sth_birim_pntr,
-                  sth_birimfiyat, sth_tutar, sth_vergi_pntr, sth_vergi, sth_fat_uid,
-                  sth_firmano, sth_subeno, sth_stok_srm_merkezi, sth_proje_kodu, sth_normal_iade,
-                  sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_malkbl_sevk_tarihi
-                ) VALUES (
-                  NEWID(), 0, @Now, ${userNum}, @Now, ${userNum},
-                  16, 21, '17.05d', '62205', '0',
-                  @Tarih, 0, 0, 3, '${cleanSeri}', @NextSira,
-                  ${idx + 1}, '${cleanBelgeNo}', @Tarih, '${cleanCariKod}', '${item.stock_code.replace(/'/g, "''")}',
-                  ${depoNo}, ${depoNo}, ${item.miktar}, ${item.miktar}, 1,
-                  ${item.birim_fiyat}, ${item.tutar}, ${item.kdv_pntr}, ${item.kdv_tutari}, @FatGuid,
-                  0, 0, '', '', 0,
-                  0, 1, 49.25, 0, 1, @Tarih
-                );
-              `).join('\n');
+              // KDV Dağılımı Hesaplama
+              const taxesByPntr: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+              faturaCart.forEach(item => {
+                const pntr = item.kdv_pntr || 5;
+                taxesByPntr[pntr] = (taxesByPntr[pntr] || 0) + (item.kdv_tutari || 0);
+              });
+
+              // 1. STOK HAREKETLERİ (148 Kolon, Sıfır NULL Garantili)
+              const itemsSql = faturaCart.map((item, idx) => buildMikroSthInsert({
+                sth_Guid: 'NEWID()',
+                sth_create_user: userNum,
+                sth_lastup_user: userNum,
+                sth_MenuNo: '62205',
+                sth_tarih: '@Tarih',
+                sth_tip: 0, // Giriş
+                sth_cins: 0, // Mal
+                sth_normal_iade: 0,
+                sth_evraktip: 3, // Alış Faturası
+                sth_evrakno_seri: cleanSeri,
+                sth_evrakno_sira: '@NextSira',
+                sth_satirno: idx + 1,
+                sth_belge_no: cleanBelgeNo,
+                sth_belge_tarih: '@Tarih',
+                sth_cari_kodu: cleanCariKod,
+                sth_stok_kod: item.stock_code,
+                sth_giris_depo_no: parseInt(depoNo, 10) || 1,
+                sth_cikis_depo_no: parseInt(depoNo, 10) || 1,
+                sth_miktar: item.miktar,
+                sth_miktar2: item.miktar,
+                sth_birim_pntr: 1,
+                sth_birimfiyat: item.birim_fiyat,
+                sth_tutar: item.tutar,
+                sth_vergi_pntr: item.kdv_pntr,
+                sth_vergi: item.kdv_tutari,
+                sth_fat_uid: '@FatGuid',
+                sth_malkbl_sevk_tarihi: '@Tarih',
+                sth_aciklama: '',
+              })).join('\n');
+
+              // 2. CARİ HESAP HAREKETLERİ (185 Kolon, Sıfır NULL Garantili)
+              const chaSql = buildMikroChaInsert({
+                cha_Guid: '@FatGuid',
+                cha_create_user: userNum,
+                cha_lastup_user: userNum,
+                cha_MenuNo: '62205',
+                cha_evrak_tip: 0, // 0: Alış Faturası
+                cha_evrakno_seri: cleanSeri,
+                cha_evrakno_sira: '@NextSira',
+                cha_satir_no: 0,
+                cha_tarihi: '@Tarih',
+                cha_tip: 1, // Alacak (Satıcı alacaklanır)
+                cha_cinsi: 6, // Fatura
+                cha_belge_no: cleanBelgeNo,
+                cha_belge_tarih: '@Tarih',
+                cha_kod: cleanCariKod,
+                cha_ciro_cari_kodu: cleanCariKod,
+                cha_meblag: genelToplam,
+                cha_aratoplam: araToplam,
+                cha_vergi1: taxesByPntr[1] || 0,
+                cha_vergi2: taxesByPntr[2] || 0,
+                cha_vergi3: taxesByPntr[3] || 0,
+                cha_vergi4: taxesByPntr[4] || 0,
+                cha_vergi5: taxesByPntr[5] || 0,
+                cha_aciklama: '',
+              });
 
               const saveQ = `
                 BEGIN TRANSACTION;
@@ -520,27 +565,11 @@ export default function AlisFaturasiView({
                     WHERE sth_evrakno_seri = '${cleanSeri}' AND sth_evraktip = 3;
                   END
 
-                  -- 1. STOK HAREKETLERİ (KALEMLER)
+                  -- 1. STOK HAREKETLERİ (KALEMLER - 148 KOLON)
                   ${itemsSql}
 
-                  -- 2. CARİ HESAP HAREKETLERİ (FATURA BAŞLIĞI)
-                  INSERT INTO CARI_HESAP_HAREKETLERI (
-                    cha_Guid, cha_DBCno, cha_create_date, cha_create_user, cha_lastup_date, cha_lastup_user,
-                    cha_fileid, cha_MainProgramNo, cha_VersionNo, cha_MenuNo, cha_Hash,
-                    cha_tarihi, cha_tip, cha_cinsi, cha_evrak_tip, cha_evrakno_seri, cha_evrakno_sira,
-                    cha_satir_no, cha_belge_no, cha_belge_tarih, cha_kod, cha_ciro_cari_kodu,
-                    cha_meblag, cha_aratoplam,
-                    cha_firmano, cha_subeno, cha_srmrkkodu, cha_projekodu,
-                    cha_d_cins, cha_d_kur, cha_altd_kur
-                  ) VALUES (
-                    @FatGuid, 0, @Now, ${userNum}, @Now, ${userNum},
-                    51, 21, '17.05d', '62205', '0',
-                    @Tarih, 1, 6, 0, '${cleanSeri}', @NextSira,
-                    0, '${cleanBelgeNo}', @Tarih, '${cleanCariKod}', '${cleanCariKod}',
-                    ${genelToplam.toFixed(2)}, ${araToplam.toFixed(2)},
-                    0, 0, '', '',
-                    0, 1, 49.25
-                  );
+                  -- 2. CARİ HESAP HAREKETLERİ (FATURA BAŞLIĞI - 185 KOLON)
+                  ${chaSql}
 
                   COMMIT TRANSACTION;
                   SELECT 1 AS success, @NextSira AS saved_sira, 'FATURA BASARIYLA MIKROYA ISLENDI' AS message;
