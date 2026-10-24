@@ -1,6 +1,6 @@
 {
-  "version": "1.0.60",
-  "versionCode": 60,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.60/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Mobil v1.0.60\n• Sayım ekranında ergonomik buton düzeni:\n  - 'SEPETE EKLE / SAYIMA DAHİL ET' butonu doğrudan adet çipleri altına alındı.\n  - Sayım Notu / Açıklama kutusu butonun altına kaydırıldı; hızlı sayım akışı hızlandırıldı.\n• Kararlılık ve performans optimizasyonları."
+  "version": "1.0.61",
+  "versionCode": 61,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.61/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Mobil v1.0.61\n• Mikro ERP Sevk ve Depo Fişleri Onarımı:\n  - Dün gerçekleştirilen sevk işleminde Mikro ERP'de hataya yol açan NULL sütun problemi veritabanında onarıldı.\n  - Mobil ve Masaüstü Sevk (012500), Depo Çıkış (012160), Depo Giriş (012250) ve Virman (012810) işlemlerinde tüm Mikro ERP zorunlu sütunları eksiksiz (0 NULL) doldurulacak şekilde mimari olarak güvenceye alındı.\n  - Boş veya geçersiz stok satırlarının fişe girmesini engelleyen otomatik doğrulama katmanı eklendi."
 }

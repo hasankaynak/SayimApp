@@ -439,8 +439,9 @@ export default function DepoFisleriView({
 
     // 0. Depolar Arası Sevk Fişi (012500)
     if (activeTab === 'sevk') {
-      if (cartItems.length === 0) {
-        Alert.alert('Fiş Boş', 'Lütfen transfer edilecek en az bir ürün ekleyin.');
+      const validItems = cartItems.filter(i => i && i.stock_code && i.stock_code.trim() !== '' && (Number(i.miktar) || 0) > 0);
+      if (validItems.length === 0) {
+        Alert.alert('Fiş Boş', 'Lütfen transfer edilecek geçerli ürün ve miktarlar ekleyin.');
         return;
       }
       if (sevkSourceDepo?.depo_no === sevkTargetDepo?.depo_no) {
@@ -468,9 +469,9 @@ export default function DepoFisleriView({
             AND sth_evrakno_sira = @SiraNo 
             AND sth_tip = 2 AND sth_cins = 6;\n`;
 
-        cartItems.forEach((item, index) => {
+        validItems.forEach((item, index) => {
           const sKod = item.stock_code.replace(/'/g, "''");
-          const miktar = item.miktar;
+          const miktar = Number(item.miktar) || 1;
           const birimFiyat = item.price || 0;
           const tutar = birimFiyat * miktar;
           const aciklama = (item.description || genelAciklama || 'Depolar Arası Sevk Fişi').replace(/'/g, "''");
@@ -489,10 +490,22 @@ export default function DepoFisleriView({
               sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
               sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
               sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6,
+              sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4,
+              sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik,
+              sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid,
               sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
-              sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
-              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no, sth_aciklama
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no,
+              sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu,
+              sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl,
+              sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu,
+              sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu,
+              sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3,
+              sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5,
+              sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl,
+              sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu,
+              sth_tevkifat_sifirlandi_fl
             ) VALUES (
               NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
               ${userNum}, @Now, ${userNum}, @Now,
@@ -505,10 +518,22 @@ export default function DepoFisleriView({
               0, 0, 0, '', 0, '', '',
               0, 1, 1, 0, 1,
               ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0,
+              0, 0, 0, 0, 0,
+              0, '${aciklama}', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
               ${sevkTargetDepo?.depo_no || 2}, ${sevkSourceDepo?.depo_no || 1}, @Tarih,
+              '', '', '1899-12-30', 0, 0,
+              ${tutar}, 0, 0, 1,
+              '', 0, '00000000-0000-0000-0000-000000000000', '', '',
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 1, 0, 0,
+              0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '',
               '', '', '',
-              '1899-12-30', 0, 0,
-              ${tutar}, 0, 0, 1, '${aciklama}'
+              0, 0, 0, 0, 0,
+              0, 0, 0, 0, @Tarih, 0,
+              0, 1, '', '',
+              0
             );
           `;
         });
@@ -522,8 +547,8 @@ export default function DepoFisleriView({
         if (saveRes.data?.data) {
           playSound('success');
           Alert.alert(
-            '🛡️ Test Modu (ERP Koruması)',
-            `Depolar Arası Sevk Fişi (012500) test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nÇıkış Deposu: ${sevkSourceDepo?.depo_adi}\nGiriş Deposu: ${sevkTargetDepo?.depo_adi}\nToplam Kalem: ${cartItems.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
+            '🚀 Mikro ERP Aktarımı Başarılı',
+            `Depolar Arası Sevk Fişi (012500) başarıyla Mikro ERP sistemine işlendi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nÇıkış Deposu: ${sevkSourceDepo?.depo_adi}\nGiriş Deposu: ${sevkTargetDepo?.depo_adi}\nToplam Kalem: ${validItems.length}`,
             [{ text: 'Tamam' }]
           );
           setCartItems([]);
@@ -544,8 +569,9 @@ export default function DepoFisleriView({
 
     // 1. Sayım Çıkışı (012160) veya Sayım Girişi (012250)
     if (activeTab === 'cikis' || activeTab === 'giris') {
-      if (cartItems.length === 0) {
-        Alert.alert('Fiş Boş', 'Lütfen en az bir ürün ekleyin.');
+      const validItems = cartItems.filter(i => i && i.stock_code && i.stock_code.trim() !== '' && (Number(i.miktar) || 0) > 0);
+      if (validItems.length === 0) {
+        Alert.alert('Fiş Boş', 'Lütfen geçerli miktar ve stok koduna sahip en az bir ürün ekleyin.');
         return;
       }
 
@@ -569,9 +595,11 @@ export default function DepoFisleriView({
           DECLARE @SiraNo int = ${finalSira};
         `;
 
-        cartItems.forEach((item, index) => {
+        validItems.forEach((item, index) => {
           const sKod = item.stock_code.replace(/'/g, "''");
-          const miktar = item.miktar;
+          const miktar = Number(item.miktar) || 1;
+          const birimFiyat = item.price || 0;
+          const tutar = birimFiyat * miktar;
           const aciklama = (item.description || genelAciklama || (isCikis ? 'Sayım Çıkışı' : 'Sayım Girişi')).replace(/'/g, "''");
           const cikisDepo = isCikis ? depoNo : 1;
           const girisDepo = isCikis ? 1 : depoNo;
@@ -584,11 +612,27 @@ export default function DepoFisleriView({
               sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
               sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
               sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+              sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+              sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+              sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+              sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
               sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6,
+              sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4,
+              sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik,
+              sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid,
               sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
-              sth_fis_tarihi, sth_fis_sirano, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru,
-              sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_aciklama
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no,
+              sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu,
+              sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl,
+              sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu,
+              sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu,
+              sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3,
+              sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5,
+              sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl,
+              sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu,
+              sth_tevkifat_sifirlandi_fl
             ) VALUES (
               NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
               ${userNum}, @Now, ${userNum}, @Now,
@@ -596,11 +640,27 @@ export default function DepoFisleriView({
               '', '', '', 0, '', 0,
               0, 0, @Tarih, ${tipVal}, ${cinsVal}, 0, ${evrakTipVal}, '${targetSeri.replace(/'/g, "''")}',
               @SiraNo, ${index}, '', @Tarih, '${sKod}',
-              ${miktar}, ${miktar}, 1, 0, 0,
+              0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, '', 0, '', '',
+              0, 1, 1, 0, 1,
+              ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0,
+              0, 0, 0, 0, 0,
+              0, '${aciklama}', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
               ${girisDepo}, ${cikisDepo}, @Tarih,
+              '', '', '1899-12-30', 0, 0,
+              ${tutar}, 0, 0, 1,
+              '', 0, '00000000-0000-0000-0000-000000000000', '', '',
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 1, 0, 0,
+              0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '',
               '', '', '',
-              '1899-12-30', 0, 0, 1, 50,
-              0, 1, '${aciklama}'
+              0, 0, 0, 0, 0,
+              0, 0, 0, 0, @Tarih, 0,
+              0, 1, '', '',
+              0
             );
           `;
         });
@@ -615,8 +675,8 @@ export default function DepoFisleriView({
           playSound('success');
           const fisAdi = isCikis ? 'Sayım Çıkışı Depo Fişi (012160)' : 'Sayım Girişi Depo Fişi (012250)';
           Alert.alert(
-            '🛡️ Test Modu (ERP Koruması)',
-            `${fisAdi} test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri}-${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Kalem: ${cartItems.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
+            '🚀 Mikro ERP Aktarımı Başarılı',
+            `${fisAdi} başarıyla Mikro ERP sistemine işlendi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Kalem: ${validItems.length}`,
             [{ text: 'Tamam' }]
           );
           setCartItems([]);
@@ -635,8 +695,9 @@ export default function DepoFisleriView({
 
     // 2. Stok Virman Fişi (012810) - Çift Satırlı Kayıt
     else if (activeTab === 'virman') {
-      if (virmanPairs.length === 0) {
-        Alert.alert('Virman Listesi Boş', 'Lütfen en az bir adet virman eşleştirmesi ekleyin.');
+      const validPairs = virmanPairs.filter(p => p && p.source_stock_code && p.target_stock_code && (parseFloat(p.miktar as any) || 0) > 0);
+      if (validPairs.length === 0) {
+        Alert.alert('Virman Listesi Boş', 'Lütfen en az bir adet geçerli virman eşleştirmesi ekleyin.');
         return;
       }
 
@@ -654,10 +715,10 @@ export default function DepoFisleriView({
           DECLARE @SiraNo int = ${finalSira};
         `;
 
-        virmanPairs.forEach((pair, pairIdx) => {
+        validPairs.forEach((pair, pairIdx) => {
           const srcKod = pair.source_stock_code.replace(/'/g, "''");
           const trgKod = pair.target_stock_code.replace(/'/g, "''");
-          const miktar = pair.miktar;
+          const miktar = parseFloat(pair.miktar as any) || 1;
           const lineAciklama = (pair.description || genelAciklama || 'Stok Virman Fişi').replace(/'/g, "''");
           const satirCikis = pairIdx * 2;
           const satirGiris = pairIdx * 2 + 1;
@@ -671,11 +732,27 @@ export default function DepoFisleriView({
               sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
               sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
               sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+              sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+              sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+              sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+              sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
               sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6,
+              sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4,
+              sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik,
+              sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid,
               sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
-              sth_fis_tarihi, sth_fis_sirano, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru,
-              sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_aciklama
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no,
+              sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu,
+              sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl,
+              sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu,
+              sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu,
+              sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3,
+              sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5,
+              sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl,
+              sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu,
+              sth_tevkifat_sifirlandi_fl
             ) VALUES (
               NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
               ${userNum}, @Now, ${userNum}, @Now,
@@ -683,11 +760,27 @@ export default function DepoFisleriView({
               '', '', '', 0, '', 0,
               0, 0, @Tarih, 1, 3, 0, 6, '${targetSeri.replace(/'/g, "''")}',
               @SiraNo, ${satirCikis}, '', @Tarih, '${srcKod}',
+              0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, '', 0, '', '',
+              0, 1, 1, 0, 1,
               ${miktar}, ${miktar}, 1, 0, 0,
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0,
+              0, 0, 0, 0, 0,
+              0, '${lineAciklama}', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
               ${depoNo}, ${depoNo}, @Tarih,
+              '', '', '1899-12-30', 0, 0,
+              0, 0, 0, 1,
+              '', 0, '00000000-0000-0000-0000-000000000000', '', '',
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 1, 0, 0,
+              0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '',
               '', '', '',
-              '1899-12-30', 0, 0, 1, 50,
-              0, 1, '${lineAciklama}'
+              0, 0, 0, 0, 0,
+              0, 0, 0, 0, @Tarih, 0,
+              0, 1, '', '',
+              0
             );
 
             -- Satır 2: Hedef Ürün Girişi (sth_tip = 0, sth_cins = 3, sth_evraktip = 6)
@@ -698,11 +791,27 @@ export default function DepoFisleriView({
               sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
               sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
               sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+              sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+              sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+              sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+              sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
               sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+              sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6,
+              sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4,
+              sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik,
+              sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid,
               sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_proje_kodu,
-              sth_fis_tarihi, sth_fis_sirano, sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru,
-              sth_stok_doviz_cinsi, sth_stok_doviz_kuru, sth_aciklama
+              sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+              sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no,
+              sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu,
+              sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl,
+              sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu,
+              sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu,
+              sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3,
+              sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5,
+              sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl,
+              sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu,
+              sth_tevkifat_sifirlandi_fl
             ) VALUES (
               NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
               ${userNum}, @Now, ${userNum}, @Now,
@@ -710,11 +819,27 @@ export default function DepoFisleriView({
               '', '', '', 0, '', 0,
               0, 0, @Tarih, 0, 3, 0, 6, '${targetSeri.replace(/'/g, "''")}',
               @SiraNo, ${satirGiris}, '', @Tarih, '${trgKod}',
+              0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, '', 0, '', '',
+              0, 1, 1, 0, 1,
               ${miktar}, ${miktar}, 1, 0, 0,
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0,
+              0, 0, 0, 0, 0,
+              0, '${lineAciklama}', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
               ${depoNo}, ${depoNo}, @Tarih,
+              '', '', '1899-12-30', 0, 0,
+              0, 0, 0, 1,
+              '', 0, '00000000-0000-0000-0000-000000000000', '', '',
+              0, 0, 0, 0, 0, 0,
+              0, 0, 0, 1, 0, 0,
+              0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '',
               '', '', '',
-              '1899-12-30', 0, 0, 1, 50,
-              0, 1, '${lineAciklama}'
+              0, 0, 0, 0, 0,
+              0, 0, 0, 0, @Tarih, 0,
+              0, 1, '', '',
+              0
             );
           `;
         });
@@ -728,8 +853,8 @@ export default function DepoFisleriView({
         if (saveRes.data?.data) {
           playSound('success');
           Alert.alert(
-            '🛡️ Test Modu (ERP Koruması)',
-            `Stok Virman Fişi (012810) test modunda başarıyla simüle edildi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Virman Çifti: ${virmanPairs.length}\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.`,
+            '🚀 Mikro ERP Aktarımı Başarılı',
+            `Stok Virman Fişi (012810) başarıyla Mikro ERP sistemine işlendi.\n\nEvrak No: ${targetSeri ? targetSeri + '-' : ''}${finalSira}\nDepo: ${activeDepo?.depo_adi || depoNo}\nToplam Virman Çifti: ${validPairs.length}`,
             [{ text: 'Tamam' }]
           );
           setVirmanPairs([]);

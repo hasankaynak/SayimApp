@@ -186,13 +186,18 @@ export const DepoFisleriView: React.FC = () => {
       alert('Fişte ürün bulunmuyor.');
       return;
     }
+    const validItems = items.filter(i => i && i.stock_code && i.stock_code.trim() !== '' && i.miktar > 0);
+    if (validItems.length === 0) {
+      alert('Fiş listesinde geçerli ürün bulunamadı. Lütfen ürün kodunu ve miktarını kontrol ediniz.');
+      return;
+    }
     if (!sourceDepo) {
       alert('Depo seçilmelidir.');
       return;
     }
 
     const fisLabel = fisType === 'cikis' ? 'Depo Çıkış Fişi (012160)' : fisType === 'giris' ? 'Depo Giriş Fişi (012250)' : 'Depolar Arası Virman (012810)';
-    if (!confirm(`${items.length} kalem ${fisLabel} kaydedilecek. Onaylıyor musunuz?`)) {
+    if (!confirm(`${validItems.length} kalem ${fisLabel} kaydedilecek. Onaylıyor musunuz?`)) {
       return;
     }
 
@@ -208,11 +213,12 @@ export const DepoFisleriView: React.FC = () => {
 
       let sql = `
         BEGIN TRANSACTION;
+        DECLARE @Now DATETIME = GETDATE();
         DECLARE @Tarih DATETIME = CAST(CONVERT(VARCHAR(10), GETDATE(), 120) AS DATETIME);
         DECLARE @SiraNo INT = ${evrakSira};
       `;
 
-      items.forEach((item, index) => {
+      validItems.forEach((item, index) => {
         const sKod = item.stock_code.replace(/'/g, "''");
         const miktar = item.miktar;
         const birimFiyat = item.price || 0;
@@ -230,19 +236,55 @@ export const DepoFisleriView: React.FC = () => {
             sth_MikroSpecial1, sth_MikroSpecial2, sth_MikroSpecial3, sth_ExternalProgramType, sth_ExternalProgramId, sth_Hash,
             sth_firmano, sth_subeno, sth_tarih, sth_tip, sth_cins, sth_normal_iade, sth_evraktip, sth_evrakno_seri,
             sth_evrakno_sira, sth_satirno, sth_belge_no, sth_belge_tarih, sth_stok_kod,
+            sth_isk_mas1, sth_isk_mas2, sth_isk_mas3, sth_isk_mas4, sth_isk_mas5, sth_isk_mas6, sth_isk_mas7, sth_isk_mas8, sth_isk_mas9, sth_isk_mas10,
+            sth_sat_iskmas1, sth_sat_iskmas2, sth_sat_iskmas3, sth_sat_iskmas4, sth_sat_iskmas5, sth_sat_iskmas6, sth_sat_iskmas7, sth_sat_iskmas8, sth_sat_iskmas9, sth_sat_iskmas10,
+            sth_pos_satis, sth_promosyon_fl, sth_cari_cinsi, sth_cari_kodu, sth_cari_grup_no, sth_isemri_gider_kodu, sth_plasiyer_kodu,
+            sth_har_doviz_cinsi, sth_har_doviz_kuru, sth_alt_doviz_kuru, sth_stok_doviz_cinsi, sth_stok_doviz_kuru,
             sth_miktar, sth_miktar2, sth_birim_pntr, sth_birimfiyat, sth_tutar,
+            sth_iskonto1, sth_iskonto2, sth_iskonto3, sth_iskonto4, sth_iskonto5, sth_iskonto6,
+            sth_masraf1, sth_masraf2, sth_masraf3, sth_masraf4,
+            sth_vergi_pntr, sth_vergi, sth_masraf_vergi_pntr, sth_masraf_vergi, sth_netagirlik,
+            sth_odeme_op, sth_aciklama, sth_sip_uid, sth_fat_uid,
             sth_giris_depo_no, sth_cikis_depo_no, sth_malkbl_sevk_tarihi,
-            sth_aciklama
+            sth_cari_srm_merkezi, sth_stok_srm_merkezi, sth_fis_tarihi, sth_fis_sirano, sth_vergisiz_fl,
+            sth_maliyet_ana, sth_maliyet_alternatif, sth_maliyet_orjinal, sth_adres_no,
+            sth_parti_kodu, sth_lot_no, sth_kons_uid, sth_proje_kodu, sth_exim_kodu,
+            sth_otv_pntr, sth_otv_vergi, sth_brutagirlik, sth_disticaret_turu, sth_otvtutari, sth_otvvergisiz_fl,
+            sth_oiv_pntr, sth_oiv_vergi, sth_oivvergisiz_fl, sth_fiyat_liste_no, sth_oivtutari, sth_Tevkifat_turu,
+            sth_nakliyedeposu, sth_nakliyedurumu, sth_yetkili_uid, sth_taxfree_fl, sth_ilave_edilecek_kdv, sth_ismerkezi_kodu,
+            sth_HareketGrupKodu1, sth_HareketGrupKodu2, sth_HareketGrupKodu3,
+            sth_Olcu1, sth_Olcu2, sth_Olcu3, sth_Olcu4, sth_Olcu5,
+            sth_FormulMiktarNo, sth_FormulMiktar, sth_eirs_senaryo, sth_eirs_tipi, sth_teslim_tarihi, sth_matbu_fl,
+            sth_satis_fiyat_doviz_cinsi, sth_satis_fiyat_doviz_kuru, sth_eticaret_kanal_kodu, sth_bagli_ithalat_kodu,
+            sth_tevkifat_sifirlandi_fl
           ) VALUES (
             NEWID(), 0, 0, 0, 16, 0, 0, 0, 0,
-            ${userNum}, GETDATE(), ${userNum}, GETDATE(),
+            ${userNum}, @Now, ${userNum}, @Now,
             '', '', '', 21, '17.05d', '${menuNo}',
             '', '', '', 0, '', 0,
             0, 0, @Tarih, ${sthTip}, 6, 0, 1, '${targetSeri}',
             @SiraNo, ${index}, '${bNo}', @Tarih, '${sKod}',
+            0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, '', 0, '', '',
+            0, 1, 1, 0, 1,
             ${miktar}, ${miktar}, 1, ${birimFiyat}, ${tutar},
+            0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0, 0,
+            0, '${aciklama}', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
             ${girisDepo}, ${cikisDepo}, @Tarih,
-            '${aciklama}'
+            '', '', '1899-12-30', 0, 0,
+            ${tutar}, 0, 0, 1,
+            '', 0, '00000000-0000-0000-0000-000000000000', '', '',
+            0, 0, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 0,
+            0, 0, '00000000-0000-0000-0000-000000000000', 0, 0, '',
+            '', '', '',
+            0, 0, 0, 0, 0,
+            0, 0, 0, 0, @Tarih, 0,
+            0, 1, '', '',
+            0
           );
         `;
       });
