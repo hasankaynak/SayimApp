@@ -1,6 +1,6 @@
 {
-  "version": "1.0.59",
-  "versionCode": 59,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.59/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Mobil v1.0.59\n• APK Sürüm Senkronizasyonu ve Güncelleme Döngüsü Düzeltmesi (v1.0.59)\n• Android derleme paketi ve dahili sürüm kodu 59 olarak tamamen yenilendi.\n• Sürekli güncelleme isteme sorunu giderildi."
+  "version": "1.0.60",
+  "versionCode": 60,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.60/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Depo, Sevk ve Sayım Mobil v1.0.60\n• Sayım ekranında ergonomik buton düzeni:\n  - 'SEPETE EKLE / SAYIMA DAHİL ET' butonu doğrudan adet çipleri altına alındı.\n  - Sayım Notu / Açıklama kutusu butonun altına kaydırıldı; hızlı sayım akışı hızlandırıldı.\n• Kararlılık ve performans optimizasyonları."
 }

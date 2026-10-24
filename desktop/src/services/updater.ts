@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { GitHubRelease } from '../types';
 
-export const CURRENT_DESKTOP_VERSION = '1.0.59';
+export const CURRENT_DESKTOP_VERSION = '1.0.60';
 export const GITHUB_OWNER = 'hasankaynak';
 export const GITHUB_REPO = 'SayimApp';
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
