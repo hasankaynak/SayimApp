@@ -223,7 +223,7 @@ export const DepoFisleriView: React.FC = () => {
         const miktar = item.miktar;
         const birimFiyat = item.price || 0;
         const tutar = item.tutar || (miktar * birimFiyat);
-        const aciklama = (item.description || genelAciklama || fisLabel).replace(/'/g, "''");
+        const aciklama = (item.description || genelAciklama || '').replace(/'/g, "''");
 
         const girisDepo = fisType === 'giris' ? sourceDepo.dep_no : fisType === 'virman' ? (targetDepo?.dep_no || 2) : 0;
         const cikisDepo = fisType === 'cikis' ? sourceDepo.dep_no : fisType === 'virman' ? sourceDepo.dep_no : 0;

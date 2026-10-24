@@ -245,7 +245,7 @@ export const SevkView: React.FC = () => {
         const miktar = item.miktar;
         const birimFiyat = item.price || 0;
         const tutar = item.tutar || (miktar * birimFiyat);
-        const aciklama = (item.description || genelAciklama || 'Depolar Arası Sevk (012500)').replace(/'/g, "''");
+        const aciklama = (item.description || genelAciklama || '').replace(/'/g, "''");
 
         sql += `
           INSERT INTO STOK_HAREKETLERI (

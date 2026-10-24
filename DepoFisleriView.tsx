@@ -474,7 +474,7 @@ export default function DepoFisleriView({
           const miktar = Number(item.miktar) || 1;
           const birimFiyat = item.price || 0;
           const tutar = birimFiyat * miktar;
-          const aciklama = (item.description || genelAciklama || 'Depolar Arası Sevk Fişi').replace(/'/g, "''");
+          const aciklama = (item.description || genelAciklama || '').replace(/'/g, "''");
           const bNo = (matbuBelgeNo || '').trim().replace(/'/g, "''");
 
           sql += `
@@ -600,7 +600,7 @@ export default function DepoFisleriView({
           const miktar = Number(item.miktar) || 1;
           const birimFiyat = item.price || 0;
           const tutar = birimFiyat * miktar;
-          const aciklama = (item.description || genelAciklama || (isCikis ? 'Sayım Çıkışı' : 'Sayım Girişi')).replace(/'/g, "''");
+          const aciklama = (item.description || genelAciklama || '').replace(/'/g, "''");
           const cikisDepo = isCikis ? depoNo : 1;
           const girisDepo = isCikis ? 1 : depoNo;
 
@@ -719,7 +719,7 @@ export default function DepoFisleriView({
           const srcKod = pair.source_stock_code.replace(/'/g, "''");
           const trgKod = pair.target_stock_code.replace(/'/g, "''");
           const miktar = parseFloat(pair.miktar as any) || 1;
-          const lineAciklama = (pair.description || genelAciklama || 'Stok Virman Fişi').replace(/'/g, "''");
+          const lineAciklama = (pair.description || genelAciklama || '').replace(/'/g, "''");
           const satirCikis = pairIdx * 2;
           const satirGiris = pairIdx * 2 + 1;
 
