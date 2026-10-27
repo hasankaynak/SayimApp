@@ -42,6 +42,7 @@ yarn-error.*
 
 # build artifacts & temporary logs
 *.apk
+*.idsig
 *.log
 build_log*
 test*

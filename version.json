@@ -1,6 +1,6 @@
 {
-  "version": "1.0.62",
-  "versionCode": 62,
-  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.62/SayimApp.apk",
-  "releaseNotes": "MD Ticaret Depo, Sevk, Sipariş ve Alış Faturası Mobil v1.0.62\n• Mikro ERP Entegrasyon Güvenliği (Sıfır NULL Standardı):\n  - Sevkteki gibi Mikro ERP desktop çökmesine yol açabilecek tüm riskli INSERT noktaları detaylı denetlendi.\n  - Alış Faturası (Mal Kabul - 62205) STOK_HAREKETLERI (148 kolon) ve CARI_HESAP_HAREKETLERI (185 kolon) sıfır NULL garantili şablona yükseltildi.\n  - Sipariş Faturalaştırma (61190) STOK_HAREKETLERI (148 kolon) ve CARI_HESAP_HAREKETLERI (185 kolon) sıfır NULL garantili şablona yükseltildi.\n  - Fiyat Değişiklikleri ve Yeni Stok Açılışında STOK_SATIS_FIYAT_LISTELERI tablosu 37 kolon eksiksiz şablonla güvenceye alındı.\n  - Sayım (071100) veritabanı incelendi, 53.586 sayım kaydı doğrulandı, sıfır NULL ile çalıştığı teyit edildi."
+  "version": "1.0.63",
+  "versionCode": 63,
+  "url": "https://github.com/hasankaynak/SayimApp/releases/download/v1.0.63/SayimApp.apk",
+  "releaseNotes": "MD Ticaret Depo ve Sayım Mobil v1.0.63\n• Mikro ERP Yazma Koruması & Güvenlik Güncellemesi:\n  - Ürün isim düzenleme alanı (UPDATE STOKLAR) güvenlik amacıyla kaldırıldı.\n  - Sayım tamamlama ekranındaki 'Mikro'ya Aktar' seçeneği kaldırılarak sayım yalnızca güvenli 'Excel Paylaş (.xlsx)' ve 'Telefona Kaydet (Taslak)' moduna alındı.\n  - Sayım geçmişi yedeklerindeki doğrudan aktarım butonu kaldırıldı, doğrudan 'Excel Paylaş' butonu eklendi.\n  - Tanımsız barkod ekranındaki yeni stok kartı ve barkod eşleştirme butonları gizlendi."
 }

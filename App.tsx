@@ -90,8 +90,8 @@ const GITHUB_REPO = 'SayimApp';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 const GITHUB_RAW_VERSION_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/version.json`;
 const FALLBACK_UPDATE_URL = 'http://185.136.205.19:3000/updates/version.json';
-const CURRENT_VERSION = '1.0.62';
-const CURRENT_VERSION_CODE = 61;
+const CURRENT_VERSION = '1.0.63';
+const CURRENT_VERSION_CODE = 63;
 
 const STOKLAR_COLS = [
   'sto_Guid','sto_DBCno','sto_SpecRECno','sto_iptal','sto_fileid','sto_hidden','sto_kilitli','sto_degisti','sto_checksum','sto_create_user','sto_create_date','sto_lastup_user','sto_lastup_date','sto_special1','sto_special2','sto_special3','sto_MainProgramNo','sto_VersionNo','sto_MenuNo','sto_MikroSpecial1','sto_MikroSpecial2','sto_MikroSpecial3','sto_ExternalProgramType','sto_ExternalProgramId','sto_Hash','sto_kod','sto_isim','sto_kisa_ismi','sto_yabanci_isim','sto_sat_cari_kod','sto_cins','sto_doviz_cinsi','sto_detay_takip','sto_birim1_ad','sto_birim1_katsayi','sto_birim1_agirlik','sto_birim1_en','sto_birim1_boy','sto_birim1_yukseklik','sto_birim1_dara','sto_birim2_ad','sto_birim2_katsayi','sto_birim2_agirlik','sto_birim2_en','sto_birim2_boy','sto_birim2_yukseklik','sto_birim2_dara','sto_birim3_ad','sto_birim3_katsayi','sto_birim3_agirlik','sto_birim3_en','sto_birim3_boy','sto_birim3_yukseklik','sto_birim3_dara','sto_birim4_ad','sto_birim4_katsayi','sto_birim4_agirlik','sto_birim4_en','sto_birim4_boy','sto_birim4_yukseklik','sto_birim4_dara','sto_muh_kod','sto_muh_Iade_kod','sto_muh_sat_muh_kod','sto_muh_satIadmuhkod','sto_muh_sat_isk_kod','sto_muh_aIiskmuhkod','sto_muh_satmalmuhkod','sto_yurtdisi_satmuhk','sto_ilavemasmuhkod','sto_yatirimtesmuhkod','sto_depsatmuhkod','sto_depsatmalmuhkod','sto_bagortsatmuhkod','sto_bagortsatIadmuhkod','sto_bagortsatIskmuhkod','sto_satfiyfarkmuhkod','sto_yurtdisisatmalmuhkod','sto_bagortsatmalmuhkod','sto_sifirbedsatmalmuhkod','sto_ihrackayitlisatismuhkod','sto_ihrackayitlisatismaliyetimuhkod','sto_karorani','sto_min_stok','sto_siparis_stok','sto_max_stok','sto_ver_sip_birim','sto_al_sip_birim','sto_siparis_sure','sto_perakende_vergi','sto_toptan_vergi','sto_yer_kod','sto_elk_etk_tipi','sto_raf_etiketli','sto_etiket_bas','sto_satis_dursun','sto_siparis_dursun','sto_malkabul_dursun','sto_malkabul_gun1','sto_malkabul_gun2','sto_malkabul_gun3','sto_malkabul_gun4','sto_malkabul_gun5','sto_malkabul_gun6','sto_malkabul_gun7','sto_siparis_gun1','sto_siparis_gun2','sto_siparis_gun3','sto_siparis_gun4','sto_siparis_gun5','sto_siparis_gun6','sto_siparis_gun7','sto_iskon_yapilamaz','sto_tasfiyede','sto_alt_grup_no','sto_kategori_kodu','sto_urun_sorkod','sto_altgrup_kod','sto_anagrup_kod','sto_uretici_kodu','sto_sektor_kodu','sto_reyon_kodu','sto_muhgrup_kodu','sto_ambalaj_kodu','sto_marka_kodu','sto_model_kodu','sto_sezon_kodu','sto_hammadde_kodu','sto_prim_kodu','sto_kalkon_kodu','sto_paket_kodu','sto_pozisyonbayrak_kodu','sto_mkod_artik','sto_kasa_tarti_fl','sto_miktarondalikli_fl','sto_pasif_fl','sto_eksiyedusebilir_fl','sto_GtipNo','sto_puan','sto_komisyon_hzmkodu','sto_komisyon_orani','sto_otvuygulama','sto_otvtutar','sto_otvliste','sto_otvbirimi','sto_prim_orani','sto_garanti_sure','sto_garanti_sure_tipi','sto_iplik_Ne_no','sto_standartmaliyet','sto_kanban_kasa_miktari','sto_oivuygulama','sto_zraporu_stoku_fl','sto_maxiskonto_orani','sto_detay_takibinde_depo_kontrolu_fl','sto_tamamlayici_kodu','sto_oto_barkod_acma_sekli','sto_oto_barkod_kod_yapisi','sto_KasaIskontoOrani','sto_KasaIskontoTutari','sto_gelirpayi','sto_oivtutar','sto_oivturu','sto_giderkodu','sto_oivvergipntr','sto_Tevkifat_turu','sto_SKT_fl','sto_terazi_SKT','sto_RafOmru','sto_KasadaTaksitlenebilir_fl','sto_ufrsfark_kod','sto_iade_ufrsfark_kod','sto_yurticisat_ufrsfark_kod','sto_satiade_ufrsfark_kod','sto_satisk_ufrsfark_kod','sto_alisk_ufrsfark_kod','sto_satmal_ufrsfark_kod','sto_yurtdisisat_ufrsfark_kod','sto_ilavemas_ufrsfark_kod','sto_yatirimtes_ufrsfark_kod','sto_depsat_ufrsfark_kod','sto_depsatmal_ufrsfark_kod','sto_bagortsat_ufrsfark_kod','sto_bagortsatiade_ufrsfark_kod','sto_bagortsatisk_ufrsfark_kod','sto_satfiyfark_ufrsfark_kod','sto_yurtdisisatmal_ufrsfark_kod','sto_bagortsatmal_ufrsfark_kod','sto_sifirbedsatmal_ufrsfark_kod','sto_uretimmaliyet_ufrsfark_kod','sto_uretimkapasite_ufrsfark_kod','sto_degerdusuklugu_ufrs_kod','sto_halrusumyudesi','sto_webe_gonderilecek_fl','sto_min_stok_belirleme_gun','sto_sip_stok_belirleme_gun','sto_max_stok_belirleme_gun','sto_sev_bel_opr_degerlendime_fl','sto_otv_tevkifat_turu','sto_kay_plan_degerlendir','sto_CRM_sistemine_aktar_fl','sto_yerli_yabanci','sto_mensei','sto_oto_parti_lot_kod_fl','sto_efat_sinif_kodu','sto_efat_sinif_listesi','sto_efat_sinif_versiyonu','sto_utssisteminegonderilsin_fl','sto_posetbeyannamekonusu_fl','sto_STT_oncesi_kaldirma','sto_toplam_rafomru','sto_fiyat_kasada_belirlenir_fl','sto_franchise_siparis_dursun','sto_GEKAP','sto_GEKAP_birim','sto_resim_url','sto_GEKAP_depozitoonaykodu','sto_cabuk_bozulabilen_urun_fl','sto_satin_alma_talep_birim','sto_bagimsiz_miktar_takip_fl','sto_varyant_detayli_fl1','sto_varyant_detayli_fl2','sto_varyant_detayli_fl3','sto_varyant_detayli_fl4','sto_varyant_detayli_fl5','sto_varyant_kod_arr1','sto_varyant_kod_arr2','sto_varyant_kod_arr3','sto_varyant_kod_arr4','sto_varyant_kod_arr5','sto_urun_niteligi','sto_kuresel_urun_numarasi','sto_yerlilikorani','sto_karsi_program_kodu','sto_lotnoyapartikodugonder_fl'
@@ -559,63 +559,12 @@ export default function App() {
   };
 
   const openEditNameModal = () => {
-    if (!product || !product.stock_code || product.stock_code === '---') return;
-    setEditNameInput(product.name || '');
-    setEditNameModalVisible(true);
+    Alert.alert("Bilgi", "Ürün ismi değişikliği güvenlik amacıyla devre dışı bırakılmıştır.");
   };
 
   const handleUpdateProductName = async () => {
-    const trimmed = editNameInput.trim();
-    if (!trimmed) {
-      Alert.alert('Uyarı', 'Ürün adı boş olamaz.');
-      return;
-    }
-    if (!product || !product.stock_code || product.stock_code === '---') {
-      Alert.alert('Hata', 'Geçerli bir ürün seçilmedi.');
-      return;
-    }
-
-    setIsUpdatingName(true);
-    try {
-      const userNum = parseInt(mikroUserNo, 10) || 7;
-      const escapedName = trimmed.replace(/'/g, "''");
-      const escapedCode = product.stock_code.replace(/'/g, "''");
-      const q = `UPDATE STOKLAR SET sto_isim = '${escapedName}', sto_lastup_date = GETDATE(), sto_lastup_user = ${userNum} WHERE sto_kod = '${escapedCode}'; SELECT 1 AS result_fix;`;
-      
-      const response = await executeSqlSafe(API_URL, q, { timeout: 15000 });
-      if (!response.data?.success && response.data?.error) {
-        throw new Error(response.data.error);
-      }
-
-      const db = dbRef.current;
-      if (db) {
-        await db.runAsync(
-          'UPDATE products SET name = ?, name_normalized = ? WHERE stock_code = ?',
-          [trimmed, normalizeText(trimmed), product.stock_code]
-        );
-      }
-
-      setProduct((prev: any) => prev ? { ...prev, name: trimmed, name_normalized: normalizeText(trimmed) } : null);
-      setSearchResults((prev: any[]) => prev.map(p => p.stock_code === product.stock_code ? { ...p, name: trimmed, name_normalized: normalizeText(trimmed) } : p));
-      setActiveCart((prev: any[]) => {
-        const updated = prev.map(item => item.stock_code === product.stock_code ? { ...item, name: trimmed } : item);
-        saveCartToStorage(updated);
-        return updated;
-      });
-
-      const activeUserObj = mikroUsersList.find(u => String(u.KULLANICI_NO) === String(mikroUserNo));
-      const activeUserName = activeUserObj ? activeUserObj.KULLANICI_ADI : `Kullanıcı ${mikroUserNo}`;
-
-      setEditNameModalVisible(false);
-      Alert.alert(
-        'Test / Güvenli Mod',
-        `Ürün ismi yerel SQLite veritabanında güncellendi.\n\n🛡️ Mikro ERP yazma koruması devrede olduğu için ana veritabanına yazılmadı.\nKullanıcı: ${activeUserName} (ID: ${userNum})`
-      );
-    } catch (err: any) {
-      Alert.alert('Güncelleme Hatası', err.response?.data?.error || err.message || 'İsim güncellenemedi.');
-    } finally {
-      setIsUpdatingName(false);
-    }
+    setEditNameModalVisible(false);
+    setIsUpdatingName(false);
   };
 
   useEffect(() => {
@@ -2090,6 +2039,12 @@ export default function App() {
     }
   };
   const sendBackupToMikro = async (backupItem: any): Promise<boolean> => {
+    Alert.alert("Bilgi", "Mikro ERP veri aktarımı güvenlik amacıyla devre dışı bırakılmıştır. Lütfen 'Excel Paylaş' seçeneğini kullanınız.");
+    return false;
+
+    Alert.alert("Bilgi", "Mikro ERP veri aktarımı güvenlik amacıyla devre dışı bırakılmıştır. Lütfen 'Excel Paylaş' seçeneğini kullanınız.");
+    return false;
+
     let mikroAktarimHataMesaji = '';
     try {
       if (!backupItem.cart_data) return false;
@@ -2318,16 +2273,7 @@ export default function App() {
               ToastAndroid.show("Yerel yedeklere kaydedildi.", ToastAndroid.LONG);
             }
           },
-          {
-            text: "🚀 Mikro'ya Aktar",
-            onPress: async () => {
-              const backupObj = await saveBackupToDb();
-              if (backupObj) {
-                await sendBackupToMikro(backupObj);
-              }
-              finishAndClear();
-            }
-          }
+
         ]
       );
     } catch (e: any) {
@@ -4464,41 +4410,7 @@ export default function App() {
             </View>
           </TouchableOpacity>
 
-          {/* CARD 6 (Full Width Hero): YENİ STOK KARTI OLUŞTUR */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              if (!hasPerm('ACTION_NEW_STOCK')) {
-                Alert.alert('Yetkisiz Erişim', 'Yeni Stok Kartı Oluşturma yetkiniz bulunmamaktadır.');
-                return;
-              }
-              !isSyncing && openNewCardModal();
-            }}
-            disabled={isSyncing}
-            style={styles.reportHeroCard}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 6 }}>
-              <View style={[styles.reportIconBox, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
-                <Ionicons name="cube" size={22} color="#FF6B00" />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <Text style={styles.reportHeroTitle} numberOfLines={1}>YENİ STOK KARTI OLUŞTUR</Text>
-                  <View style={[styles.reportTrendBadge, { backgroundColor: 'rgba(255, 107, 0, 0.12)' }]}>
-                    <Ionicons name="flash" size={11} color="#FF6B00" />
-                    <Text style={[styles.reportTrendText, { color: '#FF6B00' }]}>Canlı ERP</Text>
-                  </View>
-                </View>
-                <Text style={styles.reportHeroSub} numberOfLines={1} ellipsizeMode="tail">
-                  Mikro ERP ve Telefonda Anında Stok & Barkod Tanımla
-                </Text>
-              </View>
-            </View>
-
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255, 107, 0, 0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ionicons name="arrow-forward" size={18} color="#FF6B00" />
-            </View>
-          </TouchableOpacity>
+          {/* CARD 6: YENİ STOK KARTI OLUŞTUR GİZLENDİ */}
 
           {/* CARD 7 (Full Width Hero): ALIŞ FATURASI (MAL KABUL) */}
           <TouchableOpacity
@@ -5008,23 +4920,26 @@ export default function App() {
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <TouchableOpacity
-                          onPress={() => {
-                            Alert.alert(
-                              "Mikro ERP'ye Aktar",
-                              `${item.backup_date} tarihli fiş (${item.item_count} ürün) Mikro ERP'ye aktarılacaktır. Onaylıyor musunuz?`,
-                              [
-                                { text: 'İptal', style: 'cancel' },
-                                {
-                                  text: 'Aktar',
-                                  onPress: () => sendBackupToMikro(item)
-                                }
-                              ]
-                            );
+                          onPress={async () => {
+                            try {
+                              const parsedCart = JSON.parse(item.cart_data);
+                              if (parsedCart.length > 0) {
+                                await exportSayimToExcel({
+                                  cart: parsedCart,
+                                  depoAdi: parsedCart[0].depo_adi || selectedDepo?.depo_adi,
+                                  depoNo: parsedCart[0].depo_no || selectedDepo?.depo_no,
+                                  userName: userName || 'Kullanıcı',
+                                  isSevk: parsedCart[0].is_sevk || false
+                                });
+                              }
+                            } catch (e: any) {
+                              Alert.alert('Hata', 'Excel oluşturulamadı: ' + e.message);
+                            }
                           }}
                           style={{
-                            backgroundColor: item.mikro_sent === 1 ? (isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2') : (isDark ? 'rgba(255,107,0,0.15)' : '#FFF3EB'),
+                            backgroundColor: isDark ? 'rgba(0,174,120,0.15)' : '#E6F7F2',
                             borderWidth: 1,
-                            borderColor: item.mikro_sent === 1 ? '#00AE78' : '#FF6B00',
+                            borderColor: '#00AE78',
                             padding: 8,
                             paddingHorizontal: 10,
                             borderRadius: 10,
@@ -5034,9 +4949,9 @@ export default function App() {
                             gap: 4
                           }}
                         >
-                          <Ionicons name={item.mikro_sent === 1 ? "checkmark-circle" : "cloud-upload-outline"} size={13} color={item.mikro_sent === 1 ? "#00AE78" : "#FF6B00"} />
-                          <Text style={{ color: item.mikro_sent === 1 ? "#00AE78" : "#FF6B00", fontSize: 11, fontWeight: 'bold' }}>
-                            {item.mikro_sent === 1 ? "TEKRAR AKTAR" : "AKTAR"}
+                          <Ionicons name="share-outline" size={13} color="#00AE78" />
+                          <Text style={{ color: '#00AE78', fontSize: 11, fontWeight: 'bold' }}>
+                            EXCEL PAYLAŞ
                           </Text>
                         </TouchableOpacity>
 
@@ -5763,26 +5678,7 @@ export default function App() {
                           Stok Kodu: {product.stock_code}
                         </Text>
                       </View>
-                      {product.stock_code && product.stock_code !== '---' && (
-                        <TouchableOpacity
-                          onPress={openEditNameModal}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 6,
-                            paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            borderRadius: 12,
-                            backgroundColor: styles.colors.secondarySoft,
-                            borderWidth: 1.5,
-                            borderColor: styles.colors.secondary,
-                            flexShrink: 0
-                          }}
-                        >
-                          <Ionicons name="pencil" size={16} color={styles.colors.secondary} />
-                          <Text style={{ color: styles.colors.secondary, fontSize: 13, fontWeight: '800' }}>İsmi Düzenle</Text>
-                        </TouchableOpacity>
-                      )}
+{/* Ismi Duzenle Butonu Devre Disi */}
                     </View>
 
                     {/* STITCH CLEAN PRICE BOX */}
@@ -5863,25 +5759,11 @@ export default function App() {
                     {/* NOT FOUND NOTIFICATION */}
                     {product.name === 'Ürün Bulunamadı' && (
                       <View style={{ marginTop: 10, gap: 8 }}>
-                        <TouchableOpacity
-                          style={[styles.modalSubmit, { backgroundColor: '#FF6B00', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
-                          onPress={() => {
-                            const barcode = product.barcode;
-                            setProduct(null);
-                            openNewCardModal(barcode);
-                          }}
-                        >
-                          <Ionicons name="add-circle" size={20} color="#fff" />
-                          <Text style={styles.modalSubmitText}>BU BARKOD İÇİN YENİ KART AÇ</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.modalSubmit, { backgroundColor: '#00AE78', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
-                          onPress={() => setShowBarkodIsleModal(true)}
-                        >
-                          <Ionicons name="link" size={18} color="#fff" />
-                          <Text style={styles.modalSubmitText}>BARKOD İŞLE (EŞLEŞTİR)</Text>
-                        </TouchableOpacity>
+                        <View style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2', padding: 12, borderRadius: 12, alignItems: 'center' }}>
+                          <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+                            Bu barkod sistemde kayıtlı değildir.
+                          </Text>
+                        </View>
 
                         <TouchableOpacity
                           style={[styles.modalSubmit, { backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}
